@@ -18,6 +18,7 @@ from pushtoo.keys import KeySender, describe
 from pushtoo.midi.router import MidiRouter
 from pushtoo.modes.base import Mode
 from pushtoo.modes.browse import BrowseMode
+from pushtoo.modes.chord import SCENE_BUTTONS
 from pushtoo.modes.knobs import KnobsMode
 from pushtoo.modes.mix import MixMode
 from pushtoo.modes.play import PlayMode
@@ -43,6 +44,7 @@ PLAY_BUTTONS = {
     c.BUTTON_ACCENT,
     c.BUTTON_OCTAVE_UP,
     c.BUTTON_OCTAVE_DOWN,
+    *SCENE_BUTTONS,  # Chord layout extensions
 }
 
 log = logging.getLogger(__name__)
@@ -341,8 +343,9 @@ class App:
         colors[c.BUTTON_BROWSE] = "white" if self.mode is self.browse else "dark_gray"
         for button in LATER_MODES:
             colors[button] = "black"
-        for button in PLAY_BUTTONS | {c.BUTTON_SCALE}:
+        for button in (PLAY_BUTTONS - set(SCENE_BUTTONS)) | {c.BUTTON_SCALE}:
             colors.setdefault(button, "dark_gray")
+        colors |= self.play.scene_colors()  # extensions stay visible from any mode
         colors[c.BUTTON_SHIFT] = "white" if self.shift else "dark_gray"
         colors[c.BUTTON_STOP] = "white" if self.shift else "black"
         colors[c.BUTTON_UNDO] = "dark_gray"

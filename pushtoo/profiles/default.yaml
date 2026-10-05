@@ -12,6 +12,7 @@ output: Pushtoo Out
 play:
   keyboard: {channel: 1, output: Pushtoo Out}
   drums: {channel: 10, output: Pushtoo Out}
+  chord: {channel: 2, bass_channel: 3, output: Pushtoo Out}
   velocity_curve: Linear   # Linear, Soft or Hard
   strip: Pitch bend        # Pitch bend or Mod wheel
 

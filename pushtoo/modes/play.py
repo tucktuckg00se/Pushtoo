@@ -1,5 +1,5 @@
-"""Play mode (PRD F2, F15, F19, F22): Keyboard and Drums layouts, the scale selector,
-velocity curves, Accent and the touch strip. Pure logic; the router does the I/O.
+"""Play mode (PRD F2, F12, F15, F19, F22): Keyboard, Drums and Chord layouts, the scale
+selector, velocity curves, Accent and the touch strip. Pure logic; the router does the I/O.
 
 Pad callbacks run on the MIDI input thread, so they send first and do nothing else
 expensive. Everything the screen needs is computed in view().
@@ -10,8 +10,10 @@ from dataclasses import dataclass, field
 
 from push2_python import constants as c
 
+from pushtoo.chords import EXTENSIONS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
+from pushtoo.modes.chord import SCENE_BUTTONS, ChordPlayer
 from pushtoo.music import (
     BANK_SIZE,
     DRUM_HIGHEST_START,
@@ -68,7 +70,15 @@ class PlayMode(Mode):
         self.played_once = False
         self.last_drum: int | None = None
 
-        self.layouts = [Layout("Keyboard", channel=0), Layout("Drums", channel=9)]
+        self.layouts = [
+            Layout("Keyboard", channel=0),
+            Layout("Drums", channel=9),
+            Layout("Chord", channel=1),
+        ]
+        chord_layout = self.layouts[2]
+        self.chord = ChordPlayer(
+            router, self.keyboard, output=lambda: (chord_layout.destination, chord_layout.channel)
+        )
         self.current = 0
         for layout in self.layouts:
             layout.pages = self._build_pages(layout)
@@ -81,7 +91,65 @@ class PlayMode(Mode):
 
     # Pages
 
+    def _output_control(self, layout: Layout) -> Control:
+        return Control(
+            "Output",
+            lambda: self._destination_index(layout),
+            lambda v: setattr(layout, "destination", self.router.destinations()[v]),
+            choices=lambda: [short_port_name(d) for d in self.router.destinations()],
+        )
+
+    @staticmethod
+    def _channel_control(name: str, get: Callable[[], int], set_: Callable[[int], None]):
+        return Control(name, get, set_, minimum=0, maximum=15, format=lambda v: str(v + 1))
+
+    def _build_chord_pages(self, layout: Layout) -> list[Page]:
+        chord = self.chord
+        strum_range = Control(
+            "Strum range",
+            lambda: chord.strum_octaves,
+            lambda v: setattr(chord, "strum_octaves", v),
+            minimum=1,
+            maximum=3,
+            format=lambda v: f"{v} oct",
+        )
+        style_options: list[Option | None] = [
+            Option("Off", lambda: self._set_chord_flag("strum", False), lambda: not chord.strum),
+            Option("Strum", lambda: self._set_chord_flag("strum", True), lambda: chord.strum),
+        ]
+        output = [
+            self._output_control(layout),
+            self._channel_control(
+                "Chords ch", lambda: layout.channel, lambda v: setattr(layout, "channel", v)
+            ),
+            self._channel_control(
+                "Bass ch", lambda: chord.bass_channel, lambda v: setattr(chord, "bass_channel", v)
+            ),
+        ]
+        mute_options: list[Option | None] = [
+            Option(
+                "Mute chords",
+                lambda: self._set_chord_flag("mute_chords", not chord.mute_chords),
+                lambda: chord.mute_chords,
+            ),
+            Option(
+                "Mute bass",
+                lambda: self._set_chord_flag("mute_bass", not chord.mute_bass),
+                lambda: chord.mute_bass,
+            ),
+        ]
+        return [
+            Page("Style", controls=[strum_range], options=style_options),
+            Page("Output", controls=output, options=mute_options),
+        ]
+
+    def _set_chord_flag(self, flag: str, value: bool) -> None:
+        setattr(self.chord, flag, value)
+        self.chord.revoice()  # held chords re-trigger in the new style or mix
+
     def _build_pages(self, layout: Layout) -> list[Page]:
+        if layout.name == "Chord":
+            return self._build_chord_pages(layout)
         velocity = Control(
             "Velocity",
             lambda: self.velocity_curve,
@@ -111,19 +179,9 @@ class PlayMode(Mode):
             for i, label in enumerate(STRIP_MODES)
         ]
         output = [
-            Control(
-                "Output",
-                lambda: self._destination_index(layout),
-                lambda v: setattr(layout, "destination", self.router.destinations()[v]),
-                choices=lambda: [short_port_name(d) for d in self.router.destinations()],
-            ),
-            Control(
-                "Channel",
-                lambda: layout.channel,
-                lambda v: setattr(layout, "channel", v),
-                minimum=0,
-                maximum=15,
-                format=lambda v: str(v + 1),
+            self._output_control(layout),
+            self._channel_control(
+                "Channel", lambda: layout.channel, lambda v: setattr(layout, "channel", v)
             ),
         ]
         return [
@@ -168,30 +226,49 @@ class PlayMode(Mode):
         if self.page.name == "Output":
             self.router.refresh_destinations()
 
+    @property
+    def in_chord(self) -> bool:
+        return self.layout.name == "Chord"
+
     def _grid(self) -> KeyboardLayout | DrumLayout:
         return self.keyboard if self.layout.name == "Keyboard" else self.drums
+
+    def _key_state(self) -> tuple:
+        return (self.keyboard.root, self.keyboard.scale, self.keyboard.in_key)
 
     # Pads
 
     def pad_pressed(self, row: int, col: int, velocity: int) -> None:
+        if self.accent:
+            velocity = ACCENT_VELOCITY
+        if self.in_chord:
+            self.chord.pad_pressed(row, col, velocity)
+            self.played_once = True
+            return
         note = self._grid().note_at(row, col)
         if note is None:
             return
         layout = self.layout
-        if self.accent:
-            velocity = ACCENT_VELOCITY
         self.router.note_on((row, col), layout.destination, layout.channel, note, velocity)
         self.played_once = True
         if layout.name == "Drums":
             self.last_drum = note
 
     def pad_released(self, row: int, col: int) -> None:
+        # Always release the plain pad source too: a note held while switching layouts
+        # must not stick.
         self.router.note_off((row, col))
+        if self.in_chord:
+            self.chord.pad_released(row, col)
 
     def pad_aftertouch(self, row: int, col: int, pressure: int) -> None:
-        self.router.poly_aftertouch((row, col), pressure)
+        if not self.in_chord:
+            self.router.poly_aftertouch((row, col), pressure)
 
     def touchstrip(self, value: int) -> None:
+        if self.in_chord and self.chord.strum:
+            self.chord.strum_to(value)
+            return
         layout = self.layout
         if STRIP_MODES[self.strip_mode] == "Pitch bend":
             self.router.pitch_bend(layout.destination, layout.channel, value)
@@ -202,10 +279,29 @@ class PlayMode(Mode):
     # Buttons and encoders. Each returns True if anything the user sees changed.
 
     def button_pressed(self, name: str) -> bool:
+        key = self._key_state()
+        changed = self._button_pressed(name)
+        self._revoice_if_key_changed(key)
+        return changed
+
+    def encoder_turned(self, index: int, increment: int, fine: bool = False) -> bool:
+        key = self._key_state()
+        changed = super().encoder_turned(index, increment, fine)
+        self._revoice_if_key_changed(key)
+        return changed
+
+    def _revoice_if_key_changed(self, before: tuple) -> None:
+        # The PRD: changing key while holding a chord transposes or reharmonizes it live.
+        if self.in_chord and self._key_state() != before:
+            self.chord.revoice()
+
+    def _button_pressed(self, name: str) -> bool:
         if name == c.BUTTON_SCALE:
             self.scale_open = not self.scale_open
             return True
         if name == c.BUTTON_LAYOUT:
+            if self.in_chord:
+                self.chord.release_all()
             self.current = (self.current + 1) % len(self.layouts)
             return True
         if name == c.BUTTON_ACCENT:
@@ -213,10 +309,15 @@ class PlayMode(Mode):
             return True
         if name in (c.BUTTON_OCTAVE_UP, c.BUTTON_OCTAVE_DOWN):
             delta = 1 if name == c.BUTTON_OCTAVE_UP else -1
-            if self.layout.name == "Keyboard":
+            if self.in_chord:
+                self.chord.shift_octave(delta)
+            elif self.layout.name == "Keyboard":
                 self.keyboard.shift_octave(delta)
             else:
                 self.drums.shift_bank(delta)
+            return True
+        if name in SCENE_BUTTONS[: len(EXTENSIONS)] and self.in_chord:
+            self.chord.toggle_extension(SCENE_BUTTONS.index(name))
             return True
         return super().button_pressed(name)
 
@@ -245,12 +346,15 @@ class PlayMode(Mode):
     # Output for the hardware, LEDs and renderer
 
     def hardware_settings(self) -> dict:
-        return {
-            "velocity_curve": VELOCITY_CURVES[self.velocity_curve],
-            "strip_mode": STRIP_MODES[self.strip_mode],
-        }
+        strip = STRIP_MODES[self.strip_mode]
+        if self.in_chord and self.chord.strum:
+            # Pitch-bend mode springs back to center, which would strum again on release.
+            strip = "Mod wheel"
+        return {"velocity_curve": VELOCITY_CURVES[self.velocity_curve], "strip_mode": strip}
 
     def pad_colors(self) -> list[list[str]]:
+        if self.in_chord:
+            return self.chord.pad_colors()
         layout, grid = self.layout, self._grid()
         held = self.router.notes_on(layout.destination, layout.channel)
         colors = []
@@ -273,13 +377,23 @@ class PlayMode(Mode):
 
     def button_colors(self) -> dict[str, str]:
         lit = "white"
-        return super().button_colors() | {
-            c.BUTTON_LAYOUT: lit,
-            c.BUTTON_SCALE: lit if self.scale_open else "dark_gray",
-            c.BUTTON_ACCENT: lit if self.accent else "dark_gray",
-            c.BUTTON_OCTAVE_UP: lit,
-            c.BUTTON_OCTAVE_DOWN: lit,
-        }
+        return (
+            super().button_colors()
+            | {
+                c.BUTTON_LAYOUT: lit,
+                c.BUTTON_SCALE: lit if self.scale_open else "dark_gray",
+                c.BUTTON_ACCENT: lit if self.accent else "dark_gray",
+                c.BUTTON_OCTAVE_UP: lit,
+                c.BUTTON_OCTAVE_DOWN: lit,
+            }
+            | self.scene_colors()
+        )
+
+    def scene_colors(self) -> dict[str, str]:
+        """Side buttons: extension toggles in the Chord layout, dark otherwise."""
+        if self.in_chord:
+            return self.chord.scene_colors()
+        return {name: "black" for name in SCENE_BUTTONS}
 
     def button_rows(self) -> tuple[Row, Row]:
         if self.scale_open:
@@ -324,7 +438,13 @@ class PlayMode(Mode):
             }
         else:
             held = sorted(self.router.notes_on(destination, layout.channel))
-            if layout.name == "Keyboard":
+            if self.in_chord:
+                panel |= self.chord.panel() | {
+                    "key_name": self.keyboard.key_name,
+                    "in_key": self.keyboard.in_key,
+                    "first_run": not self.played_once,
+                }
+            elif layout.name == "Keyboard":
                 panel |= {
                     "key_name": self.keyboard.key_name,
                     "in_key": self.keyboard.in_key,
@@ -344,10 +464,11 @@ class PlayMode(Mode):
     def apply_settings(self, settings: PlaySettings) -> None:
         """Profile defaults for channels, outputs, velocity curve and touch strip."""
         for layout, layout_settings in zip(
-            self.layouts, (settings.keyboard, settings.drums), strict=True
+            self.layouts, (settings.keyboard, settings.drums, settings.chord), strict=True
         ):
             layout.channel = layout_settings.channel - 1
             layout.destination = layout_settings.output
+        self.chord.bass_channel = settings.chord.bass_channel - 1
         self.velocity_curve = VELOCITY_CURVES.index(settings.velocity_curve)
         self.strip_mode = STRIP_MODES.index(settings.strip)
 
@@ -365,6 +486,7 @@ class PlayMode(Mode):
                 {"channel": lo.channel + 1, "output": lo.destination, "page": lo.page}
                 for lo in self.layouts
             ],
+            "chord": self.chord.snapshot(),
         }
 
     def restore(self, state: dict) -> None:
@@ -390,5 +512,7 @@ class PlayMode(Mode):
                 layout.destination = saved["output"]
             if saved.get("page") in range(len(layout.pages)):
                 layout.page = saved["page"]
+        if isinstance(state.get("chord"), dict):
+            self.chord.restore(state["chord"])
         if state.get("layout") in range(len(self.layouts)):
             self.current = state["layout"]

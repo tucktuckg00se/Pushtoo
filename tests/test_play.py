@@ -100,9 +100,11 @@ def test_output_page_routes_new_notes_and_releases_old_ones_where_they_started()
 def test_each_layout_remembers_its_page():
     play, *_ = make_play()
     play.button_pressed("Lower Row 2")
-    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)  # Drums
     assert play.page.name == "Play"
-    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)  # Chord
+    assert play.page.name == "Style"
+    play.button_pressed(c.BUTTON_LAYOUT)  # back to Keyboard
     assert play.page.name == "Strip"
 
 

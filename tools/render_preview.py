@@ -155,8 +155,30 @@ def sample_views() -> dict[str, dict]:
     play.encoder_turned(0, 6 * 8)  # Minor -> Major Pentatonic
     views["scale_selector"] = play.view()
 
+    _chord_views(views)
     _m2_views(views)
     return views
+
+
+def _chord_views(views: dict[str, dict]) -> None:
+    play = _play()
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)
+    views["chord_idle"] = play.view()
+    play.pad_pressed(4, 5, 100)  # m7, 2nd inversion
+    play.pad_pressed(0, 3, 100)  # F
+    views["chord_sounding"] = play.view()
+    play.pad_released(4, 5)
+    play.pad_released(0, 3)
+    play.button_pressed("1/4t")  # +9
+    play.pad_pressed(0, 0, 100)
+    views["chord_extension"] = play.view()
+    play.pad_released(0, 0)
+    play.button_pressed("Upper Row 2")  # Strum
+    play.pad_pressed(0, 4, 100)
+    views["chord_strum"] = play.view()
+    play.button_pressed("Lower Row 2")
+    views["chord_output_page"] = play.view()
 
 
 def render(view: dict) -> cairo.ImageSurface:

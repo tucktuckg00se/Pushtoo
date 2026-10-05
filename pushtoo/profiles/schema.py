@@ -100,9 +100,14 @@ class PlayLayout(Strict):
     output: str = OUT_PORT
 
 
+class ChordLayoutSettings(PlayLayout):
+    bass_channel: Channel = 3
+
+
 class Play(Strict):
     keyboard: PlayLayout = Field(default_factory=lambda: PlayLayout(channel=1))
     drums: PlayLayout = Field(default_factory=lambda: PlayLayout(channel=10))
+    chord: ChordLayoutSettings = Field(default_factory=lambda: ChordLayoutSettings(channel=2))
     velocity_curve: Literal[VELOCITY_CURVES] = "Linear"  # type: ignore[valid-type]
     strip: Literal["Pitch bend", "Mod wheel"] = "Pitch bend"
 

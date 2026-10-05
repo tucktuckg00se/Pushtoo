@@ -16,6 +16,7 @@ own USB input latency is a fixed hardware cost and is not included.
 Rounds:
   single notes   one pad at a time
   chords         three pads at once, so later notes wait behind earlier refreshes
+  chord layout   Chord layout root taps, to the first note of each chord
   python hog     single notes plus a busy pure-Python thread (informational only:
                  shows why rendering must stay out of the MIDI process, ADR 0001)
 """
@@ -32,6 +33,7 @@ from pathlib import Path
 
 import mido
 import rtmidi
+from push2_python import constants as c
 from push2_python.pads import pad_n_to_pad_ij
 
 from pushtoo.app import App
@@ -61,9 +63,13 @@ def drain(q: "mp.Queue", settle: float = 0.3) -> list:
             return items
 
 
-def listener(arrivals: "mp.Queue", ready: "mp.Event", stop: "mp.Event") -> None:
+def out_ports() -> set[str]:
+    return {p for p in rtmidi.MidiIn(rtmidi.API_LINUX_ALSA).get_ports() if OUT_PORT in p}
+
+
+def listener(arrivals: "mp.Queue", ready: "mp.Event", stop: "mp.Event", port: str) -> None:
     midi_in = rtmidi.MidiIn(rtmidi.API_LINUX_ALSA, name="pushtoo-latency-listener")
-    open_port_named(midi_in, OUT_PORT)
+    midi_in.open_port(midi_in.get_ports().index(port))
 
     def on_message(event, _data) -> None:
         now = time.monotonic_ns()
@@ -76,23 +82,23 @@ def listener(arrivals: "mp.Queue", ready: "mp.Event", stop: "mp.Event") -> None:
     stop.wait()
 
 
-def injector(sends, ready, go, seconds: float, rate: int, chord: int) -> None:
-    """Presses `chord` pads at once, `rate` times per second. Reports (pad, velocity,
-    time) per press; velocity doubles as an id so arrivals can be matched."""
+def injector(sends, ready, go, seconds: float, rate: int, chord: int, pads: list[int]) -> None:
+    """Presses `chord` of `pads` at once, `rate` times per second. Reports (pad,
+    velocity, time) per press; velocity doubles as an id so arrivals can be matched."""
     midi_out = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name="pushtoo-latency-injector")
     midi_out.open_virtual_port(INJECT_PORT)
     ready.set()
     go.wait()
     interval, end, i = 1 / rate, time.monotonic() + seconds, 0
     while time.monotonic() < end:
-        pads = []
+        pressed = []
         for k in range(chord):
-            pad = FIRST_PAD_NOTE + (i * chord + k * 9) % PAD_COUNT
+            pad = pads[(i * chord + k * 9) % len(pads)]
             velocity = 1 + (i * chord + k) % 127
             sends.put((pad, velocity, time.monotonic_ns()))
             midi_out.send_message([0x90, pad, velocity])
-            pads.append(pad)
-        for pad in pads:
+            pressed.append(pad)
+        for pad in pressed:
             midi_out.send_message([0x80, pad, 0])
         i += 1
         time.sleep(interval)
@@ -109,12 +115,20 @@ def start_python_load(stop: threading.Event) -> None:
     threading.Thread(target=run, daemon=True).start()
 
 
-def expected_notes(app: App) -> dict[int, int]:
-    """Pad MIDI note -> the note the app's current layout plays for it."""
+ALL_PADS = list(range(FIRST_PAD_NOTE, FIRST_PAD_NOTE + PAD_COUNT))
+CHORD_ROOT_PADS = ALL_PADS[:8]  # the bottom row: the Chord layout's in-key roots
+
+
+def expected_notes(app: App, pads: list[int]) -> dict[int, int]:
+    """Pad MIDI note -> the first note the app's current layout plays for it."""
     notes = {}
-    for pad in range(FIRST_PAD_NOTE, FIRST_PAD_NOTE + PAD_COUNT):
+    for pad in pads:
         row, col = pad_ij_to_row_col(pad_n_to_pad_ij(pad))
-        note = app.play.keyboard.note_at(row, col)
+        if app.play.in_chord:
+            chord = app.play.chord.notes_for((row, col))
+            note = chord[0] if chord else None
+        else:
+            note = app.play.keyboard.note_at(row, col)
         if note is not None:
             notes[pad] = note
     return notes
@@ -132,9 +146,9 @@ def match(sends: list, arrivals: list) -> tuple[list[float], int]:
     return latencies_ms, len(sends) - len(latencies_ms)
 
 
-def synthetic_round(app, arrivals, seconds, rate, chord) -> tuple[list[float], int]:
+def synthetic_round(app, arrivals, seconds, rate, chord, pads) -> tuple[list[float], int]:
     sends, ready, go = mp.Queue(), mp.Event(), mp.Event()
-    args = (sends, ready, go, seconds, rate, chord)
+    args = (sends, ready, go, seconds, rate, chord, pads)
     proc = mp.Process(target=injector, args=args, daemon=True)
     proc.start()
     if not ready.wait(5):
@@ -149,7 +163,7 @@ def synthetic_round(app, arrivals, seconds, rate, chord) -> tuple[list[float], i
     go.set()
     proc.join(seconds + 10)
     midi_in.close_port()
-    layout_note = expected_notes(app)
+    layout_note = expected_notes(app, pads)
     sent = [(layout_note[pad], velocity, t) for pad, velocity, t in drain(sends)]
     return match(sent, drain(arrivals))
 
@@ -197,7 +211,16 @@ def main() -> None:
     # Temporary profile and state folders, so a gate run never touches the user's.
     scratch = tempfile.TemporaryDirectory(prefix="pushtoo-latency-")
     root = Path(scratch.name)
+    # Another Pushtoo may be running (its "Pushtoo Out" too); listen to the port this
+    # app creates, identified as the one that wasn't there before.
+    before = out_ports()
     app = App(config_dir=root / "profiles", state_path=root / "state.yaml")
+    created = out_ports() - before
+    if len(created) != 1:
+        app.close()
+        raise SystemExit(f"could not identify this app's {OUT_PORT!r} port: {created}")
+    if before:
+        print(f"note: another {OUT_PORT!r} exists; another Pushtoo may be using the Push")
     # push2-python ignores all input until Push's first active-sensing message, then
     # for one more second, to skip a startup burst.
     deadline = time.monotonic() + 10
@@ -206,7 +229,9 @@ def main() -> None:
     time.sleep(1.2)
 
     arrivals, ready, stop_listener = mp.Queue(), mp.Event(), mp.Event()
-    proc = mp.Process(target=listener, args=(arrivals, ready, stop_listener), daemon=True)
+    proc = mp.Process(
+        target=listener, args=(arrivals, ready, stop_listener, created.pop()), daemon=True
+    )
     proc.start()
     if not ready.wait(5):
         raise SystemExit("listener did not start")
@@ -217,12 +242,21 @@ def main() -> None:
             samples, missing = real_round(app, arrivals, args.seconds)
             report("real pads", samples, missing, gate=False)
         else:
-            rounds = (("single notes", 1, False), ("chords", 3, False), ("python hog", 1, True))
-            for label, chord, hog in rounds:
+            rounds = (
+                ("single notes", 1, False, "Keyboard", ALL_PADS),
+                ("chords", 3, False, "Keyboard", ALL_PADS),
+                ("chord layout", 1, False, "Chord", CHORD_ROOT_PADS),
+                ("python hog", 1, True, "Keyboard", ALL_PADS),
+            )
+            for label, chord, hog, layout, pads in rounds:
+                while app.play.layout.name != layout:
+                    app.button_pressed(c.BUTTON_LAYOUT)
                 stop_load = threading.Event()
                 if hog:
                     start_python_load(stop_load)
-                samples, missing = synthetic_round(app, arrivals, args.seconds, args.rate, chord)
+                samples, missing = synthetic_round(
+                    app, arrivals, args.seconds, args.rate, chord, pads
+                )
                 all_passed &= report(label, samples, missing, gate=not hog)
                 stop_load.set()
                 time.sleep(0.3)

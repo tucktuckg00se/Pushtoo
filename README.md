@@ -16,7 +16,7 @@ Pushtoo has three modes, each on its own button: **Note** (Play), **Device** (Kn
 | ------------------------------- | -------------------------------------------------------------------- |
 | Note, Device, Mix               | Play, Knobs and Mix modes                                            |
 | Browse                          | Profile list: encoder 1 picks, top-left button loads                 |
-| Layout                          | Switch between Keyboard (channel 1) and Drums (channel 10)           |
+| Layout                          | Cycle Keyboard (channel 1), Drums (channel 10) and Chord (channels 2 and 3) |
 | Scale                           | Open or close the scale selector: top buttons pick In key/Chromatic and C G D A E B F#, bottom buttons pick F Bb Eb Ab Db Gb, encoder 1 picks the scale, encoder 2 the root |
 | Octave up / down                | Keyboard: shift an octave. Drums: shift one bank of 16 notes         |
 | Buttons below the display       | Pages: **Play** (octave or drum notes, velocity curve), **Strip** (pitch bend or mod wheel), **Output** (destination port and channel) |
@@ -29,6 +29,8 @@ Pushtoo has three modes, each on its own button: **Note** (Play), **Device** (Kn
 | Undo, Shift + Undo              | Undo and redo in your DAW (Ctrl+Z and Ctrl+Shift+Z by default)       |
 | Master encoder (right)          | Master level CC, in every mode                                       |
 | Hold Shift                      | Lists what Shift does in the current mode                            |
+
+**Chord layout** plays chords by ear. The bottom row holds the notes of your key, starting from the home note on the left; the row above holds the out-of-key notes, like black keys. Tap a root to play the chord that fits the key. To play another chord type, hold a pad in the six rows above (type across: Auto, Maj, Min, 7, Maj7, m7, Sus4, Dim; each row up is a brighter voicing) and tap a root, or tap the type while a root is held. Chord types that fit the key glow light blue. The top four side buttons add +6, +9, +11 and +13 and stay on until tapped again. On the **Style** page, Strum turns the touch strip into a strum plate: hold a root and slide across the strip. Bass notes go to channel 3; the **Output** page changes channels and mutes chords or bass.
 
 **Knobs mode** gives you up to 8 pages of 8 named controls, defined in your profile. Each column's top button glows in that control's color. To map a control in your DAW, start the DAW's MIDI learn, hold **Shift** and tap the button above the knob: Pushtoo sends just that control's CC, three times, so the DAW catches the right one. Hold **Delete** and touch a knob to reset it to its default.
 

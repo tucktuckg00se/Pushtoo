@@ -181,13 +181,14 @@ Changing the key slides the root rows so the home note is always at the far left
 **Playing**
 
 - Tap a root alone to play its Auto chord: the chord that fits the key on that root, or major for out-of-key roots.
-- Hold a type or voicing pad to change what the roots play. Sound starts on whichever press comes second, and the last grid choice stays selected so one-handed root playing keeps its color. Tapping Auto returns to the in-key default.
-- The screen shows inversion names for the selected column. In other columns, chord types that fit the key on the current root glow in the hint color, which is distinct from the root accent.
-- When the Strum style is active, the touch strip strums the held chord, Omnichord-style.
+- Hold a type or voicing pad to change what the roots play: press it before a root to choose that root's chord, or while roots are held to switch them. A type pad applies only while held, so a root alone is always Auto. Letting go of the type pad leaves the chord sounding until the next press.
+- Every chord change re-triggers: the old notes stop and the whole new chord starts.
+- The screen shows the chord's name, notes and voicing. Chord types that fit the key on the current root glow in the hint color, which is distinct from the root accent.
+- When the Strum style is active, a root plays only its bass note and the touch strip strums the held chord, Omnichord-style: each chord tone sounds as your finger crosses it, across 1–3 octaves. Strummed notes ring until the chord changes or all roots are released. In Strum style the strip runs in the Push's mod-wheel mode, because pitch-bend mode springs back to center and would strum again on release.
 
 **Side buttons**
 
-The 8 scene buttons to the right of the pads add extensions (+6, +9, +11, +13) that stack on any chord. The other 4 are reserved for later features.
+The top 4 of the 8 scene buttons to the right of the pads toggle extensions (+6, +9, +11, +13) that stack on any chord. They latch, staying lit while on, because the other hand is busy holding type pads. The other 4 stay dark, reserved for later features.
 
 **Pages (buttons below the display)**
 
@@ -357,7 +358,7 @@ The revised plan puts a playable controller in hands by week 6 and a tested beta
 | M1 Playable      | 3 to 6   | Keyboard and Drums layouts, scale selector and Layout cycling, velocity curves, touch strip, Panic, peek, hardware port output, hot-plug (built; hands-on checks pending) |
 | Gate             |          | Pad latency under 3 ms at p99 with the real app (`tools/latency`): passed, p99 0.19 ms single notes, 0.53 ms chords |
 | M2 Design        | 7 to 11  | Design system, Knobs and Mix modes, YAML profiles and default MIDI map, Learn Assist, Undo keystrokes (built; hands-on checks pending) |
-| M3 Chords        | 12 to 16 | Chord layout (F12); P1 items as time allows: Launch, Dice, DAW feedback |
+| M3 Chords        | 12 to 16 | Chord layout (F12) plus Strum (built; hands-on checks pending); P1 items as time allows: Launch, Dice, DAW feedback |
 | Gate             |          | Feature freeze                                                        |
 | M4 Beta          | 17 to 20 | One-command installer, 5-tester study, Raspberry Pi check             |
 
@@ -369,6 +370,12 @@ M2 cannot start until the latency gate passes, and nothing new enters after the 
 - The Push returns the touch strip to center by itself in pitch-bend mode, so Pushtoo sends no reset.
 - F# and Gb in the scale selector both select pitch class 6 and display as F#.
 - Session state (key, layout, octave) is not saved yet; M2's profiles will store it.
+
+**M3 notes**
+
+- The Chord layout ships with its P0 core plus Strum from F14. Arp, Harp, Slop and the Voicing page (auto-smooth, spread, bass on/off) remain P1.
+- Row 1 walks the scale for 8 pads, continuing into the next octave for scales with fewer than 7 notes. Row 2 holds, above each in-key root of the first octave, the out-of-key note a semitone up; pads with no such note stay dark.
+- The Chord layout's Output page has the destination, chords channel (default 2), bass channel (default 3), and Mute chords / Mute bass. Channels come from the profile's `play.chord` section.
 
 **M2 notes**
 
@@ -396,8 +403,8 @@ M2 cannot start until the latency gate passes, and nothing new enters after the 
 - [ ] Should Life mode play notes by default, or stay silent until switched on?
 - [ ] Is Push 3 controller-mode support worth planning for v2?
 - [ ] Check that the Orchid's patent-pending voicing dial doesn't cover the Chord layout's voicing ladder before public release.
-- [ ] What should the 4 reserved scene buttons in the Chord layout do?
-- [ ] Chord layout: does a lone root tap play Auto or the last grid selection, and does pressing a type pad while a root sounds retrigger or morph the chord? Decide before M3.
+- [x] What should the 4 reserved scene buttons in the Chord layout do? Nothing for now; they stay dark until playing the layout shows what's missing.
+- [x] Chord layout: does a lone root tap play Auto or the last grid selection, and does pressing a type pad while a root sounds retrigger or morph the chord? A lone root is always Auto, and changes re-trigger.
 - [ ] Touch strip precedence when pitch bend, Chord strumming, and Snapshot morph all want it.
 - [ ] Should Play, Record, Metronome, and Tap Tempo send MIDI transport messages, DAW keystrokes (like Space for play), or be configurable per profile?
 - [ ] Which reserved buttons (Duplicate, Quantize, New, and others) are worth mapping to DAW shortcuts?

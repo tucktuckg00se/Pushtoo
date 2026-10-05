@@ -176,6 +176,28 @@ def _panel_scale_selector(ctx, panel, x0, width, accent) -> None:
     _text(ctx, hint, 3 * COLUMN + 16, 98, BODY - 1, TEXT_DIM)
 
 
+def _panel_chord(ctx, panel, x0, width, accent) -> None:
+    _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
+    name = panel["chord_name"]
+    if name is None:
+        _text(ctx, "Tap a root", x0 + 16, 84, TITLE, accent, True)
+        hint = "Hold a type above, then tap a root"
+        _text(ctx, _fit(ctx, hint, width - 32, BODY), x0 + 16, 116, BODY, TEXT_DIM)
+        return
+    color = accent if panel["sounding"] else TEXT_DIM
+    _text(ctx, _fit(ctx, name, width * 0.45, TITLE, True), x0 + 16, 84, TITLE, color, True)
+    right = x0 + width * 0.5
+    _text(ctx, _fit(ctx, panel["inversion"], width * 0.5 - 16, BODY), right, 64, BODY, TEXT)
+    notes = _fit(ctx, " ".join(panel["notes"]), width * 0.5 - 16, BODY)
+    _text(ctx, notes, right, 88, BODY, TEXT_DIM)
+    parts = [panel["key_name"], f"Ch {panel['channel'] + 1}", panel["destination"]]
+    if panel["strum"]:
+        parts.insert(0, "Strum the touch strip")
+    if panel["accent"]:
+        parts.append("Accent")
+    _text(ctx, _fit(ctx, " · ".join(parts), width - 32, BODY), x0 + 16, 116, BODY, TEXT)
+
+
 def _panel_knobs(ctx, panel, x0, width, accent) -> None:
     _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
     dest = _fit(ctx, f"Sending to {panel['destination']}", width - 32, BODY)
@@ -203,6 +225,7 @@ PANELS = {
     "keyboard": _panel_keyboard,
     "drums": _panel_drums,
     "scale_selector": _panel_scale_selector,
+    "chord": _panel_chord,
     "knobs": _panel_knobs,
     "browse": _panel_browse,
 }
