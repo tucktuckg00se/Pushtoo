@@ -43,7 +43,7 @@ A display thread that only does cairo, numpy and USB I/O is harmless, because th
 - **Process split.** The renderer owns the display: it holds the USB display endpoint (via push2-python's `Push2Display`) and receives state snapshots over a pipe or shared memory. The MIDI process opens push2-python for MIDI only.
 - **Stale screens.** If the renderer falls behind, it drops frames and shows the latest state. MIDI is unaffected.
 - **Hot-path rules.** Callbacks in the MIDI process must not do pure-Python work beyond mapping and routing. Logging, profile saves and undo-history writes go to a queue.
-- **Gate check.** `tools/latency/latency.py` (synthetic mode) is the M1 → M2 gate. Run it with the real app's MIDI process in place of `PadForwarder`.
+- **Gate check.** `tools/latency/latency.py` (synthetic mode) is the M1 → M2 gate. Since M1 it drives the real app.
 - **Free-threaded Python** (3.14t) could make a single process viable later. Revisit if the process split proves costly.
 
 ## Other findings from the spike
@@ -51,3 +51,16 @@ A display thread that only does cairo, numpy and USB I/O is harmless, because th
 - push2-python calls only the **first** handler registered for each action. Pushtoo's hardware layer should register one handler per action and dispatch internally.
 - push2-python **ignores all input for about 1 s** after the Push's first active-sensing message, including after a reconnect. This bounds hot-plug recovery (N3) and should become a "Reconnecting…" toast.
 - push2-python passes a pad's raw MIDI note (36–99) as `pad_n`, not a 0–63 index.
+
+## M1 gate result (Oct 4, 2026)
+
+`tools/latency/latency.py` drove the full app: push2-python dispatch, `App`, `PlayMode`, router, LED updates, and the render process redrawing after every press. 100 presses per second for 8 s per round, two runs:
+
+| Round                                   | p50          | p99            | max      | Lost |
+| --------------------------------------- | ------------ | -------------- | -------- | ---- |
+| Single notes                            | 0.05–0.07 ms | 0.17–0.19 ms   | 0.73 ms  | 0    |
+| Three-note chords                       | 0.20–0.21 ms | 0.47–0.53 ms   | 0.83 ms  | 0    |
+| Single notes + pure-Python thread (info) | 5.1 ms      | 22–28 ms       | 50 ms    | 0    |
+
+The gate (p99 under 3 ms, nothing lost) passes with a wide margin. Chords are slower because each pad's screen and LED refresh runs before the next pad is handled; that's still about 6x under budget. If later modes make refresh heavier, coalesce refreshes onto a timer instead of running one per event.
+

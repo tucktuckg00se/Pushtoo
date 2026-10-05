@@ -354,14 +354,21 @@ The revised plan puts a playable controller in hands by week 6 and a tested beta
 | Milestone        | Weeks    | Scope                                                                 |
 | ---------------- | -------- | --------------------------------------------------------------------- |
 | M0 Foundation    | 1 to 2   | Fork, dependencies, virtual ports, render process, latency harness, minimal Play mode (done) |
-| M1 Playable      | 3 to 6   | Keyboard and Drums layouts, scale selector and Layout cycling, velocity curves, touch strip, Panic, peek, hardware port output, hot-plug |
-| Gate             |          | Pad latency under 3 ms at p99 with the real app (`tools/latency`)     |
+| M1 Playable      | 3 to 6   | Keyboard and Drums layouts, scale selector and Layout cycling, velocity curves, touch strip, Panic, peek, hardware port output, hot-plug (built; hands-on checks pending) |
+| Gate             |          | Pad latency under 3 ms at p99 with the real app (`tools/latency`): passed, p99 0.19 ms single notes, 0.53 ms chords |
 | M2 Design        | 7 to 11  | Design system, Knobs and Mix modes, YAML profiles and default MIDI map, Learn Assist, Undo keystrokes |
 | M3 Chords        | 12 to 16 | Chord layout (F12); P1 items as time allows: Launch, Dice, DAW feedback |
 | Gate             |          | Feature freeze                                                        |
 | M4 Beta          | 17 to 20 | One-command installer, 5-tester study, Raspberry Pi check             |
 
 M2 cannot start until the latency gate passes, and nothing new enters after the M3 feature freeze.
+
+**M1 notes**
+
+- Accent is applied in software. Push's velocity table also sets poly aftertouch sensitivity, so a fixed-127 table would break aftertouch.
+- The Push returns the touch strip to center by itself in pitch-bend mode, so Pushtoo sends no reset.
+- F# and Gb in the scale selector both select pitch class 6 and display as F#.
+- Session state (key, layout, octave) is not saved yet; M2's profiles will store it.
 
 **Risks**
 
