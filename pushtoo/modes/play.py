@@ -10,12 +10,14 @@ from dataclasses import dataclass, field
 
 from push2_python import constants as c
 
-from pushtoo.hw.colors import PAD_ROLE_COLORS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
+from pushtoo.modes.base import Mode, Row
 from pushtoo.music import (
     BANK_SIZE,
     DRUM_HIGHEST_START,
     DRUM_LOWEST_START,
+    MAX_OCTAVE,
+    MIN_OCTAVE,
     NOTE_NAMES,
     ROWS,
     SCALE_NAMES,
@@ -25,7 +27,9 @@ from pushtoo.music import (
     drum_name,
     note_name,
 )
-from pushtoo.ui.controls import COLUMNS, Control, Option, Page, pages_view
+from pushtoo.profiles.schema import Play as PlaySettings
+from pushtoo.theme import PAD_ROLE_COLORS
+from pushtoo.ui.controls import COLUMNS, Control, Option, Page
 
 # Scale selector roots, in circle-of-fifths order as on stock Push. Upper button 1
 # toggles In key / Chromatic; F# and Gb both select pitch class 6.
@@ -39,12 +43,6 @@ MOD_WHEEL_CC = 1
 ACCENT_VELOCITY = 127
 
 
-def row_index(name: str, row: str) -> int | None:
-    """'Upper Row 3' -> 2 for row='Upper'."""
-    prefix = f"{row} Row "
-    return int(name[len(prefix) :]) - 1 if name.startswith(prefix) else None
-
-
 @dataclass
 class Layout:
     """Per-layout settings. Each layout remembers its own page and output."""
@@ -56,9 +54,11 @@ class Layout:
     pages: list[Page] = field(default_factory=list)
 
 
-class PlayMode:
+class PlayMode(Mode):
+    name = "play"
+
     def __init__(self, router: MidiRouter) -> None:
-        self.router = router
+        super().__init__(router)
         self.keyboard = KeyboardLayout()  # also holds the key and scale shared by layouts
         self.drums = DrumLayout()
         self.velocity_curve = 0  # index into VELOCITY_CURVES
@@ -153,8 +153,20 @@ class PlayMode:
         return self.layouts[self.current]
 
     @property
-    def page(self) -> Page:
-        return self.layout.pages[self.layout.page]
+    def pages(self) -> list[Page]:
+        return self.layout.pages
+
+    @property
+    def page_index(self) -> int:
+        return self.layout.page
+
+    @page_index.setter
+    def page_index(self, index: int) -> None:
+        self.layout.page = index
+
+    def on_page_selected(self) -> None:
+        if self.page.name == "Output":
+            self.router.refresh_destinations()
 
     def _grid(self) -> KeyboardLayout | DrumLayout:
         return self.keyboard if self.layout.name == "Keyboard" else self.drums
@@ -206,42 +218,29 @@ class PlayMode:
             else:
                 self.drums.shift_bank(delta)
             return True
-        if (index := row_index(name, "Upper")) is not None:
-            return self._upper_pressed(index)
-        if (index := row_index(name, "Lower")) is not None:
-            return self._lower_pressed(index)
-        return False
+        return super().button_pressed(name)
 
-    def _upper_pressed(self, index: int) -> bool:
+    def upper_pressed(self, index: int) -> bool:
         if self.scale_open:
             if index == 0:
                 self.keyboard.in_key = not self.keyboard.in_key
             else:
                 self.keyboard.root = UPPER_ROOTS[index]
             return True
-        return self.page.press_option(index)
+        return super().upper_pressed(index)
 
-    def _lower_pressed(self, index: int) -> bool:
+    def lower_pressed(self, index: int) -> bool:
         if self.scale_open:
             if index < len(LOWER_ROOTS):
                 self.keyboard.root = LOWER_ROOTS[index]
                 return True
             return False
-        if index >= len(self.layout.pages) or index == self.layout.page:
-            return False
-        self.layout.page = index
-        if self.page.name == "Output":
-            self.router.refresh_destinations()
-        return True
+        return super().lower_pressed(index)
 
     def control_at(self, index: int) -> Control | None:
         if self.scale_open:
             return self._scale_controls[index] if index < len(self._scale_controls) else None
-        return self.page.control(index)
-
-    def encoder_turned(self, index: int, increment: int, fine: bool = False) -> bool:
-        control = self.control_at(index)
-        return control is not None and control.turn(increment, fine)
+        return super().control_at(index)
 
     # Output for the hardware, LEDs and renderer
 
@@ -274,27 +273,15 @@ class PlayMode:
 
     def button_colors(self) -> dict[str, str]:
         lit = "white"
-        colors = {
-            c.BUTTON_NOTE: lit,
+        return super().button_colors() | {
             c.BUTTON_LAYOUT: lit,
             c.BUTTON_SCALE: lit if self.scale_open else "dark_gray",
             c.BUTTON_ACCENT: lit if self.accent else "dark_gray",
             c.BUTTON_OCTAVE_UP: lit,
             c.BUTTON_OCTAVE_DOWN: lit,
         }
-        upper, lower = self._button_rows()
-        for i in range(COLUMNS):
-            colors[f"Upper Row {i + 1}"] = self._row_color(upper[i])
-            colors[f"Lower Row {i + 1}"] = self._row_color(lower[i])
-        return colors
 
-    @staticmethod
-    def _row_color(item: dict | None) -> str:
-        if item is None:
-            return "black"
-        return "white" if item["selected"] else "dark_gray"
-
-    def _button_rows(self) -> tuple[list[dict | None], list[dict | None]]:
+    def button_rows(self) -> tuple[Row, Row]:
         if self.scale_open:
             root = self.keyboard.root
             upper: list[dict | None] = [
@@ -313,10 +300,12 @@ class PlayMode:
             if root == 6:
                 lower[-1]["selected"] = False
             return upper, lower + [None] * (COLUMNS - len(lower))
-        return self.page.options_view(), pages_view(self.layout.pages, self.layout.page)
+        return super().button_rows()
 
-    def view(self) -> dict:
-        upper, lower = self._button_rows()
+    def controls_view(self) -> list[dict | None]:
+        return [None] * COLUMNS if self.scale_open else super().controls_view()
+
+    def panel(self) -> dict:
         layout = self.layout
         destination = layout.destination
         panel: dict = {
@@ -333,7 +322,6 @@ class PlayMode:
                 "root_name": NOTE_NAMES[self.keyboard.root],
                 "in_key": self.keyboard.in_key,
             }
-            controls: list[dict | None] = [None] * COLUMNS
         else:
             held = sorted(self.router.notes_on(destination, layout.channel))
             if layout.name == "Keyboard":
@@ -349,11 +337,58 @@ class PlayMode:
                     "last_hit": drum_name(self.last_drum) if self.last_drum is not None else None,
                     "first_run": not self.played_once,
                 }
-            controls = self.page.controls_view()
+        return panel
+
+    # Profiles and session state
+
+    def apply_settings(self, settings: PlaySettings) -> None:
+        """Profile defaults for channels, outputs, velocity curve and touch strip."""
+        for layout, layout_settings in zip(
+            self.layouts, (settings.keyboard, settings.drums), strict=True
+        ):
+            layout.channel = layout_settings.channel - 1
+            layout.destination = layout_settings.output
+        self.velocity_curve = VELOCITY_CURVES.index(settings.velocity_curve)
+        self.strip_mode = STRIP_MODES.index(settings.strip)
+
+    def snapshot(self) -> dict:
         return {
-            "accent": "play",
-            "upper": upper,
-            "lower": lower,
-            "controls": controls,
-            "panel": panel,
+            "layout": self.current,
+            "root": self.keyboard.root,
+            "scale": self.keyboard.scale,
+            "in_key": self.keyboard.in_key,
+            "octave": self.keyboard.octave,
+            "drums_start": self.drums.start,
+            "velocity_curve": VELOCITY_CURVES[self.velocity_curve],
+            "strip": STRIP_MODES[self.strip_mode],
+            "layouts": [
+                {"channel": lo.channel + 1, "output": lo.destination, "page": lo.page}
+                for lo in self.layouts
+            ],
         }
+
+    def restore(self, state: dict) -> None:
+        """Apply a snapshot, ignoring anything missing or out of range."""
+        if state.get("scale") in SCALE_NAMES:
+            self.keyboard.scale = state["scale"]
+        if state.get("root") in range(12):
+            self.keyboard.root = state["root"]
+        if isinstance(state.get("in_key"), bool):
+            self.keyboard.in_key = state["in_key"]
+        if state.get("octave") in range(MIN_OCTAVE, MAX_OCTAVE + 1):
+            self.keyboard.octave = state["octave"]
+        if state.get("drums_start") in range(DRUM_LOWEST_START, DRUM_HIGHEST_START + 1):
+            self.drums.start = state["drums_start"]
+        if state.get("velocity_curve") in VELOCITY_CURVES:
+            self.velocity_curve = VELOCITY_CURVES.index(state["velocity_curve"])
+        if state.get("strip") in STRIP_MODES:
+            self.strip_mode = STRIP_MODES.index(state["strip"])
+        for layout, saved in zip(self.layouts, state.get("layouts", []), strict=False):
+            if saved.get("channel") in range(1, 17):
+                layout.channel = saved["channel"] - 1
+            if isinstance(saved.get("output"), str):
+                layout.destination = saved["output"]
+            if saved.get("page") in range(len(layout.pages)):
+                layout.page = saved["page"]
+        if state.get("layout") in range(len(self.layouts)):
+            self.current = state["layout"]

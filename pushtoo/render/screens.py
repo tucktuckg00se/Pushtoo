@@ -11,15 +11,26 @@ import time
 
 import cairo
 
-from pushtoo.hw.colors import BACKGROUND, PLAY_ACCENT, TEXT, TEXT_DIM
+from pushtoo.theme import (
+    ARC_TRACK,
+    BACKGROUND,
+    BODY,
+    HEADING,
+    LABEL,
+    PEEK,
+    TEXT,
+    TEXT_DIM,
+    TITLE,
+    VALUE,
+    accent_name,
+    rgb,
+)
 from pushtoo.ui.controls import COLUMNS, middle_ellipsis
 
 WIDTH, HEIGHT = 960, 160
 COLUMN = 120
 BAND = 24
 FONT = "IBM Plex Sans Condensed"  # cairo falls back to the default sans if missing
-ACCENTS = {"play": PLAY_ACCENT}
-ARC_TRACK = (0.22, 0.22, 0.25)
 ARC_START = math.radians(135)  # 270-degree arc from 7:30 to 4:30
 ARC_SWEEP = math.radians(270)
 ARC_TOP = math.radians(270)  # 12 o'clock, where bipolar controls start filling
@@ -64,9 +75,11 @@ def _band_label(ctx: cairo.Context, col: int, item: dict | None, top: bool, acce
         ctx.set_source_rgb(*accent)
         ctx.rectangle(x + 2, y, COLUMN - 4, BAND)
         ctx.fill()
+    if not item["label"]:
+        return  # an unlabeled button only shows its LED color
     color = BACKGROUND if item["selected"] else TEXT
-    label = _fit(ctx, item["label"], COLUMN - 10, 14, item["selected"])
-    _centered(ctx, label, x + COLUMN / 2, y + 17, 14, color, item["selected"])
+    label = _fit(ctx, item["label"], COLUMN - 10, LABEL, item["selected"])
+    _centered(ctx, label, x + COLUMN / 2, y + 17, LABEL, color, item["selected"])
 
 
 def _arc(ctx, cx, cy, radius, width, fraction, bipolar, accent) -> None:
@@ -87,38 +100,43 @@ def _arc(ctx, cx, cy, radius, width, fraction, bipolar, accent) -> None:
 
 
 def _control(ctx: cairo.Context, col: int, control: dict, accent) -> None:
+    accent = rgb(control["color"]) if control.get("color") else accent
     cx = col * COLUMN + COLUMN / 2
-    _centered(ctx, _fit(ctx, control["name"], COLUMN - 12, 14), cx, 42, 14, TEXT_DIM)
+    _centered(ctx, _fit(ctx, control["name"], COLUMN - 12, LABEL), cx, 42, LABEL, TEXT_DIM)
     _arc(ctx, cx, 80, 22, 5, control["fraction"], control["bipolar"], accent)
-    value = _fit(ctx, control["text"], COLUMN - 8, 16, True)
-    _centered(ctx, value, cx, 128, 16, TEXT, True)
+    value = _fit(ctx, control["text"], COLUMN - 8, BODY, True)
+    _centered(ctx, value, cx, 128, BODY, TEXT, True)
 
 
 def _peek(ctx: cairo.Context, control: dict, accent) -> None:
+    accent = rgb(control["color"]) if control.get("color") else accent
     _arc(ctx, 80, 82, 36, 8, control["fraction"], control["bipolar"], accent)
-    _text(ctx, control["name"], 150, 56, 20, TEXT_DIM)
-    _text(ctx, _fit(ctx, control["text"], WIDTH - 170, 48, True), 150, 112, 48, TEXT, True)
+    _text(ctx, control["name"], 150, 56, VALUE, TEXT_DIM)
+    _text(ctx, _fit(ctx, control["text"], WIDTH - 170, PEEK, True), 150, 112, PEEK, TEXT, True)
 
 
 def _shift_overlay(ctx: cairo.Context, lines: list[str], accent) -> None:
-    _text(ctx, "Shift", 16, 50, 20, accent, bold=True)
-    for i, line in enumerate(lines):
-        _text(ctx, line, 16, 80 + i * 24, 18, TEXT)
+    _text(ctx, "Shift", 16, 50, VALUE, accent, bold=True)
+    # Two columns of two, so four actions fit above the bottom band.
+    for i, line in enumerate(lines[:4]):
+        x = 16 + (i // 2) * (WIDTH // 2)
+        line = _fit(ctx, line, WIDTH / 2 - 32, BODY + 2)
+        _text(ctx, line, x, 86 + (i % 2) * 28, BODY + 2, TEXT)
 
 
 def _panel_keyboard(ctx, panel, x0, width, accent) -> None:
-    _text(ctx, panel["title"], x0 + 16, 44, 14, TEXT_DIM)
-    key = _fit(ctx, panel["key_name"], width / 2 - 24, 34, True)
-    _text(ctx, key, x0 + 16, 84, 34, accent, True)
+    _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
+    key = _fit(ctx, panel["key_name"], width / 2 - 24, TITLE, True)
+    _text(ctx, key, x0 + 16, 84, TITLE, accent, True)
     details = ["In key" if panel["in_key"] else "Chromatic", f"Ch {panel['channel'] + 1}"]
     _details(ctx, panel, details, x0, width)
     _notes_or_hint(ctx, panel, x0 + width / 2, width / 2)
 
 
 def _panel_drums(ctx, panel, x0, width, accent) -> None:
-    _text(ctx, panel["title"], x0 + 16, 44, 14, TEXT_DIM)
-    name = _fit(ctx, panel["last_hit"] or "Drums", width / 2 - 24, 34, True)
-    _text(ctx, name, x0 + 16, 84, 34, accent, True)
+    _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
+    name = _fit(ctx, panel["last_hit"] or "Drums", width / 2 - 24, TITLE, True)
+    _text(ctx, name, x0 + 16, 84, TITLE, accent, True)
     _details(ctx, panel, [f"Ch {panel['channel'] + 1}"], x0, width)
     _notes_or_hint(ctx, panel, x0 + width / 2, width / 2)
 
@@ -127,54 +145,102 @@ def _details(ctx, panel, parts: list[str], x0, width) -> None:
     parts = [*parts, panel["destination"]]
     if panel["accent"]:
         parts.append("Accent")
-    _text(ctx, _fit(ctx, " · ".join(parts), width - 32, 16), x0 + 16, 116, 16, TEXT)
+    _text(ctx, _fit(ctx, " · ".join(parts), width - 32, BODY), x0 + 16, 116, BODY, TEXT)
 
 
 def _notes_or_hint(ctx, panel, x0, width) -> None:
     if panel["held"]:
-        held = _fit(ctx, "  ".join(panel["held"]), width - 16, 28, True)
-        _text(ctx, held, x0, 84, 28, TEXT, True)
+        held = _fit(ctx, "  ".join(panel["held"]), width - 16, HEADING, True)
+        _text(ctx, held, x0, 84, HEADING, TEXT, True)
     elif panel["first_run"]:
-        _text(ctx, "Play any pad", x0, 70, 22, TEXT)
-        hint = _fit(ctx, "Select “Pushtoo Out” in your DAW", width - 16, 15)
-        _text(ctx, hint, x0, 94, 15, TEXT_DIM)
+        _text(ctx, "Play any pad", x0, 70, VALUE + 2, TEXT)
+        hint = _fit(ctx, "Select “Pushtoo Out” in your DAW", width - 16, BODY - 1)
+        _text(ctx, hint, x0, 94, BODY - 1, TEXT_DIM)
 
 
 def _panel_scale_selector(ctx, panel, x0, width, accent) -> None:
     # Scale names get two columns ("Major Pentatonic" is wider than one).
     scales = panel["scale_names"]
     index = scales.index(panel["scale"])
-    _text(ctx, "Scale", 16, 44, 14, TEXT_DIM)
+    _text(ctx, "Scale", 16, 44, LABEL, TEXT_DIM)
     for offset in (-1, 0, 1):
         i = index + offset
         if 0 <= i < len(scales):
             selected = offset == 0
             color = accent if selected else TEXT_DIM
-            _text(ctx, scales[i], 16, 92 + offset * 24, 20, color, bold=selected)
-    _text(ctx, "Root", 2 * COLUMN + 16, 44, 14, TEXT_DIM)
-    _text(ctx, panel["root_name"], 2 * COLUMN + 16, 100, 34, accent, bold=True)
+            _text(ctx, scales[i], 16, 92 + offset * 24, VALUE, color, bold=selected)
+    _text(ctx, "Root", 2 * COLUMN + 16, 44, LABEL, TEXT_DIM)
+    _text(ctx, panel["root_name"], 2 * COLUMN + 16, 100, TITLE, accent, bold=True)
     hint = "Buttons or encoder 2: root · Encoder 1: scale · Scale: close"
-    hint = _fit(ctx, hint, WIDTH - 3 * COLUMN - 32, 15)
-    _text(ctx, hint, 3 * COLUMN + 16, 98, 15, TEXT_DIM)
+    hint = _fit(ctx, hint, WIDTH - 3 * COLUMN - 32, BODY - 1)
+    _text(ctx, hint, 3 * COLUMN + 16, 98, BODY - 1, TEXT_DIM)
+
+
+def _panel_knobs(ctx, panel, x0, width, accent) -> None:
+    _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
+    dest = _fit(ctx, f"Sending to {panel['destination']}", width - 32, BODY)
+    _text(ctx, dest, x0 + 16, 84, BODY, TEXT)
+    hint = _fit(ctx, "Shift + upper button: Learn Assist", width - 32, BODY - 1)
+    _text(ctx, hint, x0 + 16, 110, BODY - 1, TEXT_DIM)
+
+
+def _panel_browse(ctx, panel, x0, width, accent) -> None:
+    _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
+    names, selected = panel["names"], panel["selected"]
+    if not names:
+        _text(ctx, "No profiles found", x0 + 16, 84, VALUE, TEXT)
+        return
+    for offset in (-1, 0, 1):
+        i = selected + offset
+        if 0 <= i < len(names):
+            label = names[i] + ("  (active)" if names[i] == panel["active"] else "")
+            color = accent if offset == 0 else TEXT_DIM
+            label = _fit(ctx, label, width - 32, VALUE, offset == 0)
+            _text(ctx, label, x0 + 16, 88 + offset * 26, VALUE, color, bold=offset == 0)
 
 
 PANELS = {
     "keyboard": _panel_keyboard,
     "drums": _panel_drums,
     "scale_selector": _panel_scale_selector,
+    "knobs": _panel_knobs,
+    "browse": _panel_browse,
 }
+
+
+def _wrap(ctx: cairo.Context, text: str, max_width: float, size: float, max_lines: int):
+    """Greedy word wrap; the last line is shortened if the text still doesn't fit."""
+    _font(ctx, size, False)
+    lines: list[str] = []
+    for word in text.split():
+        candidate = f"{lines[-1]} {word}" if lines else word
+        if lines and ctx.text_extents(candidate).x_advance <= max_width:
+            lines[-1] = candidate
+        else:
+            lines.append(word)
+    if len(lines) > max_lines:
+        lines = [*lines[: max_lines - 1], " ".join(lines[max_lines - 1 :])]
+    return [_fit(ctx, line, max_width, size) for line in lines]
 
 
 def _toast(ctx: cairo.Context, text: str) -> None:
     ctx.set_source_rgb(*BACKGROUND)
     ctx.rectangle(0, BAND, WIDTH, HEIGHT - 2 * BAND)
     ctx.fill()
-    _centered(ctx, _fit(ctx, text, WIDTH - 32, 48, True), WIDTH / 2, 98, 48, TEXT, bold=True)
+    _font(ctx, PEEK, True)
+    if ctx.text_extents(text).x_advance <= WIDTH - 32:
+        _centered(ctx, text, WIDTH / 2, 98, PEEK, TEXT, bold=True)
+        return
+    # Long messages (profile errors) wrap at a readable size instead of being cut.
+    lines = _wrap(ctx, text, WIDTH - 32, VALUE, max_lines=3)
+    top = 80 - (len(lines) - 1) * 13
+    for i, line in enumerate(lines):
+        _text(ctx, line, 16, top + i * 26, VALUE, TEXT)
 
 
 def draw_view(ctx: cairo.Context, view: dict, now: float | None = None) -> None:
     now = time.monotonic() if now is None else now
-    accent = ACCENTS.get(view.get("accent"), PLAY_ACCENT)
+    accent = rgb(accent_name(view.get("accent", "play")))
     ctx.set_source_rgb(*BACKGROUND)
     ctx.paint()
 

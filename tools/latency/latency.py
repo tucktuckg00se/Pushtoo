@@ -24,9 +24,11 @@ import argparse
 import multiprocessing as mp
 import queue
 import statistics
+import tempfile
 import threading
 import time
 from collections import defaultdict, deque
+from pathlib import Path
 
 import mido
 import rtmidi
@@ -192,7 +194,10 @@ def main() -> None:
     parser.add_argument("--rate", type=int, default=100, help="synthetic presses per second")
     args = parser.parse_args()
 
-    app = App()
+    # Temporary profile and state folders, so a gate run never touches the user's.
+    scratch = tempfile.TemporaryDirectory(prefix="pushtoo-latency-")
+    root = Path(scratch.name)
+    app = App(config_dir=root / "profiles", state_path=root / "state.yaml")
     # push2-python ignores all input until Push's first active-sensing message, then
     # for one more second, to skip a startup burst.
     deadline = time.monotonic() + 10
@@ -226,6 +231,7 @@ def main() -> None:
         app.close()
         stop_listener.set()
         proc.join(2)
+        scratch.cleanup()
     raise SystemExit(0 if all_passed else 1)
 
 

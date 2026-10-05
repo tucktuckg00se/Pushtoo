@@ -83,7 +83,13 @@ def test_callable_choices_are_read_at_turn_time():
 def test_format_and_view():
     box = Box(3)
     control = make_control(box, minimum=-1, maximum=7, format=lambda v: f"Oct {v}")
-    assert control.view() == {"name": "Test", "text": "Oct 3", "fraction": 0.5, "bipolar": False}
+    assert control.view() == {
+        "name": "Test",
+        "text": "Oct 3",
+        "fraction": 0.5,
+        "bipolar": False,
+        "color": None,
+    }
 
 
 def test_page_options_and_views():

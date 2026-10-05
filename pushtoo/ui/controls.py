@@ -37,6 +37,7 @@ class Control:
     choices: Sequence[str] | Callable[[], Sequence[str]] | None = None
     format: Callable[[int], str] = str
     bipolar: bool = False
+    color: str | None = None  # a theme color name; the mode accent if None
     _accumulated: int = field(default=0, repr=False)
 
     def _choices(self) -> Sequence[str] | None:
@@ -86,6 +87,7 @@ class Control:
             "text": self.text(),
             "fraction": self.fraction(),
             "bipolar": self.bipolar,
+            "color": self.color,
         }
 
 

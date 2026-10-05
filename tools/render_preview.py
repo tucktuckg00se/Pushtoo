@@ -6,12 +6,14 @@ Writes one PNG per view plus contact_sheet.png with all of them stacked.
 """
 
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 import cairo
 from push2_python import constants as c
 
+from pushtoo.app import App
 from pushtoo.midi.router import MidiRouter
 from pushtoo.modes.play import PlayMode
 from pushtoo.render.screens import HEIGHT, WIDTH, draw_view
@@ -27,13 +29,90 @@ class _NullOutput:
         pass
 
 
-def _play() -> PlayMode:
-    router = MidiRouter(
+class _NullRenderer:
+    def start(self) -> None: ...
+    def update(self, view: dict) -> None: ...
+    def stop(self) -> None: ...
+
+
+class _NullKeys:
+    def send(self, spec: str) -> bool:
+        return True
+
+    def close(self) -> None: ...
+
+
+SYNTH_PROFILE = """
+name: Synth
+knobs:
+  pages:
+    - name: Filter
+      controls:
+        - {name: Cutoff, cc: 74, channel: 1, color: orange, default: 90}
+        - {name: Resonance, cc: 71, channel: 1, color: orange, default: 30}
+        - {name: Env Amount, cc: 47, channel: 1, color: yellow, bipolar: true, default: 80}
+        - {name: Detune, cc: 94, channel: 1, color: violet, bipolar: true}
+    - name: Envelope
+      controls:
+        - {name: Attack, cc: 73, channel: 1, color: green}
+"""
+
+
+def _app(tmp: Path, profile: str | None = None) -> App:
+    config = tmp / "profiles"
+    config.mkdir(parents=True, exist_ok=True)
+    if profile is not None:
+        (config / "default.yaml").write_text(profile)
+        (config / "live-set.yaml").write_text("name: Live Set\n")
+    app = App(
+        renderer=_NullRenderer(),
+        config_dir=config,
+        state_path=tmp / "state.yaml",
+        router=_router(),
+        keys=_NullKeys(),
+        connect=False,
+    )
+    app.profiles.stop()
+    return app
+
+
+def _m2_views(views: dict[str, dict]) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        app = _app(Path(tmp) / "a")
+        app.button_pressed(c.BUTTON_DEVICE)
+        for column, turns in enumerate((20, 64, 5, 100, 0, 30, 127, 45)):
+            app.encoder_rotated(f"Track{column + 1} Encoder", 6 * turns)
+        views["knobs_default_map"] = app.view()
+        app.button_pressed(c.BUTTON_SHIFT)
+        views["knobs_learn_assist"] = app.view()
+        app.button_released(c.BUTTON_SHIFT)
+
+        app.button_pressed(c.BUTTON_MIX)
+        app.pad_pressed(7, 1, 100)
+        app.pad_pressed(6, 3, 100)
+        views["mix"] = app.view()
+        app.encoder_touched(c.ENCODER_MASTER_ENCODER)
+        views["peek_master"] = app.view()
+        app.saver._stop.set()
+
+        app = _app(Path(tmp) / "b", SYNTH_PROFILE)
+        app.button_pressed(c.BUTTON_DEVICE)
+        views["knobs_custom_page"] = app.view()
+        app.button_pressed(c.BUTTON_BROWSE)
+        views["browse"] = app.view()
+        app.saver._stop.set()
+
+
+def _router() -> MidiRouter:
+    return MidiRouter(
         virtual_out=_NullOutput(),
         list_ports=lambda: SAMPLE_PORTS,
         open_port=lambda name: _NullOutput(),
     )
-    return PlayMode(router)
+
+
+def _play() -> PlayMode:
+    return PlayMode(_router())
 
 
 def sample_views() -> dict[str, dict]:
@@ -75,6 +154,8 @@ def sample_views() -> dict[str, dict]:
     play.button_pressed("Upper Row 4")  # D
     play.encoder_turned(0, 6 * 8)  # Minor -> Major Pentatonic
     views["scale_selector"] = play.view()
+
+    _m2_views(views)
     return views
 
 

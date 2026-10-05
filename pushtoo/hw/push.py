@@ -12,8 +12,8 @@ from typing import Protocol
 import push2_python
 from push2_python.exceptions import Push2MIDIeviceNotFound
 
-from pushtoo.hw.colors import LED_COLORS
 from pushtoo.music import velocity_curve
+from pushtoo.theme import LED_COLORS
 
 RECONNECT_INTERVAL = 1.0  # seconds between attempts to reopen Push's MIDI ports
 
