@@ -1,118 +1,263 @@
-"""Chord theory for the Chord layout (PRD: Chord layout). Pure logic, no I/O.
+"""Chord theory for the chord grid (PRD: Chord layout). Pure logic, no I/O.
 
-Roots are placed relative to the key: the bottom row walks the scale from the home
-note, and the row above holds the out-of-key notes in the gaps, like black keys. The
-six rows above that are chord type (across) by voicing (up): each row up raises the
-lowest chord tone an octave, so higher rows sound brighter.
+Columns are the steps of the key (I to VII, then I an octave up); rows are chord
+flavors built on those steps, so every pad is a complete chord that fits the key,
+apart from the two "spice" rows at the top. A progression is a hand shape: I-V-vi-IV
+is the same four pads in every key.
 """
 
 from dataclasses import dataclass
 
-from pushtoo.music import NOTE_NAMES, KeyboardLayout
+from pushtoo.music import NOTE_NAMES, SCALES, KeyboardLayout, spelling
 
-CHORD_TYPES = ("Auto", "Maj", "Min", "7", "Maj7", "m7", "Sus4", "Dim")
-INTERVALS: dict[str, tuple[int, ...]] = {
-    "Maj": (0, 4, 7),
-    "Min": (0, 3, 7),
-    "7": (0, 4, 7, 10),
-    "Maj7": (0, 4, 7, 11),
-    "m7": (0, 3, 7, 10),
-    "Sus4": (0, 5, 7),
-    "Dim": (0, 3, 6),
+# Rows, bottom to top. Row 0 is single bass notes rather than chords.
+ROW_KINDS = ("bass", "triad", "seventh", "add9", "sus", "ninth", "borrowed", "secondary")
+# Scale steps stacked in thirds for each diatonic kind (0 = the column's step). The
+# add9 and ninth rows take their color tone from color_step(): the 9th, or the 11th
+# where the scale's 9th is a harsh flat 9th.
+STEPS = {
+    "triad": (0, 2, 4),
+    "seventh": (0, 2, 4, 6),
 }
-# How a chord's intervals are written after the root name.
+# Harmony needs a 7-note scale; these borrow their parent's.
+PARENT_SCALES = {"Major Pentatonic": "Major", "Minor Pentatonic": "Minor", "Blues": "Minor"}
+ROMAN = ("I", "II", "III", "IV", "V", "VI", "VII")
+
+# Chord names by pitch-class set above the root. Anything else is shown as its notes.
 SUFFIXES: dict[tuple[int, ...], str] = {
     (0, 4, 7): "",
     (0, 3, 7): "m",
+    (0, 3, 6): "dim",
+    (0, 4, 8): "aug",
+    (0, 5, 7): "sus4",
+    (0, 2, 7): "sus2",
     (0, 4, 7, 10): "7",
     (0, 4, 7, 11): "maj7",
     (0, 3, 7, 10): "m7",
-    (0, 5, 7): "sus4",
-    (0, 3, 6): "dim",
-    (0, 4, 8): "aug",
-    (0, 2, 7): "sus2",
+    (0, 3, 7, 11): "m(maj7)",
+    (0, 3, 6, 10): "m7b5",
+    (0, 3, 6, 9): "dim7",
+    (0, 4, 8, 11): "maj7#5",
+    (0, 4, 8, 10): "7#5",
+    (0, 2, 4, 7): "add9",
+    (0, 2, 3, 7): "m(add9)",
+    (0, 1, 3, 6): "dim(addb9)",
+    (0, 1, 3, 7): "m(addb9)",
+    (0, 2, 4, 8): "aug(add9)",
+    (0, 2, 4, 7, 11): "maj9",
+    (0, 2, 3, 7, 10): "m9",
+    (0, 2, 4, 7, 10): "9",
+    (0, 2, 3, 7, 11): "m(maj9)",
+    (0, 1, 3, 7, 10): "m7(b9)",
+    (0, 2, 3, 6, 10): "m9b5",
+    (0, 1, 3, 6, 10): "m7b5(b9)",
+    (0, 1, 4, 7, 10): "7(b9)",
+    (0, 2, 4, 8, 11): "maj9#5",
+    (0, 3, 5, 7): "m(add11)",
+    (0, 3, 5, 6): "dim(add11)",
+    (0, 4, 5, 7): "add11",
+    (0, 3, 5, 7, 10): "m11",
+    (0, 3, 5, 6, 10): "m11b5",
+    (0, 3, 5, 6, 9): "dim7(add11)",
+    (0, 4, 5, 7, 10): "7(add11)",
+    (0, 5, 6): "sus4b5",
 }
-# Side buttons, top four: (label, semitones above the root).
-EXTENSIONS = (("+6", 9), ("+9", 14), ("+11", 17), ("+13", 21))
-INVERSION_NAMES = ("Root position", "1st inversion", "2nd inversion", "3rd inversion")
-ROOT_ROWS = 2  # rows 0 (in-key) and 1 (out-of-key)
-VOICING_ROWS = 6
 
 
-def auto_intervals(root_pc: int, key: KeyboardLayout) -> tuple[int, ...]:
-    """The chord that fits the key on this root: the scale's triad built on it
-    (scale steps 1-3-5 from there), or major for roots outside the scale."""
-    scale = key.intervals
-    relative = (root_pc - key.root) % 12
-    if relative not in scale:
-        return INTERVALS["Maj"]
-    degree = scale.index(relative)
-    tones = []
-    for step in (0, 2, 4):
+def parent_scale(key: KeyboardLayout) -> tuple[int, ...]:
+    """The scale chords are built from: the key's own, or its 7-note parent."""
+    return SCALES[PARENT_SCALES.get(key.scale, key.scale)]
+
+
+def uses_parent(key: KeyboardLayout) -> bool:
+    return key.scale in PARENT_SCALES
+
+
+def _stack(scale: tuple[int, ...], degree: int, steps: tuple[int, ...]) -> tuple[int, ...]:
+    """Intervals above the degree's root of the given scale steps above it."""
+    root = scale[degree % len(scale)] + 12 * (degree // len(scale))
+    out = []
+    for step in steps:
         octaves, index = divmod(degree + step, len(scale))
-        tones.append(scale[index] + 12 * octaves - relative)
-    return tuple(tones)
+        out.append(scale[index] + 12 * octaves - root)
+    return tuple(out)
 
 
-def intervals_for(chord_type: str, root_pc: int, key: KeyboardLayout) -> tuple[int, ...]:
-    return auto_intervals(root_pc, key) if chord_type == "Auto" else INTERVALS[chord_type]
+def color_step(scale: tuple[int, ...], degree: int) -> int:
+    """The scale step to add for color: the 9th (step 8), unless it is a flat 9th a
+    semitone above the root's octave, which sounds harsh; then the 11th (step 10)."""
+    ninth = _stack(scale, degree, (0, 8))[1]
+    return 8 if ninth % 12 != 1 else 10
 
 
-def fits_key(root_pc: int, intervals: tuple[int, ...], key: KeyboardLayout) -> bool:
-    return all((root_pc + i - key.root) % 12 in key.intervals for i in intervals)
-
-
-def voice(
-    root_note: int, intervals: tuple[int, ...], inversion: int, extensions: tuple[int, ...] = ()
-) -> list[int]:
-    """MIDI notes, lowest first. Each inversion step lifts the lowest tone an octave."""
-    notes = sorted(root_note + i for i in intervals)
-    for _ in range(inversion):
-        notes = sorted([*notes[1:], notes[0] + 12])
-    notes += [root_note + semitones for semitones in extensions]
-    return sorted(n for n in set(notes) if 0 <= n <= 127)
-
-
-def chord_name(root_pc: int, intervals: tuple[int, ...], extension_labels=()) -> str:
-    suffix = SUFFIXES.get(tuple(sorted(i % 12 for i in intervals)), "")
-    name = f"{NOTE_NAMES[root_pc]}{suffix}"
-    if extension_labels:
-        name += " (" + ", ".join(label.lstrip("+") for label in extension_labels) + ")"
-    return name
-
-
-def inversion_name(inversion: int) -> str:
-    if inversion < len(INVERSION_NAMES):
-        return INVERSION_NAMES[inversion]
-    return f"Voicing {inversion + 1}"
+def degree_root(key: KeyboardLayout, degree: int) -> int:
+    """Semitones from the key's root to this step's root (the octave column is +12)."""
+    scale = parent_scale(key)
+    return scale[degree % len(scale)] + 12 * (degree // len(scale))
 
 
 @dataclass(frozen=True)
-class RootPad:
-    note: int  # MIDI note of the root, in the layout's octave
-    in_key: bool
-    home: bool
+class Chord:
+    root: int  # semitones above the key's root, may exceed 12
+    intervals: tuple[int, ...]  # above the chord's root, lowest first
+    kind: str
+    degree: int
+    target: int | None = None  # for secondary dominants: the degree it resolves to
+
+    def pitch_class(self, key: KeyboardLayout) -> int:
+        return (key.root + self.root) % 12
 
 
-def root_at(row: int, col: int, key: KeyboardLayout, octave: int) -> RootPad | None:
-    """Row 0: home note, then the scale upward for 8 pads (one octave for 7-note
-    scales). Row 1: above each in-key root of the first octave, the out-of-key note a
-    semitone up, if any; past the octave it would only repeat, so those pads stay dark."""
-    base = 12 * (octave + 1) + key.root
-    scale = key.intervals
-    octaves, index = divmod(col, len(scale))
-    in_key_note = base + 12 * octaves + scale[index]
-    if row == 0:
-        return RootPad(in_key_note, in_key=True, home=scale[index] == 0)
-    if row == 1 and octaves == 0:
-        sharp = in_key_note + 1
-        if (sharp - base) % 12 not in scale:
-            return RootPad(sharp, in_key=False, home=False)
-    return None
+def chord_at(key: KeyboardLayout, kind: str, degree: int) -> Chord:
+    scale = parent_scale(key)
+    root = degree_root(key, degree)
+    if kind in STEPS:
+        return Chord(root, _stack(scale, degree, STEPS[kind]), kind, degree)
+    if kind in ("add9", "ninth"):
+        base = (0, 2, 4) if kind == "add9" else (0, 2, 4, 6)
+        return Chord(root, _stack(scale, degree, (*base, color_step(scale, degree))), kind, degree)
+    if kind == "sus":
+        # sus4 where the 4th and 5th are in key, else sus2; on steps without a perfect
+        # 5th, the scale's own 4th and 5th, so the pad stays in key.
+        pcs = {s % 12 for s in scale}
+        rel = scale[degree % len(scale)]
+        if (rel + 5) % 12 in pcs and (rel + 7) % 12 in pcs:
+            intervals: tuple[int, ...] = (0, 5, 7)
+        elif (rel + 2) % 12 in pcs and (rel + 7) % 12 in pcs:
+            intervals = (0, 2, 7)
+        else:
+            intervals = _stack(scale, degree, (0, 3, 4))
+        return Chord(root, intervals, kind, degree)
+    if kind == "borrowed":
+        # The same step of the parallel scale: minor's in a major key, major's in minor.
+        parallel = SCALES["Minor"] if 4 in scale else SCALES["Major"]
+        prel = parallel[degree % 7] + 12 * (degree // 7)
+        return Chord(prel, _stack(parallel, degree, STEPS["triad"]), kind, degree)
+    if kind == "secondary":
+        # V7 of this column's chord: a dominant 7th a fifth above it.
+        return Chord(root + 7, (0, 4, 7, 10), kind, degree, target=degree)
+    raise ValueError(f"no chord kind {kind!r}")
 
 
-def grid_at(row: int, col: int) -> tuple[str, int] | None:
-    """(chord type, inversion) for a pad in the six rows above the roots."""
-    if ROOT_ROWS <= row < ROOT_ROWS + VOICING_ROWS:
-        return CHORD_TYPES[col], row - ROOT_ROWS
-    return None
+def numeral(key: KeyboardLayout, degree: int) -> str:
+    """Roman numeral of the triad on this step: IV, vi, vii°."""
+    third, fifth = _stack(parent_scale(key), degree, STEPS["triad"])[1:]
+    base = ROMAN[degree % 7]
+    if third == 3:
+        base = base.lower()
+    if fifth == 6:
+        return base + "°"
+    if fifth == 8:
+        return base + "+"
+    return base
+
+
+def role(chord: Chord, key: KeyboardLayout) -> str:
+    """What a chord does, for colors and the screen: home, away, tension, borrowed, or
+    the step a secondary dominant pulls toward."""
+    if chord.kind == "borrowed":
+        return "borrowed"
+    if chord.kind == "secondary":
+        return f"→ {numeral(key, chord.target)}"
+    return {0: "home", 2: "home", 5: "home", 1: "away", 3: "away"}.get(chord.degree % 7, "tension")
+
+
+def chord_name(
+    root_pc: int, intervals: tuple[int, ...], names: tuple[str, ...] = NOTE_NAMES
+) -> str:
+    """Plain name such as "Dm7"; chords without a common name show their notes, never a
+    wrong name."""
+    shape = tuple(sorted({i % 12 for i in intervals}))
+    if shape in SUFFIXES:
+        return f"{names[root_pc]}{SUFFIXES[shape]}"
+    return " ".join(names[(root_pc + i) % 12] for i in intervals)
+
+
+def key_spelling(key: KeyboardLayout) -> tuple[str, ...]:
+    return spelling(key.root, parent_scale(key))
+
+
+def fits_key(root_pc: int, intervals: tuple[int, ...], key: KeyboardLayout) -> bool:
+    return all((root_pc + i - key.root) % 12 in parent_scale(key) for i in intervals)
+
+
+# Voicings
+
+
+def close(root_note: int, intervals: tuple[int, ...]) -> list[int]:
+    return sorted(root_note + i for i in intervals)
+
+
+def invert(notes: list[int], times: int) -> list[int]:
+    """Lift the lowest note an octave, `times` times."""
+    notes = sorted(notes)
+    for _ in range(times):
+        notes = sorted([*notes[1:], notes[0] + 12])
+    return notes
+
+
+def drop2(notes: list[int]) -> list[int]:
+    """Open voicing: the second-highest note drops an octave."""
+    notes = sorted(notes)
+    if len(notes) < 3:
+        return notes
+    return sorted([*notes[:-2], notes[-2] - 12, notes[-1]])
+
+
+def wide(notes: list[int]) -> list[int]:
+    """Root an octave down, the third an octave up: root, fifth, tenth and beyond."""
+    notes = sorted(notes)
+    if len(notes) < 3:
+        return notes
+    return sorted([notes[0] - 12, *notes[2:], notes[1] + 12])
+
+
+def _movement(previous: list[int], candidate: list[int]) -> int:
+    """How far the hand moves: each note to its nearest neighbor in the other chord."""
+    there = sum(min(abs(n - p) for p in previous) for n in candidate)
+    back = sum(min(abs(p - n) for n in candidate) for p in previous)
+    return there + back
+
+
+def smooth(previous: list[int] | None, notes: list[int], register: int) -> list[int]:
+    """The inversion and octave of `notes` that moves least from `previous`, with its
+    lowest note kept near `register` so progressions don't drift up or down."""
+    notes = sorted(notes)
+    if not previous:
+        return notes
+    candidates = []
+    for times in range(len(notes)):
+        voiced = invert(notes, times)
+        for shift in (-12, 0, 12):
+            candidate = [n + shift for n in voiced]
+            if register - 7 <= candidate[0] <= register + 7:
+                candidates.append(candidate)
+    if not candidates:
+        return notes
+    return min(candidates, key=lambda c: (_movement(previous, c), abs(c[0] - register)))
+
+
+VOICINGS = ("Smooth", "Root", "1st", "2nd", "3rd", "Open", "Wide")
+VOICING_NAMES = {
+    "Smooth": "Smooth",
+    "Root": "Root position",
+    "1st": "1st inversion",
+    "2nd": "2nd inversion",
+    "3rd": "3rd inversion",
+    "Open": "Open (drop 2)",
+    "Wide": "Wide",
+}
+
+
+def apply_voicing(
+    voicing: str, notes: list[int], previous: list[int] | None, register: int
+) -> list[int]:
+    if voicing == "Smooth":
+        voiced = smooth(previous, notes, register)
+    elif voicing == "Open":
+        voiced = drop2(notes)
+    elif voicing == "Wide":
+        voiced = wide(notes)
+    else:
+        voiced = invert(notes, VOICINGS.index(voicing) - 1)
+    return [n for n in voiced if 0 <= n <= 127]

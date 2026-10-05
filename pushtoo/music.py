@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 NOTE_NAMES = ("C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B")
+FLAT_NAMES = ("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
+SHARP_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 # Ordered as shown in the scale list; intervals are semitones above the root.
 SCALES: dict[str, tuple[int, ...]] = {
@@ -35,8 +37,19 @@ class PadRole(Enum):
     OUT_OF_SCALE = "out_of_scale"
 
 
-def note_name(midi_note: int) -> str:
-    return f"{NOTE_NAMES[midi_note % 12]}{midi_note // 12 - 1}"
+def note_name(midi_note: int, names: tuple[str, ...] = NOTE_NAMES) -> str:
+    return f"{names[midi_note % 12]}{midi_note // 12 - 1}"
+
+
+def spelling(root: int, intervals: tuple[int, ...]) -> tuple[str, ...]:
+    """Note names that suit a key: flats in keys with Bb and no F#, sharps in keys
+    with F# and no Bb, otherwise the common mix (C#, Eb, F#, Ab, Bb)."""
+    pcs = {(root + i) % 12 for i in intervals}
+    if 10 in pcs and 6 not in pcs:
+        return FLAT_NAMES
+    if 6 in pcs and 10 not in pcs:
+        return SHARP_NAMES
+    return NOTE_NAMES
 
 
 @dataclass

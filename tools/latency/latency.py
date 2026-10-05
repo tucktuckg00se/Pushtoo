@@ -16,7 +16,7 @@ own USB input latency is a fixed hardware cost and is not included.
 Rounds:
   single notes   one pad at a time
   chords         three pads at once, so later notes wait behind earlier refreshes
-  chord layout   Chord layout root taps, to the first note of each chord
+  chord layout   chord-grid taps, to the first note of each chord
   python hog     single notes plus a busy pure-Python thread (informational only:
                  shows why rendering must stay out of the MIDI process, ADR 0001)
 """
@@ -116,7 +116,7 @@ def start_python_load(stop: threading.Event) -> None:
 
 
 ALL_PADS = list(range(FIRST_PAD_NOTE, FIRST_PAD_NOTE + PAD_COUNT))
-CHORD_ROOT_PADS = ALL_PADS[:8]  # the bottom row: the Chord layout's in-key roots
+CHORD_PADS = ALL_PADS[8:16]  # the chord grid's triad row (second from the bottom)
 
 
 def expected_notes(app: App, pads: list[int]) -> dict[int, int]:
@@ -245,12 +245,15 @@ def main() -> None:
             rounds = (
                 ("single notes", 1, False, "Keyboard", ALL_PADS),
                 ("chords", 3, False, "Keyboard", ALL_PADS),
-                ("chord layout", 1, False, "Chord", CHORD_ROOT_PADS),
+                ("chord layout", 1, False, "Chord", CHORD_PADS),
                 ("python hog", 1, True, "Keyboard", ALL_PADS),
             )
             for label, chord, hog, layout, pads in rounds:
                 while app.play.layout.name != layout:
                     app.button_pressed(c.BUTTON_LAYOUT)
+                # A fixed voicing, so each pad's first note is predictable (Smooth
+                # depends on the previous chord).
+                app.play.chord.voicing = "Root"
                 stop_load = threading.Event()
                 if hog:
                     start_python_load(stop_load)

@@ -37,14 +37,14 @@ MODE_BUTTONS = {
     c.BUTTON_DEVICE: "knobs",
     c.BUTTON_MIX: "mix",
 }
-LATER_MODES = {c.BUTTON_SESSION: "Launch", c.BUTTON_SETUP: "Setup"}
+LATER_MODES = {c.BUTTON_SETUP: "Setup"}
 # Play's own buttons act on Play from any mode, since pads keep playing there.
 PLAY_BUTTONS = {
     c.BUTTON_LAYOUT,
     c.BUTTON_ACCENT,
     c.BUTTON_OCTAVE_UP,
     c.BUTTON_OCTAVE_DOWN,
-    *SCENE_BUTTONS,  # Chord layout extensions
+    *SCENE_BUTTONS,  # Chord layout voicings
 }
 
 log = logging.getLogger(__name__)
@@ -232,7 +232,10 @@ class App:
 
     @locked
     def button_released(self, name: str) -> None:
-        if name == c.BUTTON_SHIFT:
+        if name in SCENE_BUTTONS:
+            if self.play.button_released(name):
+                self.refresh()
+        elif name == c.BUTTON_SHIFT:
             self.shift = False
             self.refresh()
         elif name == c.BUTTON_DELETE:
@@ -345,7 +348,8 @@ class App:
             colors[button] = "black"
         for button in (PLAY_BUTTONS - set(SCENE_BUTTONS)) | {c.BUTTON_SCALE}:
             colors.setdefault(button, "dark_gray")
-        colors |= self.play.scene_colors()  # extensions stay visible from any mode
+        colors |= self.play.scene_colors()  # the voicing stays visible from any mode
+        colors[c.BUTTON_SESSION] = "black"  # unassigned: Pushtoo has no clip launching
         colors[c.BUTTON_SHIFT] = "white" if self.shift else "dark_gray"
         colors[c.BUTTON_STOP] = "white" if self.shift else "black"
         colors[c.BUTTON_UNDO] = "dark_gray"

@@ -165,20 +165,34 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.button_pressed(c.BUTTON_LAYOUT)
     play.button_pressed(c.BUTTON_LAYOUT)
     views["chord_idle"] = play.view()
-    play.pad_pressed(4, 5, 100)  # m7, 2nd inversion
-    play.pad_pressed(0, 3, 100)  # F
+    play.pad_pressed(1, 0, 100)  # Cm
+    play.pad_released(1, 0)
+    play.pad_pressed(1, 4, 100)  # Gm, smoothly voiced from Cm
     views["chord_sounding"] = play.view()
-    play.pad_released(4, 5)
-    play.pad_released(0, 3)
-    play.button_pressed("1/4t")  # +9
-    play.pad_pressed(0, 0, 100)
-    views["chord_extension"] = play.view()
-    play.pad_released(0, 0)
+    play.pad_released(1, 4)
+    play.pad_pressed(7, 5, 100)  # V7 of Ab
+    views["chord_secondary_dominant"] = play.view()
+    play.pad_released(7, 5)
+    clock = [0.0]
+    play.chord._clock = lambda: clock[0]  # so the hold below counts as a hold
+    play.button_pressed("1/16t")  # hold Open
+    play.pad_pressed(2, 3, 100)  # Fm7
+    views["chord_momentary_voicing"] = play.view()
+    play.pad_released(2, 3)
+    clock[0] += 1.0
+    play.button_released("1/16t")
     play.button_pressed("Upper Row 2")  # Strum
-    play.pad_pressed(0, 4, 100)
+    play.pad_pressed(1, 3, 100)
     views["chord_strum"] = play.view()
     play.button_pressed("Lower Row 2")
     views["chord_output_page"] = play.view()
+
+    play = _play()
+    play.keyboard.scale = "Minor Pentatonic"
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.pad_pressed(4, 2, 100)  # sus on III
+    views["chord_pentatonic"] = play.view()
 
 
 def render(view: dict) -> cairo.ImageSurface:

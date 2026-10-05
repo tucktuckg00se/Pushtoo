@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 
 from push2_python import constants as c
 
-from pushtoo.chords import EXTENSIONS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
 from pushtoo.modes.chord import SCENE_BUTTONS, ChordPlayer
@@ -28,6 +27,7 @@ from pushtoo.music import (
     KeyboardLayout,
     drum_name,
     note_name,
+    spelling,
 )
 from pushtoo.profiles.schema import Play as PlaySettings
 from pushtoo.theme import PAD_ROLE_COLORS
@@ -290,6 +290,13 @@ class PlayMode(Mode):
         self._revoice_if_key_changed(key)
         return changed
 
+    def button_released(self, name: str) -> bool:
+        """Side buttons need releases: a held voicing button only lasts while held."""
+        if name in SCENE_BUTTONS and self.in_chord:
+            self.chord.voicing_released(SCENE_BUTTONS.index(name))
+            return True
+        return False
+
     def _revoice_if_key_changed(self, before: tuple) -> None:
         # The PRD: changing key while holding a chord transposes or reharmonizes it live.
         if self.in_chord and self._key_state() != before:
@@ -316,8 +323,8 @@ class PlayMode(Mode):
             else:
                 self.drums.shift_bank(delta)
             return True
-        if name in SCENE_BUTTONS[: len(EXTENSIONS)] and self.in_chord:
-            self.chord.toggle_extension(SCENE_BUTTONS.index(name))
+        if name in SCENE_BUTTONS and self.in_chord:
+            self.chord.voicing_pressed(SCENE_BUTTONS.index(name))
             return True
         return super().button_pressed(name)
 
@@ -390,7 +397,7 @@ class PlayMode(Mode):
         )
 
     def scene_colors(self) -> dict[str, str]:
-        """Side buttons: extension toggles in the Chord layout, dark otherwise."""
+        """Side buttons: voicings in the Chord layout, dark otherwise."""
         if self.in_chord:
             return self.chord.scene_colors()
         return {name: "black" for name in SCENE_BUTTONS}
@@ -445,10 +452,11 @@ class PlayMode(Mode):
                     "first_run": not self.played_once,
                 }
             elif layout.name == "Keyboard":
+                names = spelling(self.keyboard.root, self.keyboard.intervals)
                 panel |= {
                     "key_name": self.keyboard.key_name,
                     "in_key": self.keyboard.in_key,
-                    "held": [note_name(n) for n in held],
+                    "held": [note_name(n, names) for n in held],
                     "first_run": not self.played_once,
                 }
             else:

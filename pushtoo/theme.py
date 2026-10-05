@@ -23,9 +23,8 @@ NAMED_COLORS: dict[str, RGB] = {
     "white": (230, 230, 230),
     "coral": (250, 110, 90),
     "gray": (150, 150, 155),
-    "hint": (150, 205, 255),  # chord types that fit the key; distinct from every accent
 }
-CONTROL_COLOR_NAMES = tuple(n for n in NAMED_COLORS if n not in ("coral", "gray", "hint"))
+CONTROL_COLOR_NAMES = tuple(n for n in NAMED_COLORS if n not in ("coral", "gray"))
 
 MODE_ACCENTS = {
     "play": "teal",

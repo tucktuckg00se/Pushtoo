@@ -1,87 +1,119 @@
 import pytest
 
 from pushtoo.chords import (
-    INTERVALS,
-    auto_intervals,
+    ROW_KINDS,
+    apply_voicing,
+    chord_at,
     chord_name,
+    close,
+    drop2,
     fits_key,
-    grid_at,
-    inversion_name,
-    root_at,
-    voice,
+    invert,
+    numeral,
+    role,
+    smooth,
+    wide,
 )
-from pushtoo.music import NOTE_NAMES, KeyboardLayout
+from pushtoo.music import KeyboardLayout
 
 C_MAJOR = KeyboardLayout(root=0, scale="Major")
 A_MINOR = KeyboardLayout(root=9, scale="Minor")
+DIATONIC = ("triad", "seventh", "add9", "sus", "ninth")
+
+
+def names(key, kind):
+    chords = (chord_at(key, kind, degree) for degree in range(8))
+    return [chord_name(chord.pitch_class(key), chord.intervals) for chord in chords]
+
+
+def test_c_major_rows_read_like_a_chord_chart():
+    assert names(C_MAJOR, "triad") == ["C", "Dm", "Em", "F", "G", "Am", "Bdim", "C"]
+    sevenths = ["Cmaj7", "Dm7", "Em7", "Fmaj7", "G7", "Am7", "Bm7b5", "Cmaj7"]
+    assert names(C_MAJOR, "seventh") == sevenths
+    assert names(C_MAJOR, "borrowed") == ["Cm", "Ddim", "Eb", "Fm", "Gm", "Ab", "Bb", "Cm"]
+    assert names(C_MAJOR, "secondary")[5] == "E7"  # V7/vi
+
+
+def test_a_minor_uses_its_own_steps():
+    assert names(A_MINOR, "triad") == ["Am", "Bdim", "C", "Dm", "Em", "F", "G", "Am"]
+    assert names(A_MINOR, "borrowed")[0] == "A"  # from A major
+
+
+def test_flat_nine_becomes_an_eleven():
+    # Em(addb9) and Em7(b9) sound harsh; the grid uses the 11th instead.
+    assert names(C_MAJOR, "add9")[2] == "Em(add11)"
+    assert names(C_MAJOR, "ninth")[2] == "Em11"
+    assert names(C_MAJOR, "ninth")[0] == "Cmaj9"
+
+
+@pytest.mark.parametrize("scale", ["Major", "Minor", "Dorian", "Mixolydian", "Harmonic Minor"])
+def test_every_diatonic_pad_is_in_key(scale):
+    key = KeyboardLayout(root=5, scale=scale)
+    for kind in DIATONIC:
+        for degree in range(8):
+            chord = chord_at(key, kind, degree)
+            assert fits_key(chord.pitch_class(key), chord.intervals, key), (kind, degree)
 
 
 @pytest.mark.parametrize(
-    ("root", "name"),
-    [(0, "C"), (2, "Dm"), (4, "Em"), (5, "F"), (7, "G"), (9, "Am"), (11, "Bdim")],
+    ("scale", "parent"),
+    [("Minor Pentatonic", "Minor"), ("Blues", "Minor"), ("Major Pentatonic", "Major")],
 )
-def test_auto_chords_are_the_diatonic_triads_of_c_major(root, name):
-    assert chord_name(root, auto_intervals(root, C_MAJOR)) == name
+def test_non_seven_note_scales_use_their_parent(scale, parent):
+    key = KeyboardLayout(root=0, scale=scale)
+    assert names(key, "triad") == names(KeyboardLayout(root=0, scale=parent), "triad")
 
 
-def test_auto_chords_follow_the_key_in_minor():
-    names = [chord_name(r, auto_intervals(r, A_MINOR)) for r in (9, 11, 0, 2, 4, 5, 7)]
-    assert names == ["Am", "Bdim", "C", "Dm", "Em", "F", "G"]
+def test_unnamed_chords_show_notes_never_a_wrong_name():
+    assert chord_name(0, (0, 5, 10)) == "C F Bb"
+    assert chord_name(0, (0, 4, 7)) == "C"
 
 
-def test_out_of_key_roots_get_major():
-    assert auto_intervals(1, C_MAJOR) == INTERVALS["Maj"]  # C# in C major
+def test_numerals_and_roles():
+    assert [numeral(C_MAJOR, d) for d in range(7)] == ["I", "ii", "iii", "IV", "V", "vi", "vii°"]
+    assert [role(chord_at(C_MAJOR, "triad", d), C_MAJOR) for d in range(7)] == [
+        "home", "away", "home", "away", "tension", "home", "tension",
+    ]  # fmt: skip
+    assert role(chord_at(C_MAJOR, "secondary", 5), C_MAJOR) == "→ vi"
+    assert role(chord_at(C_MAJOR, "borrowed", 6), C_MAJOR) == "borrowed"
 
 
-def test_inversions_lift_the_lowest_tone():
-    c = (0, 4, 7)
-    assert voice(60, c, 0) == [60, 64, 67]
-    assert voice(60, c, 1) == [64, 67, 72]
-    assert voice(60, c, 2) == [67, 72, 76]
-    assert voice(60, c, 3) == [72, 76, 79]  # an octave up: brighter, same chord
+def test_row_kinds_cover_the_grid():
+    assert len(ROW_KINDS) == 8 and ROW_KINDS[0] == "bass" and ROW_KINDS[1] == "triad"
 
 
-def test_extensions_stack_on_any_chord():
-    assert voice(60, (0, 4, 7), 0, extensions=(14, 21)) == [60, 64, 67, 74, 81]
-    assert chord_name(0, (0, 4, 7), ["+9", "+13"]) == "C (9, 13)"
+def test_voicings():
+    c = close(60, (0, 4, 7))
+    assert c == [60, 64, 67]
+    assert invert(c, 1) == [64, 67, 72]
+    assert invert(c, 2) == [67, 72, 76]
+    assert drop2(close(60, (0, 4, 7, 11))) == [55, 60, 64, 71]
+    assert wide(c) == [48, 67, 76]
 
 
-def test_notes_outside_midi_range_are_dropped():
-    assert voice(124, (0, 4, 7), 0) == [124]
+def test_smooth_moves_least_between_chords():
+    register = 60
+    c = smooth(None, close(60, (0, 4, 7)), register)
+    f = smooth(c, close(65, (0, 4, 7)), 65)
+    g = smooth(f, close(67, (0, 4, 7)), 67)
+    assert c == [60, 64, 67]
+    assert f == [60, 65, 69]  # C stays, the others step
+    # F and G share no notes, so every voice moves; 6 semitones in total is the least
+    # possible (e.g. C->B, F->D, A->G).
+    assert sum(abs(a - b) for a, b in zip(f, g, strict=True)) == 6
+    assert all(55 <= n <= 79 for n in f + g)
 
 
-def test_fits_key_marks_hint_chords():
-    assert fits_key(2, INTERVALS["m7"], C_MAJOR)  # Dm7 is diatonic
-    assert not fits_key(2, INTERVALS["Maj"], C_MAJOR)  # D major has F#
+def test_apply_voicing_forced_inversion_and_range():
+    notes = close(60, (0, 4, 7))
+    assert apply_voicing("1st", notes, None, 60) == [64, 67, 72]
+    assert apply_voicing("Root", close(126, (0, 4, 7)), None, 126) == [126]  # dropped above 127
 
 
-def test_c_major_root_rows_match_the_prd_diagram():
-    in_key = [NOTE_NAMES[root_at(0, col, C_MAJOR, 3).note % 12] for col in range(8)]
-    assert in_key == ["C", "D", "E", "F", "G", "A", "B", "C"]
-    assert root_at(0, 0, C_MAJOR, 3).home and root_at(0, 7, C_MAJOR, 3).home
-    assert root_at(0, 7, C_MAJOR, 3).note == 60  # an octave above the home pad
-    sharps = [root_at(1, col, C_MAJOR, 3) for col in range(8)]
-    names = [NOTE_NAMES[p.note % 12] if p else None for p in sharps]
-    assert names == ["C#", "Eb", None, "F#", "Ab", "Bb", None, None]
-    assert not any(p.in_key for p in sharps if p)
+def test_names_are_spelled_for_the_key():
+    from pushtoo.chords import key_spelling
 
-
-def test_home_note_is_always_bottom_left():
-    for root in range(12):
-        key = KeyboardLayout(root=root, scale="Dorian")
-        assert root_at(0, 0, key, 3).note % 12 == root
-
-
-def test_pentatonic_root_row_continues_into_the_next_octave():
-    key = KeyboardLayout(root=0, scale="Minor Pentatonic")
-    notes = [root_at(0, col, key, 3).note for col in range(8)]
-    assert notes == [48, 51, 53, 55, 58, 60, 63, 65]
-
-
-def test_grid_maps_type_across_and_voicing_up():
-    assert grid_at(0, 0) is None and grid_at(1, 3) is None
-    assert grid_at(2, 0) == ("Auto", 0)
-    assert grid_at(2, 5) == ("m7", 0)
-    assert grid_at(7, 7) == ("Dim", 5)
-    assert inversion_name(1) == "1st inversion"
-    assert inversion_name(5) == "Voicing 6"
+    c_minor = KeyboardLayout(root=0, scale="Minor")
+    assert chord_name(3, (0, 5, 10), key_spelling(c_minor)) == "Eb Ab Db"
+    e_major = KeyboardLayout(root=4, scale="Major")
+    assert chord_name(8, (0, 3, 7), key_spelling(e_major)) == "G#m"

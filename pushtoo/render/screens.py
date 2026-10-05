@@ -180,17 +180,20 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
     _text(ctx, panel["title"], x0 + 16, 44, LABEL, TEXT_DIM)
     name = panel["chord_name"]
     if name is None:
-        _text(ctx, "Tap a root", x0 + 16, 84, TITLE, accent, True)
-        hint = "Hold a type above, then tap a root"
+        _text(ctx, "Tap any pad", x0 + 16, 84, TITLE, accent, True)
+        hint = "Every pad is a chord in your key · bottom row: bass notes"
         _text(ctx, _fit(ctx, hint, width - 32, BODY), x0 + 16, 116, BODY, TEXT_DIM)
         return
     color = accent if panel["sounding"] else TEXT_DIM
     _text(ctx, _fit(ctx, name, width * 0.45, TITLE, True), x0 + 16, 84, TITLE, color, True)
     right = x0 + width * 0.5
-    _text(ctx, _fit(ctx, panel["inversion"], width * 0.5 - 16, BODY), right, 64, BODY, TEXT)
+    label = f"{panel['role']} · {panel['voicing']}"
+    _text(ctx, _fit(ctx, label, width * 0.5 - 16, BODY), right, 64, BODY, TEXT)
     notes = _fit(ctx, " ".join(panel["notes"]), width * 0.5 - 16, BODY)
     _text(ctx, notes, right, 88, BODY, TEXT_DIM)
     parts = [panel["key_name"], f"Ch {panel['channel'] + 1}", panel["destination"]]
+    if panel["parent"]:
+        parts.insert(1, panel["parent"])
     if panel["strum"]:
         parts.insert(0, "Strum the touch strip")
     if panel["accent"]:

@@ -1,8 +1,10 @@
 # Pushtoo
 
-Pushtoo turns an Ableton Push 2 on Linux into a DAW-agnostic MIDI controller: plug in Push, pick the **Pushtoo Out** port in any DAW or synth, and play. The screen always shows what each control does.
+Pushtoo turns an Ableton Push 2 on Linux into an instrument for any synth, DAW or hardware rig: plug in Push, pick the **Pushtoo Out** port, and play. Scales stay in key, every chord pad sounds good, the touch strip strums, and the screen shows what your hands are doing.
 
-> **Status:** early development (M2 Design). Play, Knobs and Mix modes and YAML profiles work; the Chord layout comes in M3. See [docs/PRD.md](docs/PRD.md) for the product spec.
+Pushtoo is for *playing*. If you want deep control of a DAW from the Push (tracks, devices, clips, mixer), use [DrivenByMoss](https://mossgrabers.de) for Bitwig or Reaper instead; the two can't share the Push at the same time.
+
+> **Status:** early development. Keyboard, Drums and the chord grid, Knobs, and YAML profiles work; rhythm features (note repeat, arpeggiator, clock) are next. See [docs/PRD.md](docs/PRD.md) for the product spec.
 
 ## Playing
 
@@ -10,13 +12,13 @@ Pushtoo turns an Ableton Push 2 on Linux into a DAW-agnostic MIDI controller: pl
 2. In your DAW or synth, choose the MIDI input **Pushtoo Out**. Under PipeWire it may appear as `Midi-Bridge:Pushtoo: Out (capture)`.
 3. Play the pads. Pushtoo starts in C minor on MIDI channel 1.
 
-Pushtoo has three modes, each on its own button: **Note** (Play), **Device** (Knobs) and **Mix**. Pads keep playing in Knobs mode, and in all but the top two rows in Mix mode.
+Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device** (Knobs). Pads keep playing in Knobs mode, so you can play and tweak at once.
 
 | Control                         | What it does                                                         |
 | ------------------------------- | -------------------------------------------------------------------- |
-| Note, Device, Mix               | Play, Knobs and Mix modes                                            |
+| Note, Device                    | Play and Knobs modes                                                 |
 | Browse                          | Profile list: encoder 1 picks, top-left button loads                 |
-| Layout                          | Cycle Keyboard (channel 1), Drums (channel 10) and Chord (channels 2 and 3) |
+| Layout                          | Cycle Keyboard (channel 1), Drums (channel 10) and the chord grid (channels 2 and 3) |
 | Scale                           | Open or close the scale selector: top buttons pick In key/Chromatic and C G D A E B F#, bottom buttons pick F Bb Eb Ab Db Gb, encoder 1 picks the scale, encoder 2 the root |
 | Octave up / down                | Keyboard: shift an octave. Drums: shift one bank of 16 notes         |
 | Buttons below the display       | Pages: **Play** (octave or drum notes, velocity curve), **Strip** (pitch bend or mod wheel), **Output** (destination port and channel) |
@@ -30,11 +32,13 @@ Pushtoo has three modes, each on its own button: **Note** (Play), **Device** (Kn
 | Master encoder (right)          | Master level CC, in every mode                                       |
 | Hold Shift                      | Lists what Shift does in the current mode                            |
 
-**Chord layout** plays chords by ear. The bottom row holds the notes of your key, starting from the home note on the left; the row above holds the out-of-key notes, like black keys. Tap a root to play the chord that fits the key. To play another chord type, hold a pad in the six rows above (type across: Auto, Maj, Min, 7, Maj7, m7, Sus4, Dim; each row up is a brighter voicing) and tap a root, or tap the type while a root is held. Chord types that fit the key glow light blue. The top four side buttons add +6, +9, +11 and +13 and stay on until tapped again. On the **Style** page, Strum turns the touch strip into a strum plate: hold a root and slide across the strip. Bass notes go to channel 3; the **Output** page changes channels and mutes chords or bass.
+**The chord grid** (the Chord layout) makes every pad a full chord in your key, played with one press. Columns are the steps of the key, so a progression is a hand shape: I–V–vi–IV is the same four pads in any key. Rows, bottom to top: bass notes, triads (the home row), 7ths, add9, sus, 9ths, borrowed chords from the parallel major or minor (violet), and secondary dominants that pull toward the chord in their column (pink). Colors show what each chord does: home chords in teal, chords that move away in blue, tension in amber.
+
+The side buttons pick the **voicing**. **Smooth**, the default, moves as little as possible from one chord to the next so progressions glide. The others force an inversion (Root, 1st, 2nd, 3rd) or spread the chord out (Open, Wide). Tap one to keep it, or hold it to use it only while held. On the **Style** page, Strum turns the touch strip into a strum plate: hold a chord and slide across the strip. Each chord's root also plays on channel 3 for a bass synth; the **Output** page changes channels and mutes chords or bass.
 
 **Knobs mode** gives you up to 8 pages of 8 named controls, defined in your profile. Each column's top button glows in that control's color. To map a control in your DAW, start the DAW's MIDI learn, hold **Shift** and tap the button above the knob: Pushtoo sends just that control's CC, three times, so the DAW catches the right one. Hold **Delete** and touch a knob to reset it to its default.
 
-**Mix mode** turns the 8 encoders into faders. The top pad row toggles mute and the second row toggles solo for each column; the bottom six rows keep playing.
+**Mix mode** (an extra, on the Mix button) turns the 8 encoders into fader CCs, with mute and solo toggles on the top two pad rows.
 
 Drums use four banks of 16 pads. The bottom-left bank is the General MIDI kit (notes 36–51), and the screen names each drum as you play it. On the **Output** page, any layout can send straight to a hardware MIDI port instead of Pushtoo Out, so a USB-MIDI synth works without a DAW.
 
