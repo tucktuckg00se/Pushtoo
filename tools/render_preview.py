@@ -93,14 +93,14 @@ def _m2_views(views: dict[str, dict]) -> None:
         views["mix"] = app.view()
         app.encoder_touched(c.ENCODER_MASTER_ENCODER)
         views["peek_master"] = app.view()
-        app.saver._stop.set()
+        app.close()  # joins the state saver before the temp folder is removed
 
         app = _app(Path(tmp) / "b", SYNTH_PROFILE)
         app.button_pressed(c.BUTTON_DEVICE)
         views["knobs_custom_page"] = app.view()
         app.button_pressed(c.BUTTON_BROWSE)
         views["browse"] = app.view()
-        app.saver._stop.set()
+        app.close()  # joins the state saver before the temp folder is removed
 
 
 def _router() -> MidiRouter:

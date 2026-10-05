@@ -62,8 +62,7 @@ def env(tmp_path):
 
     yield make
     for app in apps:
-        app.profiles.stop()
-        app.saver._stop.set()
+        app.close()
 
 
 def cc_messages(sent):
