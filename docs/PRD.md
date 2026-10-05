@@ -1,6 +1,6 @@
 # PRD: Pushtoo, a Push 2 Universal MIDI Controller
 
-Oct 4, 2026 · Tucker
+Oct 4, 2026 · Tucker · Revised Oct 4, 2026 after the PRD review and M0 hardware spike
 
 ## Overview
 
@@ -61,8 +61,8 @@ These six principles settle design disputes; when two conflict, the earlier one 
 
 1. **Instant beats impressive.** Input-to-sound latency is sacred. Animations run on their own thread and never delay MIDI.
 2. **The screen explains the hardware.** Every lit pad, button, or encoder has a matching label, color, or value on screen, aligned to its physical position.
-3. **Playable first.** Pushtoo boots straight into Play mode, in key, making sound. Setup is optional, never a gate.
-4. **Two presses to anywhere.** Modes live on dedicated buttons; Shift reveals extra options and never hides core ones.
+3. **Playable first.** Pushtoo boots straight into Play mode, in key, ready to play the moment a DAW or synth listens on "Pushtoo Out". Setup is optional, never a gate.
+4. **Two presses to anywhere.** Modes live on dedicated buttons. Shift adds secondary actions, and holding Shift shows them on screen, so nothing is hidden.
 5. **Never lose your place.** State persists across restarts, every mapping change can be undone, and Panic always works.
 6. **Fun is a feature.** Playful moments (motion, surprise, toys) are designed in, but always optional and never in the way of focused work.
 
@@ -74,7 +74,7 @@ Pushtoo has five modes, each on its own Push button, so switching is always one 
 | ------ | ----------- | ------------------------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------- |
 | Play   | Note        | Three layouts, cycled with Layout: scale-aware Keyboard (in-key, chromatic, isomorphic 4ths), 4x4 Drums, and Chord (see Chord layout) | Per layout, by page: octave, velocity curve, MIDI channel, chord style and voicing | Scale map and held notes, or chord name and voicing |
 | Knobs  | Device      | Unchanged from Play, so you can play and tweak at once       | 8 pages x 8 named CCs with ranges and colors                 | Named arcs with live values per column              |
-| Mix    | Mix         | Mute, solo, and toggle CCs per column                        | 8 faders as CC volumes, master encoder as master             | Vertical meters and fader values                    |
+| Mix    | Mix         | Mute, solo, and toggle CCs per column                        | 8 faders as CC volumes, master encoder as master             | Fader values; meters when DAW feedback (F7) is on   |
 | Launch | Session     | 8x8 grid sending notes for DAW clip launch via MIDI learn    | Scene and bank scrolling                                     | Grid labels and DAW feedback when available         |
 | Setup  | Setup       | Profile slots                                                | Global settings                                              | Ports, theme, brightness, about                     |
 
@@ -118,7 +118,7 @@ Pressing Scale opens an overlay modeled on stock Push's scale menu, shared by ev
 - **Buttons above the display:** In key / Chromatic toggle, then roots C, G, D, A, E, B, F#.
 - **Buttons below the display:** Roots F, Bb, Eb, Ab, Db, Gb, in circle-of-fifths order like stock Push.
 - **Encoder 1** scrolls the scale and mode list (Major, Minor, Dorian, Mixolydian, Lydian, Phrygian, and more). **Encoder 2** turns the root, for browsing keys by ear.
-- Press Scale again, or play any pad, to close it. Pads keep sounding while it's open, so you can hear each choice.
+- Press Scale again to close it. Pads keep sounding while it's open, so you can audition each choice.
 
 In the Chord layout, Chromatic turns off the key hints and out-of-key dimming.
 
@@ -126,11 +126,25 @@ In the Chord layout, Chromatic turns off the key hints and out-of-key dimming.
 
 - **The 8 buttons below the display pick pages** within the current mode, such as Style, Voicing, and Output in the Chord layout. Each page name sits directly above its button, and the current page is highlighted.
 - **The 8 buttons above the display pick options** on the current page, such as a performance style. Each label sits directly under its button.
-- Settings live on pages or dedicated buttons, not hidden menus, so nothing requires a Shift combination to find.
+- Settings live on pages or dedicated buttons, not hidden menus. Shift combinations (Redo, Dice, Panic, Learn Assist, fine adjust) are secondary actions, and holding Shift lists them on screen.
 - Touching an encoder "peeks": its value goes full-size on screen without changing.
 - Each mode remembers its last page and layout, and each profile stores all modes. Browse opens the profile browser.
 - Key and scale are shared by every Play layout, so switching layouts never changes key.
-- Pushtoo sends on one main virtual port, "Pushtoo Out". Per-mode and per-layout MIDI channels keep Keyboard, Chord, Knobs, and Mix separable in any DAW.
+- Pushtoo sends on one main virtual port, "Pushtoo Out", by default. Per-mode and per-layout MIDI channels (see Default MIDI map) keep Keyboard, Drums, Chord, Knobs, and Mix separable in any DAW. Any channel can instead go straight to a hardware MIDI port (F17), so a USB-MIDI rig needs no DAW in between.
+
+**Default MIDI map**
+
+Every default CC comes from MIDI's undefined or general-purpose ranges (14–29, 102–117), so nothing triggers sustain, modulation, or volume on a synth before the user maps it.
+
+| Source                 | Channel | Messages                                         |
+| ---------------------- | ------- | ------------------------------------------------ |
+| Keyboard layout        | 1       | Notes, poly aftertouch, pitch bend, mod wheel    |
+| Chord layout           | 2, 3, 4 | Chords, bass, arp                                |
+| Drums layout           | 10      | Notes 36–51 (General MIDI drum map)              |
+| Launch                 | 13      | Notes 36–99, one per pad                         |
+| Mix                    | 14      | Faders CC 102–109, master CC 110, mute CC 14–21, solo CC 22–29 |
+| Knobs pages 1–4        | 15      | 32 CCs: 14–29, 102–117                           |
+| Knobs pages 5–8        | 16      | 32 CCs: 14–29, 102–117                           |
 
 ## Chord layout
 
@@ -168,7 +182,7 @@ Changing the key slides the root rows so the home note is always at the far left
 
 - Tap a root alone to play its Auto chord: the chord that fits the key on that root, or major for out-of-key roots.
 - Hold a type or voicing pad to change what the roots play. Sound starts on whichever press comes second, and the last grid choice stays selected so one-handed root playing keeps its color. Tapping Auto returns to the in-key default.
-- In the selected column, pads show inversion names. In other columns, chord types that fit the key on the current root glow light teal.
+- The screen shows inversion names for the selected column. In other columns, chord types that fit the key on the current root glow in the hint color, which is distinct from the root accent.
 - When the Strum style is active, the touch strip strums the held chord, Omnichord-style.
 
 **Side buttons**
@@ -185,7 +199,7 @@ Key and scale come from the Scale button, so the pages hold only chord settings.
 | Voicing | Auto-smooth on or off, voicing spread, bass note on or off, octave | Close, Open, and Spread voicing presets |
 | Output  | MIDI channels for chords, bass, and arp; velocity            | Mute chords, bass, or arp               |
 
-Changing key or scale in the scale selector while holding a chord transposes or reharmonizes it live, and the teal "fits the key" hints update as you turn.
+Changing key or scale in the scale selector while holding a chord transposes or reharmonizes it live, and the "fits the key" hints update as you turn.
 
 **By-ear defaults**
 
@@ -216,8 +230,9 @@ The display is a strict 8-column grid that mirrors the hardware, and color ties 
 | Mode accent   | Selected labels, mode headers          | Play teal, Knobs amber, Mix coral, Launch violet, Setup gray |
 | Control color | Per encoder column, chosen by the user | Matches the pads or LEDs it relates to                       |
 | Pad roles     | Root, in-scale, out-of-scale, held     | Accent, soft white, dim, full white                          |
+| Hint          | Chord types that fit the key           | A pale tint distinct from every mode accent                  |
 
-Push 2's LED palette is reprogrammed at startup so on-screen colors and pad colors match exactly.
+Push 2's LED palette is reprogrammed on every connect so on-screen colors and pad colors match as closely as LEDs allow.
 
 **Controls and motion**
 
@@ -233,7 +248,7 @@ The UX solves the real pains of generic controllers (MIDI learn chaos, lost valu
 
 - **Learn Assist.** Generic controllers spray CCs while you hunt for the right knob, so DAW MIDI learn grabs the wrong one. Hold Shift and tap an upper button to send that column's CC alone, three times, cleanly. Mapping becomes one tap.
 - **Name it on the box.** Rename any control from the hardware: turn encoder 1 for letters and encoder 2 for position, or pick from a list of common names (Cutoff, Res, Attack, Mix).
-- **Fine and coarse.** Shift + encoder moves values 4x finer. Pressing an encoder's touch twice quickly resets it to its default.
+- **Fine and coarse.** Shift + encoder moves values 4x finer. Holding Delete and touching an encoder resets it to its default, as on stock Push. Touch alone never changes a value.
 - **Pickup mode.** If the DAW sends feedback, Pushtoo syncs its values; if not, a hollow arc shows the last-known value and "pickup" prevents jumps.
 - **Undo and redo in the DAW.** Undo sends the DAW's undo shortcut (Ctrl+Z by default) and Shift + Undo sends redo (Ctrl+Shift+Z by default). Each profile can change the shortcut, for apps that use Ctrl+Y, or send a MIDI message instead for DAWs that map actions to MIDI. A short toast confirms what was sent.
 - **Undo inside Pushtoo.** While an edit screen is open (renaming a control, editing a mapping), Undo and Shift + Undo revert Pushtoo's own changes instead, and the toast says so.
@@ -242,7 +257,7 @@ The UX solves the real pains of generic controllers (MIDI learn chaos, lost valu
 
 **First run**
 
-The first launch skips setup. The screen says "Play any pad," pads glow in C minor, and a single toast points to the Setup button. After the first note, a one-time hint teaches peek: "Touch any knob to see what it does."
+The first launch skips setup. The screen says "Play any pad" and "Select Pushtoo Out in your DAW," pads glow in C minor, and a single toast points to the Setup button. After the first note, a one-time hint teaches peek: "Touch any knob to see what it does."
 
 **Fun features**
 
@@ -255,7 +270,7 @@ The first launch skips setup. The screen says "Play any pad," pads glow in C min
 
 ## Technical architecture
 
-Pushtoo forks Pysha and keeps its Python and pycairo core, but separates rendering from MIDI so the screen can never slow the pads.
+Pushtoo forks Pysha and keeps its Python and pycairo core, but runs rendering in a separate process so the screen can never slow the pads ([ADR 0001](adr/0001-render-process.md)).
 
 ```
                   ┌──────────────── Pushtoo (Pysha fork) ───────────────┐
@@ -270,7 +285,7 @@ Pushtoo forks Pysha and keeps its Python and pycairo core, but separates renderi
                   │       │                │         │                  │
                   │       ▼                ▼         │                  │
                   │  MIDI router        Renderer ────┘                  │
-                  │  python-rtmidi,     own thread, pycairo,            │
+                  │  python-rtmidi,     own process, pycairo,           │
                   │  channels per mode, 960x160, 30 to 60 fps           │
                   │  panic, MIDI clock                                  │
                   └──────┬──────────────────────────────────────────────┘
@@ -280,13 +295,20 @@ Pushtoo forks Pysha and keeps its Python and pycairo core, but separates renderi
                   Any DAW or app: Bitwig, Reaper, Ardour; synths via USB-MIDI
 ```
 
-Input flows from Push through the mode manager to the MIDI router and out the virtual ports; DAW feedback returns the same way. The renderer draws frames on its own thread and hands them to the hardware layer.
+Input flows from Push through the mode manager to the MIDI router and out the virtual ports; DAW feedback returns the same way. The renderer runs in its own process, owns the display's USB connection, and always draws the newest state it has received. The MIDI process never waits on it.
+
+**Measured in M0** (i7-12700K, Python 3.13, PipeWire). Details are in ADR 0001.
+
+- Display: steady 60 fps. CPU cost is about 1.8 ms per frame (11% of one core at 60 fps); the rest of each frame is the USB write waiting on the display.
+- Pad to "Pushtoo Out": p99 about 0.2 ms with the display running. A pure-Python busy thread in the same process pushed p99 to 160–300 ms, which is why rendering lives in its own process.
+- push2-python ignores Push input for about 1 s after each (re)connect, which bounds hot-plug recovery.
+- Under PipeWire the ports appear as "Midi-Bridge:Pushtoo: Out (capture)" and "…In (playback)". rtmidi creates one ALSA client per port, so `aconnect -l` lists two clients named "Pushtoo".
 
 **Key changes from Pysha**
 
-- Update dependencies (mido, python-rtmidi, push2-python) for current Python 3 releases.
+- Update dependencies (mido, python-rtmidi, push2-python) for current Python 3 releases. push2-python is unmaintained upstream, so Pushtoo uses a fork with its simulator's web dependencies made optional.
 - Replace hard-coded Squarp Pyramid routing with the generic virtual-port router.
-- Move rendering to a dedicated thread with a frame budget, dropping frames rather than delaying MIDI.
+- Move rendering to a dedicated process that drops stale frames rather than delaying MIDI.
 - Replace in-code mappings with YAML profiles and a schema, validated on load with clear error toasts.
 - Add a hot-plug watcher and a udev rule installer for display access without root.
 - Add a keystroke output through Linux uinput (for example with python-evdev), so buttons like Undo can send shortcuts. Unlike X11-only tools, uinput works under both X11 and Wayland; the installer's udev rule grants access without root.
@@ -298,16 +320,22 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait for later
 | ID   | Requirement                                                  | Priority |
 | ---- | ------------------------------------------------------------ | -------- |
 | F1   | Create virtual MIDI ports "Pushtoo Out" and "Pushtoo In" via ALSA, working under PipeWire and JACK | P0       |
-| F2   | Play mode with scales, root, octave, in-key and chromatic layouts, velocity curves, aftertouch | P0       |
+| F2   | Play mode with scales, root, octave, in-key and chromatic layouts, velocity curves, poly aftertouch | P0       |
+| F19  | Drums layout: 4x4 pads on the General MIDI drum map, starting at note 36 | P0       |
+| F22  | Touch strip as pitch bend or mod wheel, chosen per profile   | P0       |
 | F3   | Knobs mode with 8 pages x 8 encoders, each with name, CC, channel, range, color, default | P0       |
-| F4   | Mix and Launch modes as described in Core experience         | P0       |
+| F4   | Mix mode as described in Core experience                     | P0       |
 | F5   | Profiles stored as human-readable YAML in ~/.config/pushtoo, hot-reloaded on save | P0       |
 | F6   | Learn Assist, peek, fine adjust, Undo, and Panic             | P0       |
 | F12  | Chord layout with key-relative roots, type and voicing grid, extension buttons, and Output page | P0       |
 | F13  | Page navigation on the buttons below the display in every mode | P0       |
 | F15  | Scale selector on the Scale button, and Layout cycling Play's layouts | P0       |
 | F16  | Undo and redo sent to the DAW as configurable keystrokes or MIDI, with Pushtoo's own undo in edit screens | P0       |
-| F7   | Read DAW feedback on "Pushtoo In" to update values and LEDs  | P1       |
+| F17  | Route any mode or layout channel to a hardware MIDI port instead of "Pushtoo Out" | P0       |
+| F18  | Default MIDI map as specified in Core experience, overridable per profile | P0       |
+| F7   | Read DAW feedback on "Pushtoo In" to update values, LEDs, and Mix meters | P1       |
+| F20  | Launch mode as described in Core experience                  | P1       |
+| F21  | Rename controls from the hardware; high-contrast theme and large-text setting | P1       |
 | F8   | Snapshot morph, Dice, note repeat and arpeggiator            | P1       |
 | F14  | Chord layout Style and Voicing pages: Strum, Arp, Harp, Slop, touch-strip strumming, auto-smooth | P1       |
 | F9   | Life mode and other fun extras, each toggleable in Setup     | P1       |
@@ -315,31 +343,32 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait for later
 | F11  | Auto-switch profile based on the focused desktop app         | P2       |
 | N1   | Pad-to-MIDI latency under 3 ms at p99; rendering never blocks MIDI | P0       |
 | N2   | Display at 30 fps minimum, 60 fps target, on a mid-range laptop | P0       |
-| N3   | Survives Push unplug and replug without restart              | P0       |
+| N3   | Survives Push unplug and replug without restart; held notes are released on unplug | P0       |
 | N4   | One-command install, including a udev rule for display USB access | P0       |
 | N5   | Runs on a Raspberry Pi 4 at reduced frame rate               | P1       |
 
 ## Milestones, risks, and open questions
 
-The proposed plan gets a playable controller into hands by week 5 and a tested beta by week 14, assuming one part-time developer.
+The revised plan puts a playable controller in hands by week 6 and a tested beta by week 20, assuming one part-time developer. The original 14-week plan left several P0 items unscheduled.
 
-| Milestone     | Weeks    | Scope                                    |
-| ------------- | -------- | ---------------------------------------- |
-| M0 Foundation | 1 to 2   | Fork, update dependencies, virtual ports |
-| M1 Playable   | 3 to 5   | Play and Mix modes, Panic, peek          |
-| Gate          |          | Pad latency under 3 ms                   |
-| M2 Design     | 6 to 9   | Design system, Knobs mode, profiles      |
-| M3 Delight    | 10 to 12 | Chord layout, Dice, DAW feedback         |
-| Gate          |          | Feature freeze                           |
-| M4 Beta       | 13 to 14 | 5-tester study, install script           |
+| Milestone        | Weeks    | Scope                                                                 |
+| ---------------- | -------- | --------------------------------------------------------------------- |
+| M0 Foundation    | 1 to 2   | Fork, dependencies, virtual ports, render process, latency harness, minimal Play mode (done) |
+| M1 Playable      | 3 to 6   | Keyboard and Drums layouts, scale selector and Layout cycling, velocity curves, touch strip, Panic, peek, hardware port output, hot-plug |
+| Gate             |          | Pad latency under 3 ms at p99 with the real app (`tools/latency`)     |
+| M2 Design        | 7 to 11  | Design system, Knobs and Mix modes, YAML profiles and default MIDI map, Learn Assist, Undo keystrokes |
+| M3 Chords        | 12 to 16 | Chord layout (F12); P1 items as time allows: Launch, Dice, DAW feedback |
+| Gate             |          | Feature freeze                                                        |
+| M4 Beta          | 17 to 20 | One-command installer, 5-tester study, Raspberry Pi check             |
 
-M2 cannot start until pad latency is under 3 ms, and nothing new enters after the M3 feature freeze.
+M2 cannot start until the latency gate passes, and nothing new enters after the M3 feature freeze.
 
 **Risks**
 
 | Risk                                                         | Mitigation                                                   |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Python rendering is too slow on low-end machines             | Separate render thread, frame dropping, lower Pi frame rate; port rendering to C++ with Ableton's JUCE example if needed |
+| Python rendering is too slow on low-end machines             | Separate render process (measured: 60 fps at 11% of a desktop core), frame dropping, lower Pi frame rate; port rendering to C++ with Ableton's JUCE example if needed |
+| push2-python and Pysha are unmaintained upstream             | Maintain a fork of push2-python; keep the dependency surface small |
 | Without DAW feedback, on-screen values drift from reality    | Pickup mode, hollow "last-known" arcs, optional feedback port |
 | Display access needs USB permissions                         | Ship a udev rule with the installer and a clear error toast  |
 | Fun features crowd the core                                  | All fun features are P1, toggleable, and grouped under one Setup switch |
@@ -347,11 +376,13 @@ M2 cannot start until pad latency is under 3 ms, and nothing new enters after th
 
 **Open questions**
 
-- [ ] Confirm Pysha's license allows this fork and redistribution.
+- [x] Confirm Pysha's license allows this fork and redistribution. Yes: Pysha and push2-python are MIT; keep their copyright notices.
 - [ ] Which audio stacks are in the v1 test matrix: PipeWire only, or also plain ALSA and JACK?
 - [ ] Should Life mode play notes by default, or stay silent until switched on?
 - [ ] Is Push 3 controller-mode support worth planning for v2?
 - [ ] Check that the Orchid's patent-pending voicing dial doesn't cover the Chord layout's voicing ladder before public release.
 - [ ] What should the 4 reserved scene buttons in the Chord layout do?
+- [ ] Chord layout: does a lone root tap play Auto or the last grid selection, and does pressing a type pad while a root sounds retrigger or morph the chord? Decide before M3.
+- [ ] Touch strip precedence when pitch bend, Chord strumming, and Snapshot morph all want it.
 - [ ] Should Play, Record, Metronome, and Tap Tempo send MIDI transport messages, DAW keystrokes (like Space for play), or be configurable per profile?
 - [ ] Which reserved buttons (Duplicate, Quantize, New, and others) are worth mapping to DAW shortcuts?
