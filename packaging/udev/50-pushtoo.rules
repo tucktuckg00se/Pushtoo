@@ -1,0 +1,12 @@
+# Pushtoo: let members of the "audio" group use Push 2's display and send keystrokes
+# without root. Logged-in desktop users usually already get access through uaccess;
+# this rule covers headless sessions (SSH, Raspberry Pi, systemd user services).
+#
+# Install: sudo cp 50-pushtoo.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+#          && sudo udevadm trigger
+
+# Ableton Push 2 (display over libusb)
+SUBSYSTEM=="usb", ATTR{idVendor}=="2982", ATTR{idProduct}=="1967", MODE="0660", GROUP="audio", TAG+="uaccess"
+
+# Virtual keyboard for DAW shortcuts (Undo, Redo) via uinput
+KERNEL=="uinput", SUBSYSTEM=="misc", MODE="0660", GROUP="audio", OPTIONS+="static_node=uinput", TAG+="uaccess"
