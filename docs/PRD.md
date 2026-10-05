@@ -153,7 +153,7 @@ row 5   sus4 (sus2 where the 4th isn't in key)                         ( 2nd    
 row 4   add9                                                           ( 3rd    )
 row 3   7ths                                                           ( Open   )
 row 2   Triads  ← home row                                             ( Wide   )
-row 1   Bass notes: each column's root, low                            (        )
+row 1   Bass notes: each column's root, low                            ( Latch  )
 
 In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 Am7 Bm7b5 Cmaj7.
 ```
@@ -165,13 +165,15 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 - Rows 2–6 are always in key. Where a step's 9th would be a harsh flat 9th (iii and vii in major), the add9 and 9th rows use the 11th instead. Rows 7–8 are the deliberate spice.
 - Scales with fewer than 7 notes build their chords from a parent scale (pentatonic and blues from major or minor), and the screen says so.
 - Colors show what each chord does: home (I, iii, vi) in the Play accent, moving away (ii, IV) blue, tension (V, vii°) amber, borrowed violet, secondary dominants pink, bass soft white.
+- The right-hand column (I') is the first column's chord lifted an octave: under Smooth, exactly the voicing the left column would get right now, plus 12. It is a deliberate "go higher" move, never a duplicate.
 - Octave moves the chord register. Accent forces full velocity.
 
-**Voicing (side buttons)**
+**Voicing and Latch (side buttons, top to bottom)**
 
-- **Smooth** (default) voices each chord with the least movement from the previous one, kept near the chord register, so progressions glide instead of jumping.
-- **Root, 1st, 2nd, 3rd** force an inversion; **Open** is drop-2; **Wide** puts the root an octave down and spreads the rest.
+- **Smooth** (default) voices each chord with the least movement from the previous one, kept near that chord's root, so progressions glide instead of jumping. The same pad can therefore play different inversions depending on what came before, which is what makes it sound good. Measured over 5,000 random changes: about 5.5 semitones of total movement per change (a fixed voicing per pad would be about 17), and the register stays within roughly two octaves; it cannot drift away.
+- **Root, 1st, 2nd, 3rd** force an inversion, so every pad plays the same notes every time; **Open** is drop-2; **Wide** puts the root an octave down and spreads the rest.
 - Tap a voicing button to keep it; hold one to use it only while held. Pressing a voicing while a chord sounds re-voices it so you hear the difference. The current voicing stays lit.
+- **Latch** (bottom) keeps a chord sounding after you let go, until you press another chord, tap the same pad again, or turn Latch off. One hand taps chords while the other strums or plays the bass row.
 
 **Strum** (Style page)
 
@@ -179,7 +181,7 @@ A chord pad plays only its bass note, and the touch strip strums the voiced chor
 
 **Pages:** Style (Off or Strum, strum range) and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
 
-**Screen:** the chord name (plain names such as "Fm7"; chords without a common name show their notes, never a wrong name), its role ("home", "tension", "borrowed", "→ vi"), the voicing, and the notes, spelled with flats in flat keys and sharps in sharp keys.
+**Screen:** the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
 
 ## Visual design system
 
@@ -324,4 +326,4 @@ The latency gate (`tools/latency/latency.py`) runs at every milestone and must p
 - [ ] Should Life mode play notes by default, or stay silent until switched on?
 - [ ] Does the Smooth voicing need a "brightness" control (register drift up or down) once people play it?
 - [ ] Clock: should Pushtoo lead (send MIDI clock) or follow by default when both are possible?
-- [ ] What should the spare eighth side button do in the Chord layout?
+- [x] What should the spare eighth side button do in the Chord layout? Latch.

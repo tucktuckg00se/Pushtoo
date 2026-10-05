@@ -187,7 +187,7 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
     color = accent if panel["sounding"] else TEXT_DIM
     _text(ctx, _fit(ctx, name, width * 0.45, TITLE, True), x0 + 16, 84, TITLE, color, True)
     right = x0 + width * 0.5
-    label = f"{panel['role']} · {panel['voicing']}"
+    label = f"{panel['role_line']} · {panel['voicing']}"
     _text(ctx, _fit(ctx, label, width * 0.5 - 16, BODY), right, 64, BODY, TEXT)
     notes = _fit(ctx, " ".join(panel["notes"]), width * 0.5 - 16, BODY)
     _text(ctx, notes, right, 88, BODY, TEXT_DIM)
@@ -196,6 +196,8 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
         parts.insert(1, panel["parent"])
     if panel["strum"]:
         parts.insert(0, "Strum the touch strip")
+    if panel["latch"]:
+        parts.insert(0, "Latch")
     if panel["accent"]:
         parts.append("Accent")
     _text(ctx, _fit(ctx, " · ".join(parts), width - 32, BODY), x0 + 16, 116, BODY, TEXT)

@@ -175,15 +175,17 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.pad_released(7, 5)
     clock = [0.0]
     play.chord._clock = lambda: clock[0]  # so the hold below counts as a hold
-    play.button_pressed("1/16t")  # hold Open
+    play.button_pressed("1/8")  # hold Open (sixth side button from the top)
     play.pad_pressed(2, 3, 100)  # Fm7
     views["chord_momentary_voicing"] = play.view()
     play.pad_released(2, 3)
     clock[0] += 1.0
-    play.button_released("1/16t")
+    play.button_released("1/8")
+    play.button_pressed("1/4")  # Latch (bottom side button)
     play.button_pressed("Upper Row 2")  # Strum
     play.pad_pressed(1, 3, 100)
-    views["chord_strum"] = play.view()
+    play.pad_released(1, 3)
+    views["chord_latched_strum"] = play.view()
     play.button_pressed("Lower Row 2")
     views["chord_output_page"] = play.view()
 

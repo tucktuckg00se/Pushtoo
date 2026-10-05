@@ -36,7 +36,6 @@ MODE_ACCENTS = {
 }
 
 _PAD_ROLES: dict[str, RGB] = {
-    "pt_off": (0, 0, 0),
     "pt_root": NAMED_COLORS["teal"],  # Play accent
     "pt_in_scale": (150, 150, 150),  # soft white
     "pt_out_of_scale": (18, 18, 22),  # dim
@@ -45,9 +44,11 @@ _PAD_ROLES: dict[str, RGB] = {
 FIRST_NAMED_SLOT = 104
 
 # LED palette: name -> (palette index on Push, RGB). Named colors are "pt_<name>".
+# Off is push2-python's own "black" (slot 0): reprogramming a slot renames it, and
+# push2-python silently maps unknown names to green, so default slots stay untouched.
+OFF = "black"
 LED_COLORS: dict[str, tuple[int, RGB]] = {
-    "pt_off": (0, _PAD_ROLES["pt_off"]),
-    **{name: (100 + i, color) for i, (name, color) in enumerate(list(_PAD_ROLES.items())[1:])},
+    **{name: (100 + i, color) for i, (name, color) in enumerate(_PAD_ROLES.items())},
     **{
         f"pt_{name}": (FIRST_NAMED_SLOT + i, color)
         for i, (name, color) in enumerate(NAMED_COLORS.items())

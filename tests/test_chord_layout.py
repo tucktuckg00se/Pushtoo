@@ -10,7 +10,9 @@ from tests.test_router import make_router
 CHORDS, BASS = 0x91, 0x92  # note-on, channels 2 and 3
 CHORDS_OFF, BASS_OFF = 0x81, 0x82
 TRIAD, SEVENTH, SECONDARY = 1, 2, 7
-VOICING = {"Smooth": "1/4", "Root": "1/4t", "1st": "1/8", "Open": "1/16t"}
+# Side buttons from the top: Smooth, Root, 1st, 2nd, 3rd, Open, Wide, Latch.
+VOICING = {"Smooth": "1/32t", "Root": "1/32", "1st": "1/16t", "Open": "1/8"}
+LATCH = "1/4"
 
 
 class Clock:
@@ -61,6 +63,7 @@ def test_rows_are_chord_flavors():
     play.pad_pressed(SECONDARY, 3, 100)  # V7 of Fm = C7
     assert play.view()["panel"]["chord_name"] == "C7"
     assert play.view()["panel"]["role"] == "→ iv"
+    assert play.view()["panel"]["role_line"] == "V7/iv · leads to iv"
 
 
 def test_last_chord_pressed_wins_and_changes_retrigger():
@@ -95,7 +98,7 @@ def test_voicing_tap_latches_and_hold_is_momentary():
     tap_voicing(play, clock, "1st")
     play.pad_pressed(TRIAD, 0, 100)
     assert notes_on(sent) == [51, 55, 60]
-    assert play.button_colors()["1/8"] == "white"
+    assert play.button_colors()[VOICING["1st"]] == "white"
     play.pad_released(TRIAD, 0)
     play.button_pressed(VOICING["Root"])  # hold
     play.pad_pressed(TRIAD, 0, 100)
@@ -188,12 +191,12 @@ def test_pad_colors_show_function():
     assert play.pad_colors()[TRIAD][2] == "pt_held"
 
 
-def test_side_buttons_light_the_voicing_and_spare_stays_dark():
+def test_side_buttons_light_the_voicing_and_latch():
     play, *_ = make_chord_play()
     colors = play.button_colors()
-    assert colors["1/4"] == "white"  # Smooth
-    assert colors["1/4t"] == "dark_gray"
-    assert colors["1/32t"] == "black"
+    assert colors["1/32t"] == "white"  # Smooth, the top button
+    assert colors["1/32"] == "dark_gray"
+    assert colors[LATCH] == "dark_gray"  # Latch, the bottom button, off
 
 
 def test_pentatonic_borrows_its_parents_chords():
@@ -220,8 +223,65 @@ def test_voicing_buttons_work_from_knobs_mode(env):
     app.button_pressed(c.BUTTON_LAYOUT)
     app.button_pressed(c.BUTTON_LAYOUT)
     app.button_pressed(c.BUTTON_DEVICE)
-    app.button_pressed("1/4t")  # Root, tapped
-    app.button_released("1/4t")
-    assert app.button_colors()["1/4t"] == "white"
+    app.button_pressed(VOICING["Root"])  # tapped
+    app.button_released(VOICING["Root"])
+    assert app.button_colors()[VOICING["Root"]] == "white"
     app.pad_pressed(TRIAD, 0, 100)
     assert notes_on(sent) == [48, 51, 55]
+
+
+def test_latch_keeps_the_chord_until_the_next_one():
+    play, sent, clock = make_chord_play()
+    tap_voicing(play, clock, "Root")
+    play.button_pressed(LATCH)
+    assert play.button_colors()[LATCH] == "white"
+    play.pad_pressed(TRIAD, 0, 100)
+    play.pad_released(TRIAD, 0)
+    assert play.router.notes_on("Pushtoo Out", 1) == {48, 51, 55}  # still sounding
+    play.pad_pressed(TRIAD, 3, 100)  # another chord replaces it
+    play.pad_released(TRIAD, 3)
+    assert play.router.notes_on("Pushtoo Out", 1) == {53, 56, 60}
+    play.pad_pressed(TRIAD, 3, 100)  # tapping the latched chord again stops it
+    assert play.router.notes_on("Pushtoo Out", 1) == set()
+    play.pad_released(TRIAD, 3)
+    assert play.router.notes_on("Pushtoo Out", 1) == set()
+
+
+def test_turning_latch_off_releases_a_latched_chord():
+    play, *_ = make_chord_play()
+    play.button_pressed(LATCH)
+    play.pad_pressed(TRIAD, 0, 100)
+    play.pad_released(TRIAD, 0)
+    play.button_pressed(LATCH)
+    assert play.router.notes_on("Pushtoo Out", 1) == set()
+    assert play.router.notes_on("Pushtoo Out", 2) == set()
+
+
+def test_latch_lets_one_hand_strum():
+    play, sent, clock = make_chord_play()
+    play.button_pressed("Upper Row 2")  # Strum
+    play.button_pressed(LATCH)
+    play.pad_pressed(TRIAD, 0, 100)
+    play.pad_released(TRIAD, 0)  # hand off the pads
+    play.touchstrip(0)
+    clock.now += 0.01
+    play.touchstrip(127)
+    assert notes_on(sent) == [48, 51, 55, 60, 63, 67]
+
+
+def test_bass_row_still_releases_with_latch_on():
+    play, *_ = make_chord_play()
+    play.button_pressed(LATCH)
+    play.pad_pressed(0, 4, 90)
+    play.pad_released(0, 4)
+    assert play.router.notes_on("Pushtoo Out", 2) == set()
+
+
+def test_octave_column_is_the_first_column_lifted():
+    play, _, _ = make_chord_play()
+    for col in (3, 4, 5):  # some history so Smooth has something to follow
+        play.pad_pressed(TRIAD, col, 100)
+        play.pad_released(TRIAD, col)
+    left = play.chord.notes_for((TRIAD, 0))
+    right = play.chord.notes_for((TRIAD, 7))
+    assert right == [n + 12 for n in left]

@@ -2,8 +2,9 @@
 
 Every pad above the bottom row is one complete chord: press it and it plays. The last
 chord pressed is the one sounding, and every change re-triggers. The bottom row plays
-single bass notes. The side buttons choose the voicing: tap one to keep it, hold one
-to use it only while held.
+single bass notes. The side buttons choose the voicing (tap one to keep it, hold one
+to use it only while held); the bottom one is Latch, which keeps a chord sounding
+after you let go.
 
 With Strum on, a chord pad plays only its bass note and the touch strip strums the
 chord across a few octaves, one note per tone crossed, like an Omnichord.
@@ -22,6 +23,8 @@ from pushtoo.chords import (
     chord_name,
     close,
     key_spelling,
+    numeral,
+    numeral_label,
     parent_scale,
     role,
     uses_parent,
@@ -37,8 +40,11 @@ MAX_TONES = 8
 NEW_TOUCH_GAP = 0.08  # seconds without strip messages that count as lifting the finger
 HOLD_SECONDS = 0.3  # a voicing button held this long acts only while held
 MIN_OCTAVE, MAX_OCTAVE = 1, 6
-# Side buttons, top to bottom: the voicings, then one spare.
-SCENE_BUTTONS = ("1/4", "1/4t", "1/8", "1/8t", "1/16", "1/16t", "1/32", "1/32t")
+# Side buttons, top to bottom: the voicings, then Latch. push2-python's map puts
+# "1/32t" on CC 43, the top button, and "1/4" on CC 36, the bottom.
+SCENE_BUTTONS = ("1/32t", "1/32", "1/16t", "1/16", "1/8t", "1/8", "1/4t", "1/4")
+LATCH_BUTTON = len(VOICINGS)
+OCTAVE_COLUMN = 7
 ROLE_COLORS = {"home": "pt_root", "away": led("blue"), "tension": led("amber")}
 
 
@@ -63,7 +69,9 @@ class ChordPlayer:
         self.voicing = "Smooth"  # latched
         self.momentary: str | None = None  # held voicing button, overriding the latch
         self._voicing_pressed: dict[str, float] = {}
+        self.latch = False
         self.current: Pad | None = None  # the chord pad sounding
+        self.current_held = False  # is that pad still pressed (vs latched)?
         self.velocity = 100
         self.notes: list[int] = []  # what the sounding (or last) chord played
         self.last_chord: Chord | None = None
@@ -89,8 +97,15 @@ class ChordPlayer:
         return chord_at(self.key, ROW_KINDS[row], col)
 
     def _voiced(self, chord: Chord) -> list[int]:
-        root_note = self.register() + chord.root
         previous = self.notes or None
+        if chord.degree == OCTAVE_COLUMN and self.active_voicing == "Smooth":
+            # The right column is the "lift": the first column's chord as Smooth would
+            # voice it now, an octave higher, so it never duplicates the left column.
+            base = chord_at(self.key, chord.kind, 0)
+            root_note = self.register() + base.root
+            notes = apply_voicing("Smooth", close(root_note, base.intervals), previous, root_note)
+            return [n + 12 for n in notes if n + 12 <= 127]
+        root_note = self.register() + chord.root
         return apply_voicing(
             self.active_voicing, close(root_note, chord.intervals), previous, root_note
         )
@@ -147,8 +162,13 @@ class ChordPlayer:
             return
         if self.chord_for(pad) is None:
             return
+        if self.latch and pad == self.current and not self.current_held:
+            self._silence()  # tapping the latched chord again stops it
+            self.current = None
+            return
         self._silence()  # the last chord pressed wins; changes re-trigger
         self._sound(pad, velocity)
+        self.current_held = True
 
     def pad_released(self, row: int, col: int) -> None:
         pad = (row, col)
@@ -156,8 +176,11 @@ class ChordPlayer:
             self.router.note_off(("bass row", col))
             self.bass_pads.discard(pad)
         elif pad == self.current:
-            self._silence()
-            self.current = None
+            if self.latch:
+                self.current_held = False  # keeps sounding until the next chord
+            else:
+                self._silence()
+                self.current = None
 
     # Changes that re-voice the sounding chord
 
@@ -170,7 +193,16 @@ class ChordPlayer:
         self.notes = []  # Smooth starts fresh in the new register
         self.revoice()
 
+    def toggle_latch(self) -> None:
+        self.latch = not self.latch
+        if not self.latch and self.current is not None and not self.current_held:
+            self._silence()  # turning Latch off releases a latched chord
+            self.current = None
+
     def voicing_pressed(self, index: int) -> None:
+        if index == LATCH_BUTTON:
+            self.toggle_latch()
+            return
         if index >= len(VOICINGS):
             return
         name = VOICINGS[index]
@@ -192,6 +224,7 @@ class ChordPlayer:
         """Leaving the layout: nothing played here may keep sounding."""
         self._silence()
         self.current = None
+        self.current_held = False
         for _, col in list(self.bass_pads):
             self.router.note_off(("bass row", col))
         self.bass_pads.clear()
@@ -263,6 +296,7 @@ class ChordPlayer:
         colors = {name: "black" for name in SCENE_BUTTONS}
         for i, voicing in enumerate(VOICINGS):
             colors[SCENE_BUTTONS[i]] = "white" if voicing == self.active_voicing else "dark_gray"
+        colors[SCENE_BUTTONS[LATCH_BUTTON]] = "white" if self.latch else "dark_gray"
         return colors
 
     def panel(self) -> dict:
@@ -271,6 +305,7 @@ class ChordPlayer:
             "strum": self.strum,
             "voicing": VOICING_NAMES[self.active_voicing],
             "sounding": self.current is not None,
+            "latch": self.latch,
             "parent": None,
         }
         if uses_parent(self.key):
@@ -283,7 +318,15 @@ class ChordPlayer:
             "chord_name": chord_name(chord.pitch_class(self.key), chord.intervals, names),
             "notes": [note_name(n, names) for n in self.notes],
             "role": role(chord, self.key),
+            "role_line": self._role_line(chord),
         }
+
+    def _role_line(self, chord: Chord) -> str:
+        """Plain role first, numeral for those who want theory: "V7 · tension"."""
+        label = numeral_label(chord, self.key)
+        if chord.kind == "secondary":
+            return f"{label} · leads to {numeral(self.key, chord.target or 0)}"
+        return f"{label} · {role(chord, self.key)}"
 
     # Session state
 
@@ -296,6 +339,7 @@ class ChordPlayer:
             "mute_bass": self.mute_bass,
             "bass_channel": self.bass_channel + 1,
             "voicing": self.voicing,
+            "latch": self.latch,
         }
 
     def restore(self, state: dict) -> None:
@@ -307,6 +351,6 @@ class ChordPlayer:
             self.bass_channel = state["bass_channel"] - 1
         if state.get("voicing") in VOICINGS:
             self.voicing = state["voicing"]
-        for flag in ("strum", "mute_chords", "mute_bass"):
+        for flag in ("strum", "mute_chords", "mute_bass", "latch"):
             if isinstance(state.get(flag), bool):
                 setattr(self, flag, state[flag])

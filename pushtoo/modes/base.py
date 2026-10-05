@@ -2,7 +2,7 @@
 controls on the encoders (PRD F13), and the view the renderer draws."""
 
 from pushtoo.midi.router import MidiRouter
-from pushtoo.theme import led
+from pushtoo.theme import OFF, led
 from pushtoo.ui.controls import COLUMNS, Control, Page, pages_view
 
 Row = list[dict | None]
@@ -15,7 +15,7 @@ def row_index(name: str, row: str) -> int | None:
 
 
 def empty_pad_colors() -> list[list[str]]:
-    return [["pt_off"] * COLUMNS for _ in range(COLUMNS)]
+    return [[OFF] * COLUMNS for _ in range(COLUMNS)]
 
 
 class Mode:

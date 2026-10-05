@@ -30,7 +30,7 @@ from pushtoo.music import (
     spelling,
 )
 from pushtoo.profiles.schema import Play as PlaySettings
-from pushtoo.theme import PAD_ROLE_COLORS
+from pushtoo.theme import OFF, PAD_ROLE_COLORS
 from pushtoo.ui.controls import COLUMNS, Control, Option, Page
 
 # Scale selector roots, in circle-of-fifths order as on stock Push. Upper button 1
@@ -370,7 +370,7 @@ class PlayMode(Mode):
             for col in range(COLUMNS):
                 note = grid.note_at(row, col)
                 if note is None:
-                    line.append("pt_off")
+                    line.append(OFF)
                 elif note in held:
                     line.append("pt_held")
                 elif isinstance(grid, DrumLayout):

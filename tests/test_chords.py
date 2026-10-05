@@ -117,3 +117,34 @@ def test_names_are_spelled_for_the_key():
     assert chord_name(3, (0, 5, 10), key_spelling(c_minor)) == "Eb Ab Db"
     e_major = KeyboardLayout(root=4, scale="Major")
     assert chord_name(8, (0, 3, 7), key_spelling(e_major)) == "G#m"
+
+
+def test_numerals_for_the_screen():
+    from pushtoo.chords import numeral_label
+
+    def labels(key, kind):
+        return [numeral_label(chord_at(key, kind, d), key) for d in range(7)]
+
+    assert labels(C_MAJOR, "seventh") == ["Imaj7", "ii7", "iii7", "IVmaj7", "V7", "vi7", "viiø7"]
+    assert labels(C_MAJOR, "borrowed") == ["i", "ii°", "bIII", "iv", "v", "bVI", "bVII"]
+    assert labels(C_MAJOR, "secondary")[5] == "V7/vi"
+    assert labels(A_MINOR, "triad") == ["i", "ii°", "III", "iv", "v", "VI", "VII"]
+    assert labels(A_MINOR, "borrowed")[2] == "#iii"
+    harmonic = KeyboardLayout(root=0, scale="Harmonic Minor")
+    assert labels(harmonic, "seventh")[2] == "III+maj7"
+
+
+def test_smooth_never_drifts_away():
+    """Thousands of random chord changes under Smooth stay within about two octaves."""
+    import random
+
+    from pushtoo.chords import ROW_KINDS
+
+    rng = random.Random(7)
+    previous, low, high = None, 127, 0
+    for _ in range(5000):
+        chord = chord_at(C_MAJOR, ROW_KINDS[rng.randrange(1, 8)], rng.randrange(8))
+        root = 48 + chord.root
+        previous = smooth(previous, close(root, chord.intervals), root)
+        low, high = min(low, previous[0]), max(high, previous[-1])
+    assert high - low <= 30

@@ -152,6 +152,49 @@ def numeral(key: KeyboardLayout, degree: int) -> str:
     return base
 
 
+def _quality_numeral(base: str, intervals: tuple[int, ...]) -> str:
+    """Upper case for major, lower for minor, ° for diminished, + for augmented."""
+    third = min((i for i in intervals if i in (3, 4)), default=4)
+    fifth = 6 if 6 in intervals and 7 not in intervals else 8 if 8 in intervals else 7
+    numeral_text = base.lower() if third == 3 else base
+    return numeral_text + {6: "°", 8: "+"}.get(fifth, "")
+
+
+def numeral_label(chord: Chord, key: KeyboardLayout) -> str:
+    """Roman numeral for the screen: "V7", "ii", "bVII", "V7/vi"."""
+    if chord.kind == "secondary":
+        target = chord.target or 0
+        return "V7" if target % 7 == 0 else f"V7/{numeral(key, target)}"
+    if chord.kind == "borrowed":
+        own_root = degree_root(key, chord.degree)
+        accidental = {-1: "b", 1: "#"}.get(chord.root - own_root, "")
+        triad = _stack(
+            SCALES["Minor"] if 4 in parent_scale(key) else SCALES["Major"],
+            chord.degree,
+            STEPS["triad"],
+        )
+        return accidental + _quality_numeral(ROMAN[chord.degree % 7], triad)
+    return _diatonic_label(numeral(key, chord.degree), chord)
+
+
+def _diatonic_label(base: str, chord: Chord) -> str:
+    """Numeral plus the suffix theory books use: Imaj7, ii7, V7, viiø7, IVadd9, Vsus4."""
+    pcs = {i % 12 for i in chord.intervals}
+    if chord.kind == "triad":
+        return base
+    if chord.kind == "sus":
+        plain = ROMAN[chord.degree % 7]  # no third, so no major/minor case
+        return plain + ("sus4" if 5 in pcs else "sus2" if 2 in pcs else "sus")
+    if chord.kind == "add9":
+        return base + ("add9" if 2 in pcs else "add11")
+    top = "7" if chord.kind == "seventh" else "9" if 2 in pcs else "11"
+    if 11 in pcs:
+        return base.rstrip("°") + "maj" + top
+    if base.endswith("°") and 10 in pcs:
+        return base[:-1] + "ø" + top  # half-diminished
+    return base + top
+
+
 def role(chord: Chord, key: KeyboardLayout) -> str:
     """What a chord does, for colors and the screen: home, away, tension, borrowed, or
     the step a secondary dominant pulls toward."""
