@@ -136,3 +136,4 @@ dmypy.json
 
 # Ruff
 .ruff_cache/
+render_preview/

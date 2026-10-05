@@ -13,7 +13,7 @@ import numpy
 from push2_python.constants import FRAME_FORMAT_RGB565
 from push2_python.display import Push2Display
 
-from pushtoo.render.screens import HEIGHT, WIDTH, draw_play
+from pushtoo.render.screens import HEIGHT, WIDTH, draw_view
 
 MAX_FPS = 60
 # Push 2 blanks the display if no frame arrives for about 2 s.
@@ -60,7 +60,7 @@ def _run(states: "mp.Queue") -> None:
         wait = 1 / MAX_FPS - (now - last_frame)
         if wait > 0:
             time.sleep(wait)
-        draw_play(ctx, state)
+        draw_view(ctx, state)
         surface.flush()
         frame = numpy.ndarray(shape=(HEIGHT, WIDTH), dtype=numpy.uint16, buffer=surface.get_data())
         display.display_frame(frame.transpose(), input_format=FRAME_FORMAT_RGB565)

@@ -1,6 +1,15 @@
 import pytest
 
-from pushtoo.music import SCALES, KeyboardLayout, PadRole, note_name
+from pushtoo.music import (
+    SCALES,
+    VELOCITY_CURVES,
+    DrumLayout,
+    KeyboardLayout,
+    PadRole,
+    drum_name,
+    note_name,
+    velocity_curve,
+)
 
 
 def test_bottom_left_pad_is_the_root():
@@ -61,3 +70,43 @@ def test_root_wraps_and_scale_clamps():
     assert layout.root == 0
     assert layout.scale == "Major"
     assert layout.key_name == "C Major"
+
+
+def test_drum_banks_cover_36_to_99_starting_bottom_left():
+    drums = DrumLayout()
+    assert drums.note_at(0, 0) == 36  # Kick
+    assert drums.note_at(0, 3) == 39
+    assert drums.note_at(3, 3) == 51  # top-right of the GM bank
+    assert drums.note_at(0, 4) == 52  # bottom-right bank
+    assert drums.note_at(4, 0) == 68  # top-left bank
+    assert drums.note_at(7, 7) == 99
+    notes = {drums.note_at(r, c) for r in range(8) for c in range(8)}
+    assert notes == set(range(36, 100))
+
+
+def test_drum_bank_shift_is_clamped_to_midi_range():
+    drums = DrumLayout(start=36)
+    drums.shift_bank(-1)
+    assert drums.start == 20
+    drums.shift_bank(-5)
+    assert drums.start == 0
+    drums.shift_bank(+20)
+    assert drums.note_at(7, 7) == 127
+
+
+def test_drum_names_fall_back_to_note_names():
+    assert drum_name(38) == "Snare"
+    assert drum_name(99) == "Eb7"
+
+
+@pytest.mark.parametrize("name", VELOCITY_CURVES)
+def test_velocity_curves_are_128_rising_values_in_midi_range(name):
+    curve = velocity_curve(name)
+    assert len(curve) == 128
+    assert all(1 <= v <= 127 for v in curve)
+    assert curve == sorted(curve)
+    assert curve[-1] == 127
+
+
+def test_soft_curve_is_louder_than_hard_for_light_touch():
+    assert velocity_curve("Soft")[32] > velocity_curve("Linear")[32] > velocity_curve("Hard")[32]

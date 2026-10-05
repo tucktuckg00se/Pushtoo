@@ -94,3 +94,60 @@ class KeyboardLayout:
     @property
     def key_name(self) -> str:
         return f"{NOTE_NAMES[self.root]} {self.scale}"
+
+
+# General MIDI percussion names (channel 10), shortened to fit a screen column.
+GM_DRUM_NAMES: dict[int, str] = {
+    35: "Kick 2", 36: "Kick", 37: "Side Stick", 38: "Snare", 39: "Clap", 40: "Snare 2",
+    41: "Low Tom 2", 42: "Closed Hat", 43: "Low Tom", 44: "Pedal Hat", 45: "Mid Tom 2",
+    46: "Open Hat", 47: "Mid Tom", 48: "High Tom 2", 49: "Crash", 50: "High Tom",
+    51: "Ride", 52: "China", 53: "Ride Bell", 54: "Tambourine", 55: "Splash",
+    56: "Cowbell", 57: "Crash 2", 58: "Vibraslap", 59: "Ride 2", 60: "Hi Bongo",
+    61: "Low Bongo", 62: "Mute Conga", 63: "Open Conga", 64: "Low Conga",
+    65: "High Timbale", 66: "Low Timbale", 67: "High Agogo", 68: "Low Agogo",
+    69: "Cabasa", 70: "Maracas", 71: "Short Whistle", 72: "Long Whistle",
+    73: "Short Guiro", 74: "Long Guiro", 75: "Claves", 76: "Hi Wood Block",
+    77: "Low Wood Block", 78: "Mute Cuica", 79: "Open Cuica", 80: "Mute Triangle",
+    81: "Open Triangle",
+}  # fmt: skip
+
+BANK_SIZE = 16
+DRUM_LOWEST_START, DRUM_HIGHEST_START = 0, 127 - 4 * BANK_SIZE + 1
+
+
+def drum_name(midi_note: int) -> str:
+    return GM_DRUM_NAMES.get(midi_note, note_name(midi_note))
+
+
+@dataclass
+class DrumLayout:
+    """Four 4x4 banks of 16 consecutive notes: bottom-left, bottom-right, top-left,
+    top-right. With the default start of 36, the bottom-left bank is the GM kit."""
+
+    start: int = 36
+
+    @staticmethod
+    def bank_of(row: int, col: int) -> int:
+        return (row // 4) * 2 + col // 4
+
+    def note_at(self, row: int, col: int) -> int | None:
+        note = self.start + self.bank_of(row, col) * BANK_SIZE + (row % 4) * 4 + col % 4
+        return note if 0 <= note <= 127 else None
+
+    def shift_bank(self, delta: int) -> None:
+        """Octave buttons move the grid one bank of 16 at a time."""
+        self.start = max(DRUM_LOWEST_START, min(DRUM_HIGHEST_START, self.start + delta * BANK_SIZE))
+
+
+VELOCITY_CURVES = ("Linear", "Soft", "Hard")
+_CURVE_EXPONENTS = {"Linear": 1.0, "Soft": 0.5, "Hard": 2.0}
+
+
+def velocity_curve(name: str) -> list[int]:
+    """Push 2's velocity table: 128 pressure steps mapped to velocities 1..127.
+
+    The Push applies it in hardware, so curves cost nothing on the note path. The
+    same table sets poly aftertouch sensitivity.
+    """
+    exponent = _CURVE_EXPONENTS[name]
+    return [max(1, round(127 * (step / 127) ** exponent)) for step in range(128)]

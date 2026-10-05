@@ -1,18 +1,23 @@
-"""Pad-to-"Pushtoo Out" latency harness (M0 step 4, and the M1 -> M2 gate check).
+"""Pad-to-"Pushtoo Out" latency through the real app: the M1 -> M2 gate (PRD N1).
 
-Measures how long a pad message takes to get through this process (rtmidi input
-thread -> GIL -> push2-python dispatch -> handler -> rtmidi output) and arrive at a
-listener on the "Pushtoo Out" virtual ALSA port, under three loads: idle, a 60 fps
-display thread, and a pure-Python thread that hogs the GIL.
+Runs the full Pushtoo app (MIDI process, render process, LEDs) and measures from a
+pad message reaching the app's MIDI input to the resulting note arriving at a
+listener on "Pushtoo Out":
 
-    uv run python tools/latency/latency.py              # synthetic pads, all loads
-    uv run python tools/latency/latency.py --real       # you press pads, all loads
+    uv run python tools/latency/latency.py              # synthetic pads (the gate)
+    uv run python tools/latency/latency.py --real       # you press pads
 
-Synthetic mode sends pad notes from a separate process over a virtual ALSA port, so
-they arrive on rtmidi's callback thread exactly like real pads and must win the GIL.
-Real mode can only timestamp at handler entry, so it misses GIL wait; use it to sanity
-check, not as the gate. Timestamps are CLOCK_MONOTONIC, shared across processes. The
-Push's own USB input latency is a fixed hardware cost and is not included.
+Synthetic pads come from a separate process over a virtual ALSA port and land on
+rtmidi's callback thread exactly like real pads, so GIL waits are included. Real
+mode can only timestamp at the app's handler, which misses that wait; use it as a
+sanity check. Timestamps are CLOCK_MONOTONIC, shared across processes. The Push's
+own USB input latency is a fixed hardware cost and is not included.
+
+Rounds:
+  single notes   one pad at a time
+  chords         three pads at once, so later notes wait behind earlier refreshes
+  python hog     single notes plus a busy pure-Python thread (informational only:
+                 shows why rendering must stay out of the MIDI process, ADR 0001)
 """
 
 import argparse
@@ -23,16 +28,17 @@ import threading
 import time
 from collections import defaultdict, deque
 
-import cairo
 import mido
-import numpy
-import push2_python
 import rtmidi
-from push2_python.constants import DISPLAY_LINE_PIXELS, DISPLAY_N_LINES, FRAME_FORMAT_RGB565
+from push2_python.pads import pad_n_to_pad_ij
 
-OUT_PORT = "Pushtoo Out"
+from pushtoo.app import App
+from pushtoo.hw.push import pad_ij_to_row_col
+from pushtoo.midi.router import OUT_PORT
+
 INJECT_PORT = "Pushtoo Latency Inject"
 FIRST_PAD_NOTE, PAD_COUNT = 36, 64  # Push 2 pads send notes 36..99
+GATE_P99_MS = 3.0
 
 
 def open_port_named(midi_in: rtmidi.MidiIn, wanted: str) -> None:
@@ -68,68 +74,30 @@ def listener(arrivals: "mp.Queue", ready: "mp.Event", stop: "mp.Event") -> None:
     stop.wait()
 
 
-def injector(sends: "mp.Queue", ready: "mp.Event", go: "mp.Event", seconds: float, rate: int):
+def injector(sends, ready, go, seconds: float, rate: int, chord: int) -> None:
+    """Presses `chord` pads at once, `rate` times per second. Reports (pad, velocity,
+    time) per press; velocity doubles as an id so arrivals can be matched."""
     midi_out = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name="pushtoo-latency-injector")
     midi_out.open_virtual_port(INJECT_PORT)
     ready.set()
     go.wait()
     interval, end, i = 1 / rate, time.monotonic() + seconds, 0
     while time.monotonic() < end:
-        note = FIRST_PAD_NOTE + i % PAD_COUNT
-        velocity = 1 + (i // PAD_COUNT) % 127
-        sends.put((note, velocity, time.monotonic_ns()))
-        midi_out.send_message([0x90, note, velocity])
-        midi_out.send_message([0x80, note, 0])
+        pads = []
+        for k in range(chord):
+            pad = FIRST_PAD_NOTE + (i * chord + k * 9) % PAD_COUNT
+            velocity = 1 + (i * chord + k) % 127
+            sends.put((pad, velocity, time.monotonic_ns()))
+            midi_out.send_message([0x90, pad, velocity])
+            pads.append(pad)
+        for pad in pads:
+            midi_out.send_message([0x80, pad, 0])
         i += 1
         time.sleep(interval)
     time.sleep(0.5)  # keep the port open until the last notes are delivered
 
 
-class PadForwarder:
-    """Forwards pad presses to Pushtoo Out, as the real router will.
-
-    push2-python only calls the first handler registered for an action, so the
-    handler is registered once and each round swaps in fresh state.
-    """
-
-    def __init__(self, midi_out: rtmidi.MidiOut) -> None:
-        self.midi_out = midi_out
-        self.real = False
-        self.handler_entries: list[tuple[int, int, int]] = []
-        push2_python.on_pad_pressed()(self.on_pad)
-
-    def on_pad(self, _, pad_n, pad_ij, velocity) -> None:
-        # pad_n is the pad's MIDI note (36..99), not an index
-        if self.real:
-            self.handler_entries.append((pad_n, velocity, time.monotonic_ns()))
-        self.midi_out.send_message([0x90, pad_n, velocity])
-        self.midi_out.send_message([0x80, pad_n, 0])
-
-
-def start_display_load(push: push2_python.Push2, stop: threading.Event) -> None:
-    def run() -> None:
-        surface = cairo.ImageSurface(cairo.FORMAT_RGB16_565, DISPLAY_LINE_PIXELS, DISPLAY_N_LINES)
-        ctx = cairo.Context(surface)
-        while not stop.is_set():
-            ctx.set_source_rgb(time.monotonic() % 1, 0.3, 0.5)
-            ctx.paint()
-            for i in range(64):
-                ctx.arc(15 * i, 80, 30, 0, 6.28)
-                ctx.stroke()
-            surface.flush()
-            frame = numpy.ndarray(
-                shape=(DISPLAY_N_LINES, DISPLAY_LINE_PIXELS),
-                dtype=numpy.uint16,
-                buffer=surface.get_data(),
-            )
-            push.display.display_frame(frame.transpose(), input_format=FRAME_FORMAT_RGB565)
-
-    threading.Thread(target=run, daemon=True).start()
-
-
 def start_python_load(stop: threading.Event) -> None:
-    """Pure-Python busy work that holds the GIL, as a slow Python renderer would."""
-
     def run() -> None:
         while not stop.is_set():
             total = 0
@@ -139,25 +107,38 @@ def start_python_load(stop: threading.Event) -> None:
     threading.Thread(target=run, daemon=True).start()
 
 
+def expected_notes(app: App) -> dict[int, int]:
+    """Pad MIDI note -> the note the app's current layout plays for it."""
+    notes = {}
+    for pad in range(FIRST_PAD_NOTE, FIRST_PAD_NOTE + PAD_COUNT):
+        row, col = pad_ij_to_row_col(pad_n_to_pad_ij(pad))
+        note = app.play.keyboard.note_at(row, col)
+        if note is not None:
+            notes[pad] = note
+    return notes
+
+
 def match(sends: list, arrivals: list) -> tuple[list[float], int]:
     pending: dict[tuple[int, int], deque[int]] = defaultdict(deque)
     for note, velocity, sent_at in sends:
         pending[(note, velocity)].append(sent_at)
     latencies_ms = []
     for note, velocity, arrived_at in arrivals:
-        queue_ = pending.get((note, velocity))
-        if queue_:
-            latencies_ms.append((arrived_at - queue_.popleft()) / 1e6)
+        waiting = pending.get((note, velocity))
+        if waiting:
+            latencies_ms.append((arrived_at - waiting.popleft()) / 1e6)
     return latencies_ms, len(sends) - len(latencies_ms)
 
 
-def run_synthetic_round(push, arrivals, seconds: float, rate: int) -> tuple[list[float], int]:
+def synthetic_round(app, arrivals, seconds, rate, chord) -> tuple[list[float], int]:
     sends, ready, go = mp.Queue(), mp.Event(), mp.Event()
-    proc = mp.Process(target=injector, args=(sends, ready, go, seconds, rate), daemon=True)
+    args = (sends, ready, go, seconds, rate, chord)
+    proc = mp.Process(target=injector, args=args, daemon=True)
     proc.start()
     if not ready.wait(5):
         raise SystemExit("injector did not start")
 
+    push = app.push.push
     midi_in = rtmidi.MidiIn(rtmidi.API_LINUX_ALSA, name="pushtoo-fake-push")
     open_port_named(midi_in, INJECT_PORT)
     midi_in.set_callback(lambda event, _: push.on_midi_message(mido.Message.from_bytes(event[0])))
@@ -166,42 +147,58 @@ def run_synthetic_round(push, arrivals, seconds: float, rate: int) -> tuple[list
     go.set()
     proc.join(seconds + 10)
     midi_in.close_port()
-    return match(drain(sends), drain(arrivals))
+    layout_note = expected_notes(app)
+    sent = [(layout_note[pad], velocity, t) for pad, velocity, t in drain(sends)]
+    return match(sent, drain(arrivals))
 
 
-def run_real_round(forwarder, arrivals, seconds: float) -> tuple[list[float], int]:
+def real_round(app, arrivals, seconds) -> tuple[list[float], int]:
+    entries = []
+    original = app.pad_pressed
+
+    def timed(row, col, velocity):
+        note = app.play.keyboard.note_at(row, col)
+        if note is not None:
+            entries.append((note, velocity, time.monotonic_ns()))
+        original(row, col, velocity)
+
     drain(arrivals, settle=0.05)
-    forwarder.handler_entries = []
-    forwarder.real = True
+    app.pad_pressed = timed
     print(f"  press pads for {seconds:.0f} s...")
     time.sleep(seconds)
-    forwarder.real = False
-    return match(forwarder.handler_entries, drain(arrivals))
+    app.pad_pressed = original
+    return match(entries, drain(arrivals))
 
 
-def report(label: str, samples: list[float], missing: int) -> None:
+def report(label: str, samples: list[float], missing: int, gate: bool) -> bool:
     if not samples:
         print(f"{label:>14}: no samples")
-        return
+        return not gate
     samples.sort()
     p99 = samples[min(len(samples) - 1, int(len(samples) * 0.99))]
-    verdict = "PASS" if p99 < 3.0 and not missing else "FAIL"
+    passed = p99 < GATE_P99_MS and not missing
+    verdict = ("PASS" if passed else "FAIL") if gate else "info"
     print(
         f"{label:>14}: n={len(samples):5d}  p50 {statistics.median(samples):6.3f} ms  "
-        f"p99 {p99:6.3f} ms  max {samples[-1]:6.3f} ms  lost {missing}  "
-        f"[{verdict}: <3 ms p99, none lost]"
+        f"p99 {p99:6.3f} ms  max {samples[-1]:6.3f} ms  lost {missing}  [{verdict}]"
     )
+    return passed or not gate
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--real", action="store_true", help="measure real pad presses")
     parser.add_argument("--seconds", type=float, default=10)
-    parser.add_argument("--rate", type=int, default=200, help="synthetic presses per second")
+    parser.add_argument("--rate", type=int, default=100, help="synthetic presses per second")
     args = parser.parse_args()
 
-    midi_out = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name="Pushtoo")
-    midi_out.open_virtual_port(OUT_PORT)
+    app = App()
+    # push2-python ignores all input until Push's first active-sensing message, then
+    # for one more second, to skip a startup burst.
+    deadline = time.monotonic() + 10
+    while app.push.push.last_active_sensing_received is None and time.monotonic() < deadline:
+        time.sleep(0.05)
+    time.sleep(1.2)
 
     arrivals, ready, stop_listener = mp.Queue(), mp.Event(), mp.Event()
     proc = mp.Process(target=listener, args=(arrivals, ready, stop_listener), daemon=True)
@@ -209,34 +206,27 @@ def main() -> None:
     if not ready.wait(5):
         raise SystemExit("listener did not start")
 
-    forwarder = PadForwarder(midi_out)
-    push = push2_python.Push2()
-    # push2-python ignores all input until Push's first active-sensing message, then
-    # for one more second, to skip a startup burst.
-    deadline = time.monotonic() + 10
-    while push.last_active_sensing_received is None and time.monotonic() < deadline:
-        time.sleep(0.05)
-    time.sleep(1.2)
+    all_passed = True
     try:
-        for label in ("idle", "display 60fps", "python hog"):
-            stop_load = threading.Event()
-            if label != "idle":
-                start_display_load(push, stop_load)
-            if label == "python hog":
-                start_python_load(stop_load)
-            time.sleep(0.5)
-            if args.real:
-                print(f"{label}:")
-                samples, missing = run_real_round(forwarder, arrivals, args.seconds)
-            else:
-                samples, missing = run_synthetic_round(push, arrivals, args.seconds, args.rate)
-            report(label, samples, missing)
-            stop_load.set()
-            time.sleep(0.2)
+        if args.real:
+            samples, missing = real_round(app, arrivals, args.seconds)
+            report("real pads", samples, missing, gate=False)
+        else:
+            rounds = (("single notes", 1, False), ("chords", 3, False), ("python hog", 1, True))
+            for label, chord, hog in rounds:
+                stop_load = threading.Event()
+                if hog:
+                    start_python_load(stop_load)
+                samples, missing = synthetic_round(app, arrivals, args.seconds, args.rate, chord)
+                all_passed &= report(label, samples, missing, gate=not hog)
+                stop_load.set()
+                time.sleep(0.3)
+            print("GATE PASSED" if all_passed else "GATE FAILED")
     finally:
-        push.stop_active_sensing_thread()
+        app.close()
         stop_listener.set()
         proc.join(2)
+    raise SystemExit(0 if all_passed else 1)
 
 
 if __name__ == "__main__":
