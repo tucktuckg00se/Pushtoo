@@ -106,7 +106,7 @@ Dedicated buttons keep modes one press away; cycling through modes with a single
 | Undo, Shift + Undo                                           | DAW undo and redo (see UX details)                           |
 | Delete, Shift + Delete                                       | Clear the selected mapping; Dice                             |
 | Stop Clip, Shift + Stop Clip                                 | Launch: stop clips; Panic                                    |
-| Mute, Solo                                                   | Mix: mute and solo modifiers                                 |
+| Mute, Solo                                                   | Unassigned for now; Mix mode's top pad rows toggle mute and solo |
 | Shift, Select                                                | Modifiers                                                    |
 | Play, Record, Metronome, Tap Tempo                           | MIDI transport and tempo (see open questions)                |
 | Add Device, Add Track, Clip, Master, Convert, Double Loop, Quantize, Duplicate, New, Fixed Length, Automate, User | Reserved for later features                                  |
@@ -356,7 +356,7 @@ The revised plan puts a playable controller in hands by week 6 and a tested beta
 | M0 Foundation    | 1 to 2   | Fork, dependencies, virtual ports, render process, latency harness, minimal Play mode (done) |
 | M1 Playable      | 3 to 6   | Keyboard and Drums layouts, scale selector and Layout cycling, velocity curves, touch strip, Panic, peek, hardware port output, hot-plug (built; hands-on checks pending) |
 | Gate             |          | Pad latency under 3 ms at p99 with the real app (`tools/latency`): passed, p99 0.19 ms single notes, 0.53 ms chords |
-| M2 Design        | 7 to 11  | Design system, Knobs and Mix modes, YAML profiles and default MIDI map, Learn Assist, Undo keystrokes |
+| M2 Design        | 7 to 11  | Design system, Knobs and Mix modes, YAML profiles and default MIDI map, Learn Assist, Undo keystrokes (built; hands-on checks pending) |
 | M3 Chords        | 12 to 16 | Chord layout (F12); P1 items as time allows: Launch, Dice, DAW feedback |
 | Gate             |          | Feature freeze                                                        |
 | M4 Beta          | 17 to 20 | One-command installer, 5-tester study, Raspberry Pi check             |
@@ -369,6 +369,14 @@ M2 cannot start until the latency gate passes, and nothing new enters after the 
 - The Push returns the touch strip to center by itself in pitch-bend mode, so Pushtoo sends no reset.
 - F# and Gb in the scale selector both select pitch class 6 and display as F#.
 - Session state (key, layout, octave) is not saved yet; M2's profiles will store it.
+
+**M2 notes**
+
+- Profiles are the user's files: Pushtoo reads and hot-reloads them but never writes them. Session state (mode, pages, key, octave, layout outputs, knob and fader values) lives in `~/.local/state/pushtoo/state.yaml`, keyed by profile. This removes the two-writers conflict between hand edits and hardware changes.
+- Hot reload keeps a knob's value only when its column still sends the same CC on the same channel; a remapped control starts from its default.
+- Mix mode's pads: the top row toggles mute, the second row solo, and the bottom six rows keep playing the current Play layout. The Mute and Solo buttons are unassigned.
+- Pushtoo's own undo inside edit screens waits for edit screens (on-hardware rename, F21).
+- The latency gate still passes with profiles, state saving and the app lock: p99 0.12–0.15 ms single notes, 0.50–0.58 ms chords.
 
 **Risks**
 
