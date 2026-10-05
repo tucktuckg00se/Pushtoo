@@ -389,7 +389,11 @@ def test_long_toasts_wrap_instead_of_vanishing():
         "Profile error: default.yaml line 1: knobs.pages[0].controls[0].cc: "
         "Input should be less than or equal to 127"
     )
-    assert _wrap(ctx, message, 928, 20, max_lines=3) == [message]  # fits at toast size
-    lines = _wrap(ctx, message, 400, 20, max_lines=3)
-    assert 1 < len(lines) <= 3
-    assert "".join(lines).replace(" ", "") == message.replace(" ", "")  # nothing cut
+    # Font metrics vary by machine (CI lacks IBM Plex), so check properties, not line count.
+    for width in (928, 400):
+        lines = _wrap(ctx, message, width, 20, max_lines=3)
+        assert 1 <= len(lines) <= 3
+        assert "".join(lines).replace(" ", "") == message.replace(" ", "")  # nothing cut
+        ctx.set_font_size(20)
+        assert all(ctx.text_extents(line).x_advance <= width for line in lines)
+    assert len(_wrap(ctx, message, 400, 20, max_lines=3)) > 1
