@@ -20,9 +20,9 @@ from pushtoo.modes.chord import MAX_OCTAVE as CHORD_MAX_OCTAVE
 from pushtoo.modes.chord import MIN_BRIGHTNESS as CHORD_MIN_BRIGHTNESS
 from pushtoo.modes.chord import MIN_OCTAVE as CHORD_MIN_OCTAVE
 from pushtoo.music import (
-    BANK_SIZE,
     DRUM_HIGHEST_START,
     DRUM_LOWEST_START,
+    DRUM_ROW,
     MAX_OCTAVE,
     MIN_OCTAVE,
     NOTE_NAMES,
@@ -94,6 +94,7 @@ class PlayMode(Mode):
         self._layout_picked = False  # one was picked, so releasing Layout won't move on
         self.played_once = False
         self.last_drum: int | None = None
+        self.last_drum_velocity = 0
         # Rhythm (PRD: Rhythm). Repeat toggles it; held, it's momentary, and in the
         # Chord layout the side buttons pick rates while it's held.
         self.clock = Clock()
@@ -379,8 +380,8 @@ class PlayMode(Mode):
                 lambda v: setattr(self.drums, "start", v),
                 minimum=DRUM_LOWEST_START,
                 maximum=DRUM_HIGHEST_START,
-                step=BANK_SIZE,  # one bank per step, like the Octave buttons
-                format=lambda v: f"{v}–{v + 4 * BANK_SIZE - 1}",
+                step=DRUM_ROW,  # a row at a time; the Octave buttons jump four
+                format=lambda v: f"{v}–{min(127, v + 8 * DRUM_ROW - 1)}",
             )
         strip_options: list[Option | None] = [
             Option(label, self._strip_setter(i), lambda i=i: self.strip_mode == i)
@@ -477,9 +478,13 @@ class PlayMode(Mode):
                 vary=lambda notes, v: [spread.one(False, v, self.accent) for _ in notes],
             )
             self.send_scheduled(hits)
+            if layout.name == "Drums" and hits:
+                self.last_drum_velocity = hits[0][2][2]  # the first hit, as sent
             return
         # Accent plays at the Velocity page's Max (127 unless you lower it).
         velocity = spread.one(False, velocity, self.accent)
+        if layout.name == "Drums":
+            self.last_drum_velocity = velocity
         self.router.note_on((row, col), layout.destination, layout.channel, note, velocity)
 
     def pad_released(self, row: int, col: int) -> None:
@@ -673,7 +678,7 @@ class PlayMode(Mode):
             elif self.layout.name == "Keyboard":
                 self.keyboard.shift_octave(delta)
             else:
-                self.drums.shift_bank(delta)
+                self.drums.shift(delta)
             return True
         if name == c.BUTTON_REPEAT:
             self._repeat_pressed()
@@ -739,9 +744,7 @@ class PlayMode(Mode):
                 elif note in held:
                     line.append("pt_held")
                 elif isinstance(grid, DrumLayout):
-                    # Checkerboard the four banks so their edges are visible.
-                    bank = grid.bank_of(row, col)
-                    line.append("pt_root" if bank in (0, 3) else "pt_in_scale")
+                    line.append(led(grid.role_of(note)))  # Cs and named drums, as on the map
                 elif note % 12 in chord_tones:
                     line.append(led("chord_tone"))  # a note of the chord playing on
                 else:
@@ -862,11 +865,7 @@ class PlayMode(Mode):
                     "over": self.chord.sounding_name(),  # a latched chord playing on
                 }
             else:
-                panel |= {
-                    "held": [drum_name(n) for n in held],
-                    "last_hit": drum_name(self.last_drum) if self.last_drum is not None else None,
-                    "first_run": not self.played_once,
-                }
+                panel |= self._drums_panel(held)
         if not self.scale_open:
             panel["rail"] = self.rail()
             panel["rhythm"] = self.rhythm_text()
@@ -883,6 +882,33 @@ class PlayMode(Mode):
         return None
 
     # Profiles and session state
+
+    def _drums_panel(self, held: list[int]) -> dict:
+        """The map of all 128 notes with the pads' window on it, and the last hit."""
+        start = self.drums.start
+        moves = {}
+        for label, delta in (("up", 1), ("down", -1)):
+            probe = DrumLayout(start)
+            probe.shift(delta)
+            if probe.start != start:
+                moves[label] = f"{probe.start}–{min(127, probe.start + 8 * DRUM_ROW - 1)}"
+        last = None
+        if self.last_drum is not None:
+            last = {
+                "name": drum_name(self.last_drum),
+                "note": self.last_drum,
+                "note_name": note_name(self.last_drum),
+                "velocity": self.last_drum_velocity,
+            }
+        return {
+            "start": start,
+            "end": min(127, start + 8 * DRUM_ROW - 1),
+            "moves": moves,
+            "map": [DrumLayout.role_of(n) for n in range(128)],
+            "held_notes": list(held),
+            "last_hit": last,
+            "first_run": not self.played_once,
+        }
 
     def apply_rhythm(self, settings: RhythmSettings) -> None:
         """Profile defaults for tempo, swing and rate."""

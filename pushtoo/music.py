@@ -142,8 +142,9 @@ GM_DRUM_NAMES: dict[int, str] = {
     81: "Open Triangle",
 }  # fmt: skip
 
-BANK_SIZE = 16
-DRUM_LOWEST_START, DRUM_HIGHEST_START = 0, 127 - 4 * BANK_SIZE + 1
+DRUM_ROW = 8  # notes per pad row, as on the screen's map of all 128
+DRUM_STEP = 32  # what the Octave buttons move: four rows, half the pads
+DRUM_LOWEST_START, DRUM_HIGHEST_START = 0, 128 - DRUM_ROW * 8
 
 
 def drum_name(midi_note: int) -> str:
@@ -152,22 +153,26 @@ def drum_name(midi_note: int) -> str:
 
 @dataclass
 class DrumLayout:
-    """Four 4x4 banks of 16 consecutive notes: bottom-left, bottom-right, top-left,
-    top-right. With the default start of 36, the bottom-left bank is the GM kit."""
+    """64 consecutive notes in rows of 8, counting up from the bottom-left pad: the
+    same shape as the screen's map of all 128 MIDI notes. With the default start of 36,
+    the bottom two rows are the core General MIDI kit (kick, snare, hats)."""
 
     start: int = 36
 
-    @staticmethod
-    def bank_of(row: int, col: int) -> int:
-        return (row // 4) * 2 + col // 4
-
     def note_at(self, row: int, col: int) -> int | None:
-        note = self.start + self.bank_of(row, col) * BANK_SIZE + (row % 4) * 4 + col % 4
+        note = self.start + row * DRUM_ROW + col
         return note if 0 <= note <= 127 else None
 
-    def shift_bank(self, delta: int) -> None:
-        """Octave buttons move the grid one bank of 16 at a time."""
-        self.start = max(DRUM_LOWEST_START, min(DRUM_HIGHEST_START, self.start + delta * BANK_SIZE))
+    def shift(self, delta: int) -> None:
+        """The Octave buttons: 32 notes (four rows) up or down, within MIDI."""
+        self.start = max(DRUM_LOWEST_START, min(DRUM_HIGHEST_START, self.start + delta * DRUM_STEP))
+
+    @staticmethod
+    def role_of(note: int) -> str:
+        """Landmarks for pads and the map: every C stands out, named drums are lit."""
+        if note % 12 == 0:
+            return "root"
+        return "in_scale" if note in GM_DRUM_NAMES else "out_of_scale"
 
 
 # A profile's starting pad feel; Setup takes over once used (pushtoo/setup.py).

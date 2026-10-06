@@ -76,7 +76,7 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 
 | Mode   | Push button | Pads                                                         | Encoders                                    | Screen shows                                   |
 | ------ | ----------- | ------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------- |
-| Play   | Note        | Keyboard (in key or chromatic, fourths), Drums (4 banks of 16), or the Chord grid | Per layout, by page: octave, strum, chord velocity, rhythm, outputs and channels | Key and held notes, drum names, or chord name, role and voicing |
+| Play   | Note        | Keyboard (in key or chromatic, fourths), Drums (rows of 8 over a 128-note map), or the Chord grid | Per layout, by page: octave, strum, chord velocity, rhythm, outputs and channels | Key and held notes, drum names, or chord name, role and voicing |
 | Knobs  | Device      | Keep playing the current Play layout                         | Up to 8 pages of 8 named CCs                | Named arcs with live values, in each control's color |
 
 **Extras.** Mix mode (8 fader CCs, mute and solo pads) remains available on the Mix button for people who want it, but it isn't part of the core pitch and gets no further investment.
@@ -140,7 +140,7 @@ Every default CC comes from MIDI's undefined or general-purpose ranges (14–29,
 | ---------------------- | ------- | ------------------------------------------------ |
 | Keyboard layout        | 1       | Notes, poly aftertouch, pitch bend, mod wheel    |
 | Chord layout           | 2, 3    | Chords; bass notes                               |
-| Drums layout           | 10      | Notes 36–99 in four banks (General MIDI kit at 36–51) |
+| Drums layout           | 10      | Notes 36–99 in rows of 8 (General MIDI kit from 36) |
 | Mix (extra)            | 14      | Faders CC 102–109, master CC 110, mute CC 14–21, solo CC 22–29 |
 | Knobs pages 1–4        | 15      | 32 CCs: 14–29, 102–117                           |
 | Knobs pages 5–8        | 16      | 32 CCs: 14–29, 102–117                           |
@@ -322,7 +322,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | ---- | ------------------------------------------------------------ | -------- | ------ |
 | F1   | Virtual MIDI ports "Pushtoo Out" and "Pushtoo In" via ALSA, under PipeWire and JACK | P0 | Built |
 | F2   | Keyboard layout with scales, root, octave, in-key and chromatic, velocity curves, poly aftertouch | P0 | Built |
-| F19  | Drums layout: four banks of 16 from note 36 (General MIDI kit bottom-left) | P0 | Built |
+| F19  | Drums layout: 64 notes in rows of 8 from 36 (kick bottom-left) over a full 128-note map on screen; Octave moves 32, the Notes encoder a row | P0 | Built |
 | F12  | Chord grid: one-press chords by scale step and flavor, bass row, auto bass, function colors | P0 | Built |
 | F28  | Chord voicing on the side buttons: Smooth voice leading, inversions, Open, Wide; tap to keep, hold for momentary | P0 | Built |
 | F14  | Strum on the touch strip in the Chord layout                 | P0 | Built |

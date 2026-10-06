@@ -206,12 +206,86 @@ def _panel_keyboard(ctx, panel, x0, width, accent) -> None:
     _notes_or_hint(ctx, panel, x0 + width / 2, width / 2)
 
 
+DRUM_PITCH, DRUM_CELL = 6, 5  # the drum map's cells: up to 17 rows in 112 px
+
+
 def _panel_drums(ctx, panel, x0, width, accent) -> None:
-    _layout_title(ctx, panel, x0 + 16)
-    name = _fit(ctx, panel["last_hit"] or "Drums", width / 2 - 24, TITLE, True)
-    _text(ctx, name, x0 + 16, 84, TITLE, accent, True)
-    _details(ctx, panel, x0, width)
-    _notes_or_hint(ctx, panel, x0 + width / 2, width / 2)
+    """All 128 notes in rows of 8, the pads' 8x8 window outlined on it, then the last
+    hit (once), how hard it was, and where the pads sit and can move."""
+    map_x = x0 + 34
+    _drum_map(ctx, panel, map_x, accent)
+    x = map_x + 8 * DRUM_PITCH + 18
+    width = x0 + width - x - 12
+    _layout_title(ctx, panel, x)
+    left = width * 0.55
+    last = panel["last_hit"]
+    if last is None:
+        if panel["first_run"]:
+            _text(ctx, "Play any pad", x, 78, VALUE + 2, _c["text"])
+            if panel["default_destination"]:
+                hint = _fit(ctx, "Select “Pushtoo Out” in your DAW", left, BODY - 1)
+                _text(ctx, hint, x, 100, BODY - 1, _c["text_dim"])
+    else:
+        _text(ctx, _fit(ctx, last["name"], left, TITLE, True), x, 80, TITLE, accent, True)
+        note = f"{last['note_name']} · {last['note']}"
+        _text(ctx, note, x, 101, BODY, _c["text_dim"])
+        bar = min(left, 120)
+        ctx.set_source_rgb(*_c["track"])
+        ctx.rectangle(x, 108, bar, 4)
+        ctx.fill()
+        ctx.set_source_rgb(*accent)
+        ctx.rectangle(x, 108, bar * last["velocity"] / 127, 4)
+        ctx.fill()
+        _text(ctx, f"v {last['velocity']}", x + bar + 8, 113, SMALL, _c["text_dim"])
+    right = x + left + 16
+    span = width - left - 16
+    _text(ctx, f"Pads {panel['start']}–{panel['end']}", right, 66, BODY + 2, _c["text"], True)
+    moves = panel["moves"]
+    for i, label in enumerate(("up", "down")):  # IBM Plex has no arrow glyphs
+        if label in moves:
+            line = _fit(ctx, f"Octave {label}: {moves[label]}", span, BODY - 1)
+            _text(ctx, line, right, 88 + i * 18, BODY - 1, _c["text_dim"])
+    _text(ctx, _fit(ctx, " · ".join(status_parts(panel)), width, BODY), x, 128, BODY, _c["text"])
+
+
+def _drum_map(ctx, panel, x, accent) -> None:
+    """Rows of 8 lined up with the pads (so the window is a clean box); notes outside
+    MIDI's 0-127 are empty cells. Held notes white, the last hit ringed."""
+    start = panel["start"]
+    phase = start % 8
+    base = phase - 8 if phase else 0  # the first row's first note (may be below 0)
+    rows = 17 if phase else 16
+    top = BAND + (HEIGHT - 2 * BAND - rows * DRUM_PITCH) / 2
+    held = set(panel["held_notes"])
+    last = panel["last_hit"]["note"] if panel["last_hit"] else None
+    for row in range(rows):
+        y = top + (rows - 1 - row) * DRUM_PITCH
+        first = base + row * 8
+        if row % 2 == 0 and 0 <= max(first, 0) <= 127:
+            label = str(max(first, 0))
+            _font(ctx, SMALL - 3, False)
+            w = ctx.text_extents(label).x_advance
+            _text(ctx, label, x - 6 - w, y + DRUM_CELL, SMALL - 3, _c["text_dim"])
+        for col in range(8):
+            note = first + col
+            if not 0 <= note <= 127:
+                continue
+            color = _c["held"] if note in held else _led_rgb(f"pt_{panel['map'][note]}")
+            ctx.set_source_rgb(*color)
+            ctx.rectangle(x + col * DRUM_PITCH, y, DRUM_CELL, DRUM_CELL)
+            ctx.fill()
+            if note == last:
+                ctx.set_source_rgb(*_c["text"])
+                ctx.set_line_width(1)
+                ctx.rectangle(x + col * DRUM_PITCH - 1.5, y - 1.5, DRUM_CELL + 3, DRUM_CELL + 3)
+                ctx.stroke()
+    # The pads' window: 8 rows from the start, outlined in the accent.
+    window_row = (start - base) // 8
+    y_top = top + (rows - 1 - (window_row + 7)) * DRUM_PITCH - 1.5
+    ctx.set_source_rgb(*accent)
+    ctx.set_line_width(1.5)
+    ctx.rectangle(x - 1.5, y_top, 8 * DRUM_PITCH + 2, 8 * DRUM_PITCH + 2)
+    ctx.stroke()
 
 
 def _details(ctx, panel, x0, width) -> None:

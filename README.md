@@ -59,7 +59,7 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 | Setup                           | Pad feel, aftertouch, brightness and clock (see below). Setup again, or `‹`, goes back |
 | Layout                          | Tap to cycle Keyboard (channel 1), Drums (channel 10) and the chord grid (channels 2 and 3); it switches when you let go. Hold it and press the button above a layout's name to go straight there |
 | Scale                           | Open or close the scale menu: top buttons pick In key/Chromatic and C G D A E B F#, bottom buttons pick F Bb Eb Ab Db Gb, encoder 1 picks the scale, encoder 2 the root, encoder 3 the chord grid's set |
-| Octave up / down                | Keyboard and chords: shift an octave. Drums: shift one bank of 16 notes. A button goes dark when it can't go further |
+| Octave up / down                | Keyboard and chords: shift an octave. Drums: move the pads 32 notes (four rows). A button goes dark when it can't go further |
 | Buttons below the display       | Pages. The first is each layout's main page, named for it (Keyboard: octave; Drums: notes; Chord: octave, voicing and the pad map); the rest are its settings, ending with **Output** (destination port and channel) |
 | Buttons above the display       | Options on the current page                                          |
 | Encoders above the display      | The current page's controls. Touch one and it grows a little on screen, so you can see which knob you're on |
@@ -112,7 +112,7 @@ Row kinds: `triad`, `seventh`, `add9`, `sus`, `sus2`, `sus4`, `ninth`, `sixth`, 
 
 **Mix mode** (an extra, on the Mix button) turns the 8 encoders into fader CCs, with mute and solo toggles on the top two pad rows. Each fader shows M and S chips that light red and blue, the same as their pads. Press Mix again, or the `‹` button at the bottom right of the display, to go back to where you were.
 
-Drums use four banks of 16 pads. The bottom-left bank is the General MIDI kit (notes 36–51), and the screen names each drum as you play it. On the **Output** page, any layout can send straight to a hardware MIDI port instead of Pushtoo Out, so a USB-MIDI synth works without a DAW.
+**Drums** play 64 notes in rows of 8, counting up from the bottom-left pad, so the kick (36) is bottom-left, the snare two pads to its right, and the hats just above. The screen shows a map of all 128 MIDI notes in the same rows of 8, with the 8×8 window your pads cover outlined, Cs in orange and named General MIDI drums lit. Beside it: the drum you just hit (its name, note and how hard), the notes the pads cover, and where the Octave buttons would take them (32 notes, four rows, at a time). The Notes encoder on the Drums page moves the pads a row at a time. On the **Output** page, any layout can send straight to a hardware MIDI port instead of Pushtoo Out, so a USB-MIDI synth works without a DAW.
 
 Unplugging the Push releases held notes; plug it back in and Pushtoo reconnects on its own.
 

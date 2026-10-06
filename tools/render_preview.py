@@ -220,12 +220,17 @@ def sample_views() -> dict[str, dict]:
     views["keyboard_strip_page"] = play.view()
 
     play = _play()
-    play.button_pressed(c.BUTTON_LAYOUT)
-    play.button_released(c.BUTTON_LAYOUT)
-    play.pad_pressed(0, 1, 100)
-    play.pad_released(0, 1)
+    _tap_layout(play)
+    views["drums_first_run"] = play.view()
+    play.pad_pressed(0, 2, 96)  # Snare, held
+    views["drums_snare"] = play.view()
+    play.pad_released(0, 2)
     play.button_pressed(c.BUTTON_ACCENT)
     views["drums"] = play.view()
+    play.button_pressed(c.BUTTON_ACCENT)
+    play.button_pressed(c.BUTTON_OCTAVE_UP)  # to the top: 64-127
+    play.pad_pressed(5, 3, 60)
+    views["drums_top"] = play.view()
 
     play = _play()
     play.button_pressed(c.BUTTON_SCALE)
