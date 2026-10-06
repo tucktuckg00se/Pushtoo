@@ -1,7 +1,8 @@
 """MIDI output routing (PRD F1, F17).
 
-"Pushtoo Out" is a virtual port that any DAW can read. Any layout can instead send
-straight to a hardware MIDI port, so a USB-MIDI rig works without a DAW in between.
+"Pushtoo Out" is a virtual port that any DAW can read (see virtual.py). Any layout can
+instead send straight to a hardware MIDI port, so a USB-MIDI rig works without a DAW in
+between.
 """
 
 import logging
@@ -13,6 +14,7 @@ from typing import Protocol
 import rtmidi
 
 from pushtoo.midi.notes import Message, Routed, SoundingNotes, panic_messages
+from pushtoo.midi.virtual import VirtualPorts
 
 CLIENT_NAME = "Pushtoo"
 OUT_PORT = "Pushtoo Out"
@@ -80,12 +82,11 @@ class MidiRouter:
         open_port: Callable[[str], Output | None] = _open_hardware_port,
     ) -> None:
         if virtual_out is None:
-            midi_out = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name=CLIENT_NAME)
-            midi_out.open_virtual_port(OUT_PORT)
-            self.feedback = rtmidi.MidiIn(rtmidi.API_LINUX_ALSA, name=CLIENT_NAME)
-            self.feedback.open_virtual_port(IN_PORT)
-            virtual_out = midi_out
-            list_ports = list_ports or midi_out.get_ports  # enumerates live ALSA ports
+            # Our own ports come from VirtualPorts so DAWs list them (see virtual.py);
+            # rtmidi only enumerates and opens hardware destinations.
+            virtual_out = VirtualPorts(CLIENT_NAME, OUT_PORT, IN_PORT)
+            self._lister = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name=CLIENT_NAME)
+            list_ports = list_ports or self._lister.get_ports  # enumerates live ALSA ports
         self._outputs: dict[str, Output] = {OUT_PORT: virtual_out}
         self._list_ports = list_ports or (lambda: [])
         self._open_port = open_port

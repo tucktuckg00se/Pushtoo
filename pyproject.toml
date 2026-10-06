@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "pydantic>=2.13.5",
     "evdev>=2.0.0",
+    "alsa-midi>=1.0",
 ]
 
 [project.scripts]
