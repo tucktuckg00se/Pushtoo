@@ -41,9 +41,19 @@ class StateStore:
     def last_profile(self) -> str | None:
         return self.data.get("last_profile")
 
-    def update(self, profile_file: str, profile_name: str, snapshot: dict) -> None:
+    @property
+    def setup(self) -> dict | None:
+        """Setup mode's device-wide settings, shared by every profile."""
+        setup = self.data.get("setup")
+        return setup if isinstance(setup, dict) else None
+
+    def update(
+        self, profile_file: str, profile_name: str, snapshot: dict, setup: dict | None = None
+    ) -> None:
         self.data["last_profile"] = profile_file
         self.data.setdefault("profiles", {})[profile_name] = snapshot
+        if setup is not None:
+            self.data["setup"] = setup
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +65,7 @@ class StateStore:
 class StateSaver:
     """Saves a snapshot SAVE_DELAY seconds after the last mark_dirty()."""
 
-    def __init__(self, store: StateStore, snapshot: Callable[[], tuple[str, str, dict]]) -> None:
+    def __init__(self, store: StateStore, snapshot: Callable[[], tuple]) -> None:
         self.store = store
         self._snapshot = snapshot
         self._dirty = threading.Event()

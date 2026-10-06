@@ -18,7 +18,9 @@ def preview():
 
 def test_every_sample_view_renders(preview):
     views = preview.sample_views()
-    assert {"keyboard_first_run", "drums", "scale_selector", "peek_velocity"} <= set(views)
+    assert {"keyboard_first_run", "drums", "scale_selector", "peek_octave", "setup_pads"} <= set(
+        views
+    )
     for view in views.values():
         surface = preview.render(view)
         assert (surface.get_width(), surface.get_height()) == (WIDTH, HEIGHT)

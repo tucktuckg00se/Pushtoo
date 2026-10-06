@@ -138,9 +138,9 @@ class Undo(Strict):
 
 
 class Rhythm(Strict):
-    """Clock and note repeat defaults (PRD: Rhythm)."""
+    """Tempo and note repeat defaults (PRD: Rhythm). Sending and following MIDI
+    clock are device settings, in Setup."""
 
-    clock_out: bool = True  # send MIDI clock on Pushtoo Out while leading
     tempo: float = Field(120.0, ge=40, le=240)
     swing: int = Field(50, ge=50, le=75)
     rate: Literal[RATE_NAMES] = "1/16"  # type: ignore[valid-type]

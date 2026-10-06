@@ -18,10 +18,11 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 | ------------------------------- | -------------------------------------------------------------------- |
 | Note, Device                    | Play and Knobs modes                                                 |
 | Browse                          | Profile list: encoder 1 picks, top-left button loads. Browse again, or the `‹` button at the bottom right, goes back |
+| Setup                           | Pad feel, aftertouch, brightness and clock (see below). Setup again, or `‹`, goes back |
 | Layout                          | Tap to cycle Keyboard (channel 1), Drums (channel 10) and the chord grid (channels 2 and 3). Hold it and press the button above a layout's name to go straight there |
 | Scale                           | Open or close the scale selector: top buttons pick In key/Chromatic and C G D A E B F#, bottom buttons pick F Bb Eb Ab Db Gb, encoder 1 picks the scale, encoder 2 the root |
 | Octave up / down                | Keyboard and chords: shift an octave. Drums: shift one bank of 16 notes. A button goes dark when it can't go further |
-| Buttons below the display       | Pages: **Play** (octave or drum notes, velocity curve), **Strip** (pitch bend or mod wheel), **Output** (destination port and channel) |
+| Buttons below the display       | Pages: **Play** (octave or drum notes), **Strip** (pitch bend or mod wheel), **Output** (destination port and channel), **Rhythm** |
 | Buttons above the display       | Options on the current page                                          |
 | Encoders above the display      | The current page's controls. Touch one to see its value full-size    |
 | Shift + encoder                 | Fine adjust (4x finer)                                               |
@@ -42,6 +43,8 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 
 The side buttons pick the **voicing**. The right-hand edge of the screen, next to them, names each button from top to bottom: the voicing you kept is filled in the Play accent, one you're holding is white, and Latch turns yellow when it's on. The buttons light up the same way. **Smooth** (top, the default) moves as little as possible from one chord to the next so progressions glide; the same pad may voice differently depending on what you played before. The others force an inversion (Root, 1st, 2nd, 3rd) or spread the chord out (Open, Wide), so a pad always plays the same notes. Tap one to keep it, or hold it to use it only while held. The bottom side button is **Latch**: chords keep sounding after you let go, so one hand can tap chords while the other strums. While Latch is holding a chord, the screen says "Latched · tap it again to stop". If you press a side button from Knobs or Mix, a short message says what it did. The right-hand column is the first column's chord an octave higher, and the screen says "octave up" when you play it. The screen shows each chord's name, its Roman numeral and what it does ("V7 · tension"). Hold a bass-row pad under a chord and the name shows the bass after a slash, such as G/B. On the **Style** page, **Press** plays the chord on pad press and **Strum** turns the touch strip into a strum plate: hold a chord and slide across the strip. Each chord's root also plays on channel 3 for a bass synth; the **Output** page changes channels and mutes chords or bass.
 
+**Velocity in the chord grid.** The Chord layout's **Velocity** page sets how loud each note of a chord plays. **Min** and **Max** set the range your pads play in: hitting harder still plays louder, scaled into that range. Choose **Random** and every note of every chord gets its own velocity within **Spread** of where your hit landed, so chords sound played by hand instead of stamped; **Top note** lifts (or lowers) the highest note so a melody can sing over the rest. The bass note stays steady. **Accent** means as loud as your range allows: chords center on **Max**, and with Random they vary downward from it, loud but alive. Each strummed note, repeat and arp step rolls fresh velocities, and the screen draws each note's velocity as a bar under its name.
+
 **Rhythm.** Tap **Repeat** and held pads repeat at the rate lit on the side buttons; press harder on a pad and its repeats get louder. The **Rhythm** page (Keyboard and Chord) switches between **Repeat** and **Arp**, the arpeggiator, with its Pattern (Up, Down, Up-down, As played, Random), Octaves and Gate. In the Chord layout, Repeat retriggers the chord and Arp plays it note by note; Latch keeps it going. Pushtoo keeps its own tempo and sends MIDI clock on Pushtoo Out, so a synth or DAW can follow it. If your DAW sends clock to **Pushtoo In**, Pushtoo follows instead and says "Following clock" on screen. Steps are scheduled ahead on the ALSA sequencer, so timing holds steady (under 1 ms) however busy Pushtoo is.
 
 **Knobs mode** gives you up to 8 pages of 8 named controls, defined in your profile. Each column's top button glows in that control's color. To map a control in your DAW, start the DAW's MIDI learn, hold **Shift** and tap the button above the knob: Pushtoo sends just that control's CC, three times, so the DAW catches the right one. Hold **Delete** and touch a knob to reset it to its default.
@@ -51,6 +54,17 @@ The side buttons pick the **voicing**. The right-hand edge of the screen, next t
 Drums use four banks of 16 pads. The bottom-left bank is the General MIDI kit (notes 36–51), and the screen names each drum as you play it. On the **Output** page, any layout can send straight to a hardware MIDI port instead of Pushtoo Out, so a USB-MIDI synth works without a DAW.
 
 Unplugging the Push releases held notes; plug it back in and Pushtoo reconnects on its own.
+
+## Setup
+
+Press **Setup** to tune the Push to your hands. Pads keep playing while you're there, so you can feel every change.
+
+- **Pads:** **Sensitivity** (how little force reaches full velocity), **Dynamics** (below 0, light touches play louder; above 0, you have to dig in), and **Min** and **Max velocity**. The screen draws the curve and puts a dot where your last hit landed. Above the display, **Regular**, **Reduced** or **Low** sets the Push's own pad sensitivity; lower settings stop neighbouring pads from triggering and stop double hits.
+- **Aftertouch:** **Poly** (each pad's own pressure), **Channel** (one pressure for all the pads, for synths that only read channel pressure) or **Off**, with where pressure starts and where it reaches full.
+- **Display:** pad and button brightness, and screen brightness. On USB power alone, Push dims itself whatever these say.
+- **Clock:** whether Pushtoo sends MIDI clock, and whether it follows clock arriving on Pushtoo In.
+
+Setup belongs to your Push, not to a profile, so it's the same whichever profile is loaded, and it's saved in `~/.local/state/pushtoo/state.yaml`. A profile's `play: {velocity_curve: ...}` only sets the starting feel before Setup has been used.
 
 ## Profiles
 

@@ -6,7 +6,7 @@ pad can take back what it had queued without ever leaving a note hanging.
 """
 
 import random
-from collections.abc import Hashable
+from collections.abc import Callable, Hashable
 from dataclasses import dataclass
 
 from pushtoo.midi.notes import NOTE_OFF, NOTE_ON, Message
@@ -42,6 +42,8 @@ class Held:
     pressed_at: float
     order: int
     tag: int
+    # Per-note velocities for a hit, from the velocity the pad holds (chord Random).
+    vary: Callable[[list[int], int], list[int]] | None = None
 
 
 class Rhythm:
@@ -81,12 +83,15 @@ class Rhythm:
         velocity: int,
         clock: Clock,
         now: float,
+        vary: Callable[[list[int], int], list[int]] | None = None,
     ) -> list[Scheduled]:
         """Hold a pad (or a chord); returns its first hit, to send at once."""
         if not self.held:
             self._arp_index = 0
         self._order += 1
-        held = Held(destination, channel, list(notes), velocity, now, self._order, self._next_tag())
+        held = Held(
+            destination, channel, list(notes), velocity, now, self._order, self._next_tag(), vary
+        )
         self.held[key] = held
         if self.arp:
             return self._arp_step(now, clock)
@@ -129,9 +134,13 @@ class Rhythm:
 
     @staticmethod
     def _hit(held: Held, at: float, length: float) -> list[Scheduled]:
+        if held.vary is not None:
+            velocities = held.vary(held.notes, held.velocity)
+        else:
+            velocities = [held.velocity] * len(held.notes)
         on = [
-            (at, held.destination, [NOTE_ON | held.channel, n, held.velocity], held.tag)
-            for n in held.notes
+            (at, held.destination, [NOTE_ON | held.channel, n, v], held.tag)
+            for n, v in zip(held.notes, velocities, strict=True)
         ]
         off = [
             (at + length, held.destination, [NOTE_OFF | held.channel, n, 0], 0) for n in held.notes
@@ -153,7 +162,16 @@ class Rhythm:
         owner = next(h for h in reversed(by_order) if any((note - n) % 12 == 0 for n in h.notes))
         length = self._step_seconds(clock) * self.gate / 100
         return self._hit(
-            Held(owner.destination, owner.channel, [note], owner.velocity, at, 0, owner.tag),
+            Held(
+                owner.destination,
+                owner.channel,
+                [note],
+                owner.velocity,
+                at,
+                0,
+                owner.tag,
+                owner.vary,
+            ),
             at,
             length,
         )

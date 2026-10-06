@@ -171,6 +171,8 @@ def status_parts(panel: dict) -> list[str]:
             parts.append(f"Oct {panel['octave']}")
         if panel["strum"]:
             parts.append("Strum the strip")
+        if panel["random_velocity"]:
+            parts.append("Random velocity")
     elif panel["kind"] == "keyboard" and not panel["in_key"]:
         parts.append("Chromatic")
     if panel["accent"]:
@@ -240,6 +242,7 @@ CHORD_LEGEND = (  # (label, theme token)
 )
 CELL, PITCH = 12, 13  # pad map cell size and spacing
 MAP_LABELS = 64  # width of the row-name column beside the pad map
+MAP_MIN_PANEL = 420  # narrower chord panels leave the map out
 
 
 def _led_rgb(name: str) -> tuple[float, float, float]:
@@ -307,8 +310,11 @@ def _rail(ctx: cairo.Context, rail: list[dict], accent) -> None:
 
 
 def _panel_chord(ctx, panel, x0, width, accent) -> None:
-    _pad_map(ctx, panel, x0 + 12, 28)
-    x = x0 + 12 + 8 * PITCH + MAP_LABELS + 8
+    if width >= MAP_MIN_PANEL:
+        _pad_map(ctx, panel, x0 + 12, 28)
+        x = x0 + 12 + 8 * PITCH + MAP_LABELS + 8
+    else:  # pages with many encoders: the chord and its velocities need the room
+        x = x0 + 16
     width = x0 + width - x - 12
     title_end = _layout_title(ctx, panel, x)
     if panel["latched"]:
@@ -338,8 +344,29 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
     _text(ctx, _fit(ctx, name, width * 0.4, TITLE, True), x, 84, TITLE, color, True)
     right = x + width * 0.42
     _text(ctx, _fit(ctx, role_line, width * 0.58, BODY), right, 64, BODY, _c["text"])
-    _text(ctx, _fit(ctx, " ".join(notes), width * 0.58, BODY), right, 88, BODY, _c["text_dim"])
+    _notes_with_velocity(ctx, notes, panel.get("velocities") or [], right, width * 0.58, accent)
     _text(ctx, details, x, 116, BODY, _c["text"])
+
+
+def _notes_with_velocity(ctx, notes, velocities, x, width, accent) -> None:
+    """The chord's notes, each with a bar beneath it as long as its velocity, so a
+    Random chord looks as uneven as it sounds."""
+    _font(ctx, BODY, False)
+    gap = ctx.text_extents(" ").x_advance
+    widths = [ctx.text_extents(n).x_advance for n in notes]
+    if not velocities or sum(widths) + gap * (len(notes) - 1) > width:
+        _text(ctx, _fit(ctx, " ".join(notes), width, BODY), x, 88, BODY, _c["text_dim"])
+        return
+    for name, w, velocity in zip(notes, widths, velocities, strict=False):
+        _text(ctx, name, x, 88, BODY, _c["text_dim"])
+        if velocity is not None:
+            ctx.set_source_rgb(*_c["track"])
+            ctx.rectangle(x, 93, w, 3)
+            ctx.fill()
+            ctx.set_source_rgb(*accent)
+            ctx.rectangle(x, 93, w * velocity / 127, 3)
+            ctx.fill()
+        x += w + gap
 
 
 def _panel_knobs(ctx, panel, x0, width, accent) -> None:
@@ -365,6 +392,61 @@ def _panel_browse(ctx, panel, x0, width, accent) -> None:
             _text(ctx, label, x0 + 16, 88 + offset * 26, VALUE, color, bold=offset == 0)
 
 
+def _panel_setup(ctx, panel, x0, width, accent) -> None:
+    page = panel["page"]
+    _text(ctx, f"Setup · {page}", x0 + 16, 44, LABEL, _c["text_dim"])
+    if page == "Pads":
+        _curve_graph(ctx, panel["table"], panel["last_velocity"], x0 + 16, 52, 150, 76, accent)
+        right = x0 + 186
+        if panel["last_velocity"] is None:
+            _text(ctx, "Play a pad", right, 84, VALUE, _c["text"])
+            hint = _fit(ctx, "Its velocity shows on the curve", width - 200, BODY - 1)
+            _text(ctx, hint, right, 108, BODY - 1, _c["text_dim"])
+        else:
+            _text(ctx, "Last hit", right, 64, LABEL, _c["text_dim"])
+            _text(ctx, str(panel["last_velocity"]), right, 110, PEEK, accent, True)
+    elif page == "Aftertouch":
+        mode = panel["aftertouch"]
+        if mode == "Off":
+            _text(ctx, "Aftertouch off", x0 + 16, 84, VALUE, _c["text"])
+            return
+        label = "Each pad's pressure" if mode == "Poly" else "Pressure on any pad"
+        _text(ctx, _fit(ctx, label, width - 32, BODY), x0 + 16, 74, BODY, _c["text"])
+        bar = width - 32
+        ctx.set_source_rgb(*_c["track"])
+        ctx.rectangle(x0 + 16, 88, bar, 10)
+        ctx.fill()
+        ctx.set_source_rgb(*accent)
+        ctx.rectangle(x0 + 16, 88, bar * panel["last_pressure"] / 127, 10)
+        ctx.fill()
+        _text(ctx, f"Last: {panel['last_pressure']}", x0 + 16, 122, BODY, _c["text_dim"])
+    elif page == "Display":
+        note = "On USB power alone, Push dims itself whatever these say"
+        _text(ctx, _fit(ctx, note, width - 32, BODY - 1), x0 + 16, 84, BODY - 1, _c["text_dim"])
+    elif page == "Clock":
+        color = accent if panel["following"] else _c["text"]
+        _text(ctx, _fit(ctx, panel["clock"], width - 32, VALUE), x0 + 16, 84, VALUE, color)
+
+
+def _curve_graph(ctx, table, last, x, y, w, h, accent) -> None:
+    """Force (left to right) against velocity (bottom to top), with the last hit."""
+    ctx.set_source_rgb(*_c["track"])
+    ctx.rectangle(x, y, w, h)
+    ctx.set_line_width(1)
+    ctx.stroke()
+    ctx.set_source_rgb(*accent)
+    ctx.set_line_width(2)
+    for step, velocity in enumerate(table):
+        px, py = x + w * step / 127, y + h - h * velocity / 127
+        (ctx.line_to if step else ctx.move_to)(px, py)
+    ctx.stroke()
+    if last is not None:
+        step = next((i for i, v in enumerate(table) if v >= last), 127)
+        ctx.set_source_rgb(*_c["text"])
+        ctx.arc(x + w * step / 127, y + h - h * last / 127, 4, 0, 2 * math.pi)
+        ctx.fill()
+
+
 PANELS = {
     "keyboard": _panel_keyboard,
     "drums": _panel_drums,
@@ -372,6 +454,7 @@ PANELS = {
     "chord": _panel_chord,
     "knobs": _panel_knobs,
     "browse": _panel_browse,
+    "setup": _panel_setup,
 }
 
 

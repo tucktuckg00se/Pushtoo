@@ -31,6 +31,7 @@ from pushtoo.chords import (
 )
 from pushtoo.midi.router import MidiRouter
 from pushtoo.music import ROWS, SCALES, KeyboardLayout, note_name
+from pushtoo.rhythm.velocity import VelocitySpread
 from pushtoo.theme import accent_name, led
 from pushtoo.ui.controls import COLUMNS
 
@@ -70,8 +71,11 @@ class ChordPlayer:
         self.key = key
         # Set by PlayMode: while rhythm is on, a chord's notes go to the repeat or arp
         # engine instead of sounding held. hand_to_rhythm returns True if it took them.
-        self.hand_to_rhythm: Callable[[str, int, list[int], int], bool] = lambda *_: False
+        self.hand_to_rhythm: Callable[..., bool] = lambda *_: False
         self.take_from_rhythm: Callable[[], None] = lambda: None
+        self.accent: Callable[[], bool] = lambda: False  # PlayMode's Accent button
+        self.spread = VelocitySpread()  # the Velocity page
+        self.last_velocities: list[int] = []  # what the sounding chord's notes got
         self._output = output  # (destination, chord channel) of the Chord layout
         self._clock = clock
         self.bass_channel = 2
@@ -142,16 +146,31 @@ class ChordPlayer:
             return
         notes = self._voiced(chord)
         destination, channel = self._output()
+        accent = self.accent()
+        velocities = self.spread.velocities(notes, velocity, accent)
+        self.last_velocities = velocities
         if not self.strum and not self.mute_chords:
-            if not self.hand_to_rhythm(destination, channel, notes, velocity):
-                for i, note in enumerate(notes):
-                    self.router.note_on(("chord", i), destination, channel, note, velocity)
+            if not self.hand_to_rhythm(destination, channel, notes, velocity, self._vary(notes)):
+                for i, (note, v) in enumerate(zip(notes, velocities, strict=True)):
+                    self.router.note_on(("chord", i), destination, channel, note, v)
         if not self.mute_bass:
             bass = self.register() - 12 + chord.root
-            if bass >= 0:
-                self.router.note_on(("bass",), destination, self.bass_channel, bass, velocity)
+            if bass >= 0:  # the bass stays steady at the center, never randomized
+                center = self.spread.center(velocity, accent)
+                self.router.note_on(("bass",), destination, self.bass_channel, bass, center)
         self.current, self.velocity = pad, velocity
         self.notes, self.last_chord = notes, chord
+
+    def _vary(self, chord_notes: list[int]) -> Callable[[list[int], int], list[int]]:
+        """Fresh velocities for each repeat or arp step. A note is the top note if it's
+        the chord's highest (arp octaves above it aren't)."""
+        top = max(chord_notes, default=None)
+
+        def vary(notes: list[int], velocity: int) -> list[int]:
+            accent = self.accent()
+            return [self.spread.one(n == top, velocity, accent) for n in notes]
+
+        return vary
 
     def _silence(self) -> None:
         for i in range(MAX_TONES):
@@ -173,6 +192,7 @@ class ChordPlayer:
         if row == BASS_ROW:
             destination, _ = self._output()
             note = self._bass_note(col)
+            velocity = self.spread.center(velocity, self.accent())
             self.router.note_on(("bass row", col), destination, self.bass_channel, note, velocity)
             self.bass_pads[pad] = note
             return
@@ -275,7 +295,9 @@ class ChordPlayer:
             return
         destination, channel = self._output()
         for i in crossed:
-            self.router.note_on(("strum", i), destination, channel, tones[i], self.velocity)
+            top = tones[i] == max(self.notes, default=None)
+            velocity = self.spread.one(top, self.velocity, self.accent())
+            self.router.note_on(("strum", i), destination, channel, tones[i], velocity)
             self._strumming.add(i)
 
     def _release_strum(self) -> None:
@@ -351,6 +373,7 @@ class ChordPlayer:
             "parent": None,
             "octave": self.octave,
             "octave_moved": self.octave != DEFAULT_OCTAVE,
+            "random_velocity": self.spread.random,
             "rail": self.rail(),
             "grid": self.pad_colors(),
             "row": self.current[0] if self.current else (BASS_ROW if held_bass else None),
@@ -368,11 +391,14 @@ class ChordPlayer:
             return info | {"chord_name": None, "notes": [], "role": None}
         name = chord_name(chord.pitch_class(self.key), chord.intervals, names)
         notes = [note_name(n, names) for n in self.notes]
+        velocities: list[int | None] = list(self.last_velocities)
         if held_bass and self.current is not None:
             notes.insert(0, note_name(bass, names))
+            velocities.insert(0, None)  # a hand-played bass note, not part of the roll
             if bass % 12 != chord.pitch_class(self.key):
                 name = f"{name}/{names[bass % 12]}"
         return info | {
+            "velocities": velocities if self.current is not None else [],
             "chord_name": name,
             "notes": notes,
             "role": role(chord, self.key),
@@ -401,6 +427,7 @@ class ChordPlayer:
             "bass_channel": self.bass_channel + 1,
             "voicing": self.voicing,
             "latch": self.latch,
+            "velocity": self.spread.snapshot(),
         }
 
     def restore(self, state: dict) -> None:
@@ -415,3 +442,4 @@ class ChordPlayer:
         for flag in ("strum", "mute_chords", "mute_bass", "latch"):
             if isinstance(state.get(flag), bool):
                 setattr(self, flag, state[flag])
+        self.spread.restore(state.get("velocity"))

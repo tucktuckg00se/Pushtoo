@@ -16,7 +16,8 @@ play:
   keyboard: {channel: 1, output: Pushtoo Out}
   drums: {channel: 10, output: Pushtoo Out}
   chord: {channel: 2, bass_channel: 3, output: Pushtoo Out}
-  velocity_curve: Linear   # Linear, Soft or Hard
+  velocity_curve: Linear   # Linear, Soft or Hard: the starting pad feel; once you
+                           # change it in Setup, Setup's saved setting wins
   strip: Pitch bend        # Pitch bend or Mod wheel
 
 # Undo and Shift+Undo. Each is either a keystroke sent to the focused window, or

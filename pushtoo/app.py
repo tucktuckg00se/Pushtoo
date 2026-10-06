@@ -22,12 +22,14 @@ from pushtoo.modes.chord import SCENE_BUTTONS
 from pushtoo.modes.knobs import KnobsMode
 from pushtoo.modes.mix import MixMode
 from pushtoo.modes.play import PlayMode
+from pushtoo.modes.setup import SetupMode
 from pushtoo.profiles.loader import ProfileError, ProfileStore, default_config_dir
 from pushtoo.profiles.schema import Action, Profile
 from pushtoo.profiles.state import StateSaver, StateStore, default_state_path
 from pushtoo.render.process import Renderer
 from pushtoo.rhythm.clock import MAX_SWING, MAX_TEMPO, MIN_SWING, MIN_TEMPO
 from pushtoo.rhythm.repeat import CLOCK_TAG
+from pushtoo.setup import CURVE_DYNAMICS, DeviceSettings, hardware
 from pushtoo.theme import DEFAULT_THEME, Theme
 from pushtoo.themes.loader import ThemeFileError, ThemeStore
 from pushtoo.ui.controls import Control
@@ -53,7 +55,6 @@ MODE_BUTTONS = {
     c.BUTTON_MIX: "mix",
 }
 BACK_BUTTON = "Lower Row 8"  # leaves Mix and Browse
-LATER_MODES = {c.BUTTON_SETUP: "Setup"}
 # Play's own buttons act on Play from any mode, since pads keep playing there.
 PLAY_BUTTONS = {
     c.BUTTON_LAYOUT,
@@ -141,12 +142,19 @@ class App:
             active=lambda: self.profiles.path,
             load=self.load_profile,
         )
+        # Setup's settings belong to the device, not a profile. A first run starts
+        # from the profile's old velocity curve; after that, what Setup saved wins.
+        first_run = DeviceSettings(dynamics=CURVE_DYNAMICS[self.profile.play.velocity_curve])
+        self.device = DeviceSettings.restore(self.state.setup, first_run)
+        self.setup = SetupMode(self.router, self.play, self.device, self._setup_changed)
         self.modes: dict[str, Mode] = {
             "play": self.play,
             "knobs": self.knobs,
             "mix": self.mix,
             "browse": self.browse,
+            "setup": self.setup,
         }
+        self.extras = (self.mix, self.browse, self.setup)  # modes on top of a core mode
         self.mode: Mode = self.play
         self._previous_mode: Mode = self.play
         self._restore_state()
@@ -227,12 +235,17 @@ class App:
             self.mode = self.modes[saved["mode"]]
 
     @locked
-    def _snapshot(self) -> tuple[str, str, dict]:
-        mode = self._previous_mode if self.mode is self.browse else self.mode
+    def _snapshot(self) -> tuple[str, str, dict, dict]:
+        mode = self._previous_mode if self.mode in (self.browse, self.setup) else self.mode
         snapshot: dict = {"mode": mode.name}
         for name in ("play", "knobs", "mix"):
             snapshot[name] = self.modes[name].snapshot()
-        return self.profiles.path.name, self.profile.name, snapshot
+        return self.profiles.path.name, self.profile.name, snapshot, self.device.snapshot()
+
+    def _setup_changed(self) -> None:
+        """A Setup change: the hardware follows on refresh, and it's saved soon after."""
+        if not self.device.follow_clock:
+            self.play.clock.following = False
 
     @locked
     def _profile_changed(self, result: Profile | ProfileError) -> None:
@@ -275,7 +288,14 @@ class App:
 
     @locked
     def pad_aftertouch(self, row: int, col: int, pressure: int) -> None:
-        self.mode.pad_aftertouch(row, col, pressure)
+        if self.device.aftertouch != "Off":
+            self.mode.pad_aftertouch(row, col, pressure)
+
+    @locked
+    def channel_pressure(self, pressure: int) -> None:
+        """Pressure from the whole pad surface, in Setup's Channel aftertouch mode."""
+        if self.device.aftertouch == "Channel":
+            self.play.channel_pressure(pressure)
 
     @locked
     def touchstrip(self, value: int) -> None:
@@ -297,7 +317,7 @@ class App:
                 self.toast(f"{self.play.clock.tempo:.0f} BPM")
         elif name == c.BUTTON_UNDO:
             self._undo(redo=self.shift)
-        elif name == BACK_BUTTON and self.mode in (self.mix, self.browse):
+        elif name == BACK_BUTTON and self.mode in self.extras:
             self._switch(self._previous_mode)
         elif name in MODE_BUTTONS:
             mode = self.modes[MODE_BUTTONS[name]]
@@ -310,8 +330,8 @@ class App:
             else:
                 self.browse.refresh()
                 self._switch(self.browse)
-        elif name in LATER_MODES:
-            self.toast(f"{LATER_MODES[name]} mode is coming soon")
+        elif name == c.BUTTON_SETUP:
+            self._switch(self._previous_mode if self.mode is self.setup else self.setup)
         elif name == c.BUTTON_SCALE:
             self._switch(self.play)
             self.play.button_pressed(name)
@@ -357,11 +377,11 @@ class App:
         now = time.monotonic()
         if clock.running:
             clock.stop()
-            if self.profile.rhythm.clock_out:
+            if self.device.send_clock:
                 self.router.schedule(OUT_PORT, [MIDI_STOP], now)
             return
         clock.start(now)
-        if self.profile.rhythm.clock_out:
+        if self.device.send_clock:
             # Clock restarts on beat 0: take back ticks queued on the old grid.
             self.router.cancel(CLOCK_TAG)
             self._ticks_until = now
@@ -370,6 +390,8 @@ class App:
     @locked
     def _midi_in(self, kind: str, now: float) -> None:
         """A leader's clock on Pushtoo In (reader thread)."""
+        if not self.device.follow_clock:
+            return
         clock = self.play.clock
         was = (clock.following, clock.running)
         if kind == "clock":
@@ -401,7 +423,7 @@ class App:
             play.send_scheduled(play.rhythm.events(clock, start, end))
         self._steps_until = end
         start = max(self._ticks_until or now, now)
-        if self.profile.rhythm.clock_out:
+        if self.device.send_clock:
             for at in clock.ticks(start, end):
                 self.router.schedule(OUT_PORT, [MIDI_CLOCK], at, CLOCK_TAG)
         self._ticks_until = end
@@ -532,7 +554,7 @@ class App:
             view["upper"] = self.mode.learn_labels()
         if self.play.layout_held:
             view["upper"] = self.play.layout_choices()
-        if self.mode in (self.mix, self.browse):
+        if self.mode in self.extras:
             # Extras sit on top of a core mode; say how to get back, next to the button.
             label = f"‹ {self._previous_mode.name.capitalize()}"
             view["lower"] = [*view["lower"][:7], {"label": label, "selected": False}]
@@ -545,8 +567,7 @@ class App:
         for button, mode_name in MODE_BUTTONS.items():
             colors[button] = "white" if self.mode.name == mode_name else "dark_gray"
         colors[c.BUTTON_BROWSE] = "white" if self.mode is self.browse else "dark_gray"
-        for button in LATER_MODES:
-            colors[button] = "black"
+        colors[c.BUTTON_SETUP] = "white" if self.mode is self.setup else "dark_gray"
         for button in (PLAY_BUTTONS - set(SCENE_BUTTONS)) | {c.BUTTON_SCALE}:
             colors.setdefault(button, "dark_gray")
         colors |= self.play.scene_colors()  # the voicing stays visible from any mode
@@ -558,7 +579,7 @@ class App:
         colors[c.BUTTON_TAP_TEMPO] = "dark_gray"
         colors[c.BUTTON_REPEAT] = "white" if self.play.rhythm.on else "dark_gray"
         colors[c.BUTTON_DELETE] = "white" if self.delete else "dark_gray"
-        if self.mode in (self.mix, self.browse):
+        if self.mode in self.extras:
             colors[BACK_BUTTON] = "white"
         if self.play.layout_held:
             for i, item in enumerate(self.play.layout_choices()):
@@ -571,7 +592,7 @@ class App:
         if self.push is not None:
             self.push.set_pad_colors(self.mode.pad_colors())
             self.push.set_button_colors(self.button_colors())
-            self.push.apply_settings(self.play.hardware_settings())
+            self.push.apply_settings(self.play.hardware_settings() | hardware(self.device))
 
     def close(self) -> None:
         self._rhythm_stop.set()

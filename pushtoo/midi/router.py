@@ -17,7 +17,7 @@ from pushtoo.midi.virtual import NO_TAG, Sequencer
 CLIENT_NAME = "Pushtoo"
 OUT_PORT = "Pushtoo Out"
 IN_PORT = "Pushtoo In"
-POLY_AFTERTOUCH, CONTROL_CHANGE, PITCH_BEND = 0xA0, 0xB0, 0xE0
+POLY_AFTERTOUCH, CONTROL_CHANGE, CHANNEL_PRESSURE, PITCH_BEND = 0xA0, 0xB0, 0xD0, 0xE0
 
 # Ports that are never useful destinations: our own, the Push itself, system plumbing,
 # and unnamed rtmidi clients (push2-python's own connection to the Push shows up as one).
@@ -145,6 +145,10 @@ class MidiRouter:
             if held is not None:
                 destination, channel, note = held
                 self._send([(destination, [POLY_AFTERTOUCH | channel, note, pressure])])
+
+    def channel_pressure(self, destination: str, channel: int, pressure: int) -> None:
+        with self._lock:
+            self._send([(destination, [CHANNEL_PRESSURE | channel, pressure])])
 
     def control_change(self, destination: str, channel: int, control: int, value: int) -> None:
         with self._lock:

@@ -20,6 +20,7 @@ play: 82c91e        # lime
 knobs: fcc419
 mix: ff922b
 browse: f1f3f5
+setup: adb5bd
 
 # Pads
 root: ff922b        # the key's root notes, in orange

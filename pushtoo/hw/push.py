@@ -9,10 +9,12 @@ import logging
 import threading
 from typing import Protocol
 
+import mido
 import push2_python
+from push2_python.constants import PUSH2_SYSEX_END_BYTES, PUSH2_SYSEX_PREFACE_BYTES
 from push2_python.exceptions import Push2MIDIeviceNotFound
 
-from pushtoo.music import velocity_curve
+from pushtoo.setup import RESPONSES
 from pushtoo.theme import DEFAULT_THEME, Theme, led_palette
 
 RECONNECT_INTERVAL = 1.0  # seconds between attempts to reopen Push's MIDI ports
@@ -24,6 +26,7 @@ class PushListener(Protocol):
     def pad_pressed(self, row: int, col: int, velocity: int) -> None: ...
     def pad_released(self, row: int, col: int) -> None: ...
     def pad_aftertouch(self, row: int, col: int, pressure: int) -> None: ...
+    def channel_pressure(self, pressure: int) -> None: ...
     def button_pressed(self, name: str) -> None: ...
     def button_released(self, name: str) -> None: ...
     def encoder_rotated(self, name: str, increment: int) -> None: ...
@@ -70,7 +73,9 @@ class PushController:
 
         @push2_python.on_pad_aftertouch()
         def _pad_aftertouch(_, pad_n, pad_ij, pressure):
-            if pad_ij is not None:  # None for channel aftertouch
+            if pad_ij is None:  # channel aftertouch: the whole pad surface
+                listener.channel_pressure(pressure)
+            else:
                 listener.pad_aftertouch(*pad_ij_to_row_col(pad_ij), pressure)
 
         @push2_python.on_button_pressed()
@@ -173,21 +178,60 @@ class PushController:
             self._button_colors.clear()
 
     def apply_settings(self, settings: dict) -> None:
-        """Send velocity curve and touch strip mode, skipping what is already applied."""
+        """Send the pad feel, aftertouch, brightness and touch strip settings that
+        changed since they were last sent. A replug resends everything (setup_hardware
+        clears what was applied)."""
         self._settings = dict(settings)
         if not self.connected:
             return
-        curve = settings.get("velocity_curve")
-        if curve is not None and self._applied.get("velocity_curve") != curve:
-            self.push.pads.set_velocity_curve(velocity_curve(curve))
-            self._applied["velocity_curve"] = curve
-        strip = settings.get("strip_mode")
-        if strip is not None and self._applied.get("strip_mode") != strip:
-            if strip == "Mod wheel":
-                self.push.touchstrip.set_modulation_wheel_mode()
-            else:
-                self.push.touchstrip.set_pitch_bend_mode()
-            self._applied["strip_mode"] = strip
+        for key, value in settings.items():
+            if self._applied.get(key) == value:
+                continue
+            send = self._SENDERS.get(key)
+            if send is not None:
+                send(self, value)
+            self._applied[key] = value
+
+    def _sysex(self, *data: int) -> None:
+        message = PUSH2_SYSEX_PREFACE_BYTES + list(data) + PUSH2_SYSEX_END_BYTES
+        self.push.send_midi_to_push(mido.Message.from_bytes(message))
+
+    def _send_velocity_table(self, table: tuple[int, ...]) -> None:
+        self.push.pads.set_velocity_curve(list(table))
+
+    def _send_response(self, response: str) -> None:
+        self._sysex(0x28, 0, 0, RESPONSES.index(response))  # scene 0, track 0: every pad
+
+    def _send_aftertouch(self, mode: str) -> None:
+        if mode == "Channel":
+            self.push.pads.set_channel_aftertouch()
+        else:  # "Off" keeps poly mode; Pushtoo just stops forwarding it
+            self.push.pads.set_polyphonic_aftertouch()
+
+    def _send_aftertouch_range(self, bounds: tuple[int, int]) -> None:
+        self.push.pads.set_channel_aftertouch_range(*bounds)
+
+    def _send_led_brightness(self, value: int) -> None:
+        self._sysex(0x06, value)
+
+    def _send_display_brightness(self, value: int) -> None:
+        self._sysex(0x08, value & 0x7F, value >> 7)
+
+    def _send_strip_mode(self, strip: str) -> None:
+        if strip == "Mod wheel":
+            self.push.touchstrip.set_modulation_wheel_mode()
+        else:
+            self.push.touchstrip.set_pitch_bend_mode()
+
+    _SENDERS = {
+        "velocity_table": _send_velocity_table,
+        "response": _send_response,
+        "aftertouch": _send_aftertouch,
+        "aftertouch_range": _send_aftertouch_range,
+        "led_brightness": _send_led_brightness,
+        "display_brightness": _send_display_brightness,
+        "strip_mode": _send_strip_mode,
+    }
 
     def set_pad_colors(self, colors: list[list[str]]) -> None:
         """colors[row][col] with row 0 at the bottom; only changed pads are sent."""

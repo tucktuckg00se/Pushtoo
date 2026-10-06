@@ -120,12 +120,6 @@ def test_touch_strip_sends_pitch_bend_or_mod_wheel():
     assert virtual.sent[-1] == [0xB0, 1, 90]
 
 
-def test_velocity_control_changes_hardware_curve():
-    play, *_ = make_play()
-    assert play.encoder_turned(1, STEP)
-    assert play.hardware_settings()["velocity_curve"] == "Soft"
-
-
 def test_held_pads_light_white():
     play, *_ = make_play()
     play.pad_pressed(0, 0, 100)

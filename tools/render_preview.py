@@ -123,6 +123,28 @@ def _m2_views(views: dict[str, dict]) -> None:
         app.button_pressed(c.BUTTON_REPEAT)  # held: the side buttons are rates
         views["chord_repeat_held"] = app.view()
         app.button_released(c.BUTTON_REPEAT)
+        app.button_pressed("Lower Row 2")  # Velocity page
+        app.button_pressed("Upper Row 2")  # Random
+        app.encoder_rotated("Track3 Encoder", 6 * 30)  # Spread
+        app.pad_pressed(2, 3, 90)  # Fm7
+        views["chord_random_velocity"] = app.view()
+        app.pad_released(2, 3)
+        app.button_pressed(c.BUTTON_SETUP)
+        views["setup_pads_idle"] = app.view()
+        app.encoder_rotated("Track2 Encoder", -6 * 4)  # softer Dynamics
+        app.pad_pressed(0, 0, 87)
+        views["setup_pads"] = app.view()
+        app.pad_released(0, 0)
+        app.button_pressed("Lower Row 2")
+        app.pad_pressed(0, 0, 87)
+        app.pad_aftertouch(0, 0, 70)
+        views["setup_aftertouch"] = app.view()
+        app.pad_released(0, 0)
+        app.button_pressed("Lower Row 3")
+        views["setup_display"] = app.view()
+        app.button_pressed("Lower Row 4")
+        views["setup_clock"] = app.view()
+        app.button_pressed(c.BUTTON_SETUP)
 
         app.button_pressed(c.BUTTON_MIX)
         app.pad_pressed(7, 1, 100)
@@ -163,8 +185,8 @@ def sample_views() -> dict[str, dict]:
     play.pad_pressed(0, 4, 100)
     views["keyboard_held"] = play.view()
     peek = play.view()
-    peek["peek"] = play.control_at(1).view()
-    views["peek_velocity"] = peek
+    peek["peek"] = play.control_at(0).view()
+    views["peek_octave"] = peek
     shift = play.view()
     shift["overlay"] = {
         "title": "Shift",
@@ -226,7 +248,7 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.pad_pressed(1, 3, 100)
     play.pad_released(1, 3)
     views["chord_latched_strum"] = play.view()
-    play.button_pressed("Lower Row 2")
+    play.button_pressed("Lower Row 3")
     views["chord_output_page"] = play.view()
 
     play = _play()

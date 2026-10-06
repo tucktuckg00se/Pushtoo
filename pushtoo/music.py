@@ -152,15 +152,5 @@ class DrumLayout:
         self.start = max(DRUM_LOWEST_START, min(DRUM_HIGHEST_START, self.start + delta * BANK_SIZE))
 
 
+# A profile's starting pad feel; Setup takes over once used (pushtoo/setup.py).
 VELOCITY_CURVES = ("Linear", "Soft", "Hard")
-_CURVE_EXPONENTS = {"Linear": 1.0, "Soft": 0.5, "Hard": 2.0}
-
-
-def velocity_curve(name: str) -> list[int]:
-    """Push 2's velocity table: 128 pressure steps mapped to velocities 1..127.
-
-    The Push applies it in hardware, so curves cost nothing on the note path. The
-    same table sets poly aftertouch sensitivity.
-    """
-    exponent = _CURVE_EXPONENTS[name]
-    return [max(1, round(127 * (step / 127) ** exponent)) for step in range(128)]

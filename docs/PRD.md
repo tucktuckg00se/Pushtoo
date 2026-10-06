@@ -76,7 +76,7 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 
 | Mode   | Push button | Pads                                                         | Encoders                                    | Screen shows                                   |
 | ------ | ----------- | ------------------------------------------------------------ | ------------------------------------------- | ---------------------------------------------- |
-| Play   | Note        | Keyboard (in key or chromatic, fourths), Drums (4 banks of 16), or the Chord grid | Per layout, by page: octave, velocity curve, strum, outputs and channels | Key and held notes, drum names, or chord name, role and voicing |
+| Play   | Note        | Keyboard (in key or chromatic, fourths), Drums (4 banks of 16), or the Chord grid | Per layout, by page: octave, strum, chord velocity, rhythm, outputs and channels | Key and held notes, drum names, or chord name, role and voicing |
 | Knobs  | Device      | Keep playing the current Play layout                         | Up to 8 pages of 8 named CCs                | Named arcs with live values, in each control's color |
 
 **Extras.** Mix mode (8 fader CCs, mute and solo pads) remains available on the Mix button for people who want it, but it isn't part of the core pitch and gets no further investment.
@@ -90,6 +90,7 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 | Scale                                                        | Open the scale selector                                      |
 | Device                                                       | Knobs mode                                                   |
 | Browse                                                       | Profile browser                                              |
+| Setup                                                        | Setup: pad feel, aftertouch, brightness, clock               |
 | Mix                                                          | Mix mode (extra)                                             |
 | 8 buttons below the display                                  | Pages of the current mode                                    |
 | 8 buttons above the display                                  | Options on the current page; Shift + button is Learn Assist in Knobs |
@@ -182,9 +183,27 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 
 A chord pad plays only its bass note, and the touch strip strums the voiced chord across 1–3 octaves, one note per tone crossed, like an Omnichord. Strummed notes ring until the chord changes or is released. In Strum style the strip runs in the Push's mod-wheel mode, because pitch-bend mode springs back to center and would strum again on release.
 
-**Pages:** Style (Press or Strum, strum range) and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
+**Pages:** Style (Press or Strum, strum range), Velocity (below), Output (destination, chords channel, bass channel, Mute chords, Mute bass) and Rhythm.
+
+**Velocity** (Velocity page)
+
+- **As played** or **Random**, above the display. **Min** and **Max** always apply: the pad's velocity sets a center scaled into that range, so hitting harder still plays louder.
+- **Random** gives each note of each chord trigger its own velocity within **Spread** of the center, clamped to Min–Max. Spread 0 is an even chord; full Spread is anywhere in the range. **Top note** (−32…+32) offsets the highest note so a melody can stand out or sit back. The bass note plays at the center, unrandomized.
+- **Accent** means as loud as the range allows: the center moves to Max, so Random spreads accented chords downward from Max. With As played, accented chords play at Max.
+- Every trigger rolls fresh: a press, a retrigger, each strummed note, and each Repeat or Arp step. The screen draws each note's velocity as a bar under its name; on pages with many encoders the pad map steps aside to make room.
 
 **Screen:** the side-button rail and the pad map (see Visual design system), then the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
+
+## Setup
+
+The Setup button opens settings that belong to the Push and the person playing it, so they're shared by every profile and saved in the session state. Pads keep playing in Setup, so every change is felt as it's made.
+
+- **Pads:** Sensitivity (1–10), Dynamics (−10…+10) and Min and Max velocity build the 128-step velocity table Push applies in hardware. The screen draws the curve, with a dot where the last hit landed. Response (Regular, Reduced, Low) is Push's own pad sensitivity, for crosstalk and double hits.
+- **Aftertouch:** Poly, Channel or Off, and the pressure where it starts and where it reaches full.
+- **Display:** pad and button brightness, and screen brightness. On USB power alone, Push caps both.
+- **Clock:** send MIDI clock on Pushtoo Out; follow clock on Pushtoo In.
+
+The profile's `velocity_curve` (Linear, Soft, Hard) seeds Dynamics (0, −5, +5) on a first run only.
 
 ## Rhythm: clock, note repeat and arpeggiator
 
@@ -196,7 +215,7 @@ Rhythm comes from a button: hold pads and they repeat in time, or hold a chord a
 - The Tempo encoder sets 40–240 BPM (Shift for 0.1 BPM steps); the Swing encoder sets 50–75%, delaying every other step. Touching either shows its value full-size.
 - Tap Tempo sets the tempo from the last four taps.
 - Play starts and stops the transport, sending MIDI Start and Stop, and its LED pulses on beats while running. While following, the leader's Start and Stop drive it.
-- While leading, Pushtoo sends 24-ppqn MIDI clock on Pushtoo Out all the time, so synths and DAWs can lock to its tempo. A profile can turn this off (`rhythm: {clock_out: false}`).
+- While leading, Pushtoo sends 24-ppqn MIDI clock on Pushtoo Out all the time, so synths and DAWs can lock to its tempo. Setup can turn this off, and can stop Pushtoo following incoming clock.
 
 **Repeat and the side buttons**
 
@@ -294,6 +313,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F12  | Chord grid: one-press chords by scale step and flavor, bass row, auto bass, function colors | P0 | Built |
 | F28  | Chord voicing on the side buttons: Smooth voice leading, inversions, Open, Wide; tap to keep, hold for momentary | P0 | Built |
 | F14  | Strum on the touch strip in the Chord layout                 | P0 | Built |
+| F30  | Chord velocity: As played or Random with Min, Max, Spread and Top note; Accent centers at Max | P0 | Built |
 | F22  | Touch strip as pitch bend or mod wheel                       | P0 | Built |
 | F3   | Knobs mode: up to 8 pages x 8 named CC controls with ranges and colors | P0 | Built |
 | F5   | Profiles as YAML in ~/.config/pushtoo, hot-reloaded, never written by Pushtoo | P0 | Built |
@@ -303,6 +323,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F16  | Undo and redo as keystrokes or MIDI                          | P0 | Built |
 | F17  | Route any layout to a hardware MIDI port                     | P0 | Built |
 | F18  | Default MIDI map, overridable per profile                    | P0 | Built |
+| F29  | Setup: velocity curve (Sensitivity, Dynamics, Min, Max) with live graph, pad response, aftertouch mode and range, LED and display brightness, clock send and follow; device-wide, saved in state | P0 | Built |
 | F23  | Note repeat on the Repeat button, rates on the side buttons in Keyboard and Drums | P0 | Built |
 | F24  | Arpeggiator for held notes and chords                        | P0 | Built |
 | F25  | Clock: internal tempo and swing on the left encoders; MIDI clock out on Pushtoo Out; follow incoming clock on Pushtoo In | P0 | Built |

@@ -33,6 +33,7 @@ OPEN_COLOR: dict[str, str] = {
     "knobs": "fcc419",
     "mix": "ff922b",
     "browse": "f1f3f5",
+    "setup": "adb5bd",
     # Pads. The accent stays off them: root and home are a warm orange, held is white.
     "root": "ff922b",
     "in_scale": "868e96",
@@ -66,7 +67,7 @@ OPEN_COLOR: dict[str, str] = {
 TOKENS = tuple(OPEN_COLOR)
 SCREEN_ONLY = ("background", "track", "line", "text", "text_dim")
 CONTROL_COLOR_NAMES = TOKENS[TOKENS.index("red") :]
-MODES = ("play", "knobs", "mix", "browse")
+MODES = ("play", "knobs", "mix", "browse", "setup")
 
 _HEX = re.compile(r"#?([0-9a-fA-F]{6})")
 
