@@ -1,6 +1,6 @@
 [project]
 name = "pushtoo"
-version = "0.1.0b2"
+version = "0.1.0b3"
 description = "Turn an Ableton Push 2 on Linux into a DAW-agnostic MIDI controller"
 readme = "README.md"
 license = "GPL-3.0-or-later"

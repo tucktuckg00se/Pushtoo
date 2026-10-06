@@ -11,7 +11,7 @@
 set -eu
 
 REPO="tucktuckg00se/Pushtoo"
-DEFAULT_REF="v0.1.0b2"
+DEFAULT_REF="v0.1.0b3"
 SERVICE="pushtoo.service"
 RULE="50-pushtoo.rules"
 
