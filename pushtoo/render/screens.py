@@ -105,15 +105,22 @@ def _arc(ctx, cx, cy, radius, width, fraction, bipolar, accent) -> None:
         ctx.stroke()
 
 
-def _control(ctx: cairo.Context, col: int, control: dict, accent) -> None:
+def _control(ctx: cairo.Context, col: int, control: dict, accent, touched=False) -> None:
+    """An encoder's column. Touched, it grows a little (bigger arc, brighter name,
+    larger value) so you can see which knob your finger is on, without hiding the
+    rest of the screen."""
     accent = _c[control["color"]] if control.get("color") else accent
     cx = col * COLUMN + COLUMN / 2
-    _centered(ctx, _fit(ctx, control["name"], COLUMN - 12, LABEL), cx, 42, LABEL, _c["text_dim"])
-    _arc(ctx, cx, 80, 22, 5, control["fraction"], control["bipolar"], accent)
-    value = _fit(ctx, control["text"], COLUMN - 8, BODY, True)
-    _centered(ctx, value, cx, 128, BODY, _c["text"], True)
+    name_color = _c["text"] if touched else _c["text_dim"]
+    _centered(ctx, _fit(ctx, control["name"], COLUMN - 12, LABEL), cx, 42, LABEL, name_color)
+    cy, radius, width, size, baseline = (
+        (84, 30, 7, VALUE, 133) if touched else (80, 22, 5, BODY, 128)
+    )
+    _arc(ctx, cx, cy, radius, width, control["fraction"], control["bipolar"], accent)
+    value = _fit(ctx, control["text"], COLUMN - 8, size, True)
+    _centered(ctx, value, cx, baseline, size, _c["text"], True)
     if control.get("badges"):
-        _badges(ctx, control["badges"], cx, 80)
+        _badges(ctx, control["badges"], cx, cy)
 
 
 def _badges(ctx: cairo.Context, badges: list, cx: float, cy: float) -> None:
@@ -134,12 +141,14 @@ def _badges(ctx: cairo.Context, badges: list, cx: float, cy: float) -> None:
         x += size + gap
 
 
-def _peek(ctx: cairo.Context, control: dict, accent) -> None:
-    accent = _c[control["color"]] if control.get("color") else accent
-    _arc(ctx, 80, 82, 36, 8, control["fraction"], control["bipolar"], accent)
-    _text(ctx, control["name"], 150, 56, VALUE, _c["text_dim"])
-    value = _fit(ctx, control["text"], WIDTH - 170, PEEK, True)
-    _text(ctx, value, 150, 112, PEEK, _c["text"], True)
+def _side_knob(ctx: cairo.Context, control: dict, accent) -> None:
+    """Tempo, Swing or Master: knobs beside the display, not above a column, so they
+    show as a touched knob in the edge column nearest them."""
+    col = 0 if control["side"] == "left" else COLUMNS - 1
+    ctx.set_source_rgb(*_c["background"])
+    ctx.rectangle(col * COLUMN, BAND, COLUMN, HEIGHT - 2 * BAND)
+    ctx.fill()
+    _control(ctx, col, control, accent, touched=True)
 
 
 def _overlay(ctx: cairo.Context, overlay: dict, accent) -> None:
@@ -504,15 +513,13 @@ def draw_view(ctx: cairo.Context, view: dict, now: float | None = None) -> None:
         _band_label(ctx, col, view["upper"][col], top=True, accent=accent)
         _band_label(ctx, col, view["lower"][col], top=False, accent=accent)
 
-    if view.get("peek"):
-        _peek(ctx, view["peek"], accent)
-    elif view.get("overlay"):
+    if view.get("overlay"):
         _overlay(ctx, view["overlay"], accent)
     else:
         controls = view["controls"]
         used = [i for i, control in enumerate(controls) if control is not None]
         for col in used:
-            _control(ctx, col, controls[col], accent)
+            _control(ctx, col, controls[col], accent, touched=col == view.get("touched"))
         x0 = (max(used) + 1) * COLUMN if used else 0
         panel = view.get("panel")
         if panel and panel["kind"] in PANELS and x0 < WIDTH:
@@ -520,6 +527,9 @@ def draw_view(ctx: cairo.Context, view: dict, now: float | None = None) -> None:
             PANELS[panel["kind"]](ctx, panel, x0, WIDTH - x0 - rail, accent)
         if panel and panel.get("rail"):
             _rail(ctx, panel["rail"], _c["play"])
+
+    if view.get("peek"):
+        _side_knob(ctx, view["peek"], accent)
 
     if view.get("toast") and view.get("toast_until", 0) > now:
         _toast(ctx, view["toast"])

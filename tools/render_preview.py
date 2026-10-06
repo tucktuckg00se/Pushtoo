@@ -185,7 +185,7 @@ def sample_views() -> dict[str, dict]:
     play.pad_pressed(0, 4, 100)
     views["keyboard_held"] = play.view()
     peek = play.view()
-    peek["peek"] = play.control_at(0).view()
+    peek["touched"] = 0  # a finger on the Octave encoder
     views["peek_octave"] = peek
     shift = play.view()
     shift["overlay"] = {

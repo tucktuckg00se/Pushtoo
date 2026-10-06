@@ -24,14 +24,14 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 | Octave up / down                | Keyboard and chords: shift an octave. Drums: shift one bank of 16 notes. A button goes dark when it can't go further |
 | Buttons below the display       | Pages: **Play** (octave or drum notes), **Strip** (pitch bend or mod wheel), **Output** (destination port and channel), **Rhythm** |
 | Buttons above the display       | Options on the current page                                          |
-| Encoders above the display      | The current page's controls. Touch one to see its value full-size    |
+| Encoders above the display      | The current page's controls. Touch one and it grows a little on screen, so you can see which knob you're on |
 | Shift + encoder                 | Fine adjust (4x finer)                                               |
 | Accent                          | Every note at full velocity                                          |
 | Repeat                          | Rhythm on or off: held pads repeat in time, or arpeggiate. Hold it for rhythm only while held |
 | Side buttons (with rhythm on)   | The rate, as printed on them: 1/32t to 1/4. In the Chord layout, hold Repeat to pick one |
 | Play                            | Start and stop: sends MIDI Start and Stop; the button flashes on each beat |
 | Tap Tempo                       | Set the tempo from your last four taps                               |
-| Tempo and Swing encoders (left) | Tempo (Shift for 0.1 BPM steps) and swing. Touch one to see its value |
+| Tempo and Swing encoders (left) | Tempo (Shift for 0.1 BPM steps) and swing. Touch one to see it at the screen's left edge |
 | Touch strip                     | Pitch bend or mod wheel, set on the Strip page                       |
 | Shift + Stop                    | Panic: all notes off on every output                                 |
 | Undo, Shift + Undo              | Undo and redo in your DAW (Ctrl+Z and Ctrl+Shift+Z by default)       |

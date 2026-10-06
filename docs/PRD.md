@@ -125,7 +125,7 @@ In key / Chromatic applies to the Keyboard layout; the chord grid is always buil
 
 - The 8 buttons below the display pick pages; the 8 above pick options. Each label sits next to its button, and the current page is highlighted.
 - Shift combinations are secondary actions, and holding Shift lists them on screen.
-- Touching an encoder "peeks": its value goes full-size on screen without changing.
+- Touching an encoder "peeks" without changing anything: its control grows in place (a bigger arc, a brighter name, a larger value) and the rest of the screen stays. Tempo, Swing and Master have no column, so they show the same way in the edge column nearest them (left for Tempo and Swing, right for Master).
 - Each mode remembers its page and layout, and each profile remembers where you left off.
 - Key and scale are shared by every Play layout.
 - Extras (Mix, Browse) close with their own button or the `‹` button at the bottom right, which names the mode it returns to.
@@ -212,7 +212,7 @@ Rhythm comes from a button: hold pads and they repeat in time, or hold a chord a
 **Clock**
 
 - Pushtoo leads with its own tempo by default. When MIDI clock arrives on Pushtoo In, it follows automatically and the screen says "Following clock · 124". Two seconds without clock returns it to its own tempo.
-- The Tempo encoder sets 40–240 BPM (Shift for 0.1 BPM steps); the Swing encoder sets 50–75%, delaying every other step. Touching either shows its value full-size.
+- The Tempo encoder sets 40–240 BPM (Shift for 0.1 BPM steps); the Swing encoder sets 50–75%, delaying every other step. Touching either shows it at the screen's left edge, beside the knob.
 - Tap Tempo sets the tempo from the last four taps.
 - Play starts and stops the transport, sending MIDI Start and Stop, and its LED pulses on beats while running. While following, the leader's Start and Stop drive it.
 - While leading, Pushtoo sends 24-ppqn MIDI clock on Pushtoo Out all the time, so synths and DAWs can lock to its tempo. Setup can turn this off, and can stop Pushtoo following incoming clock.
@@ -241,7 +241,7 @@ The display is a strict 8-column grid that mirrors the hardware, and color ties 
 
 **Display layout (960 x 160 px):** 8 columns of 120 px, each centered over its encoder. Top band 24 px for upper-button labels, bottom band 24 px for lower-button labels, middle 112 px for content. A selected button's label inverts.
 
-**Typography:** IBM Plex Sans Condensed at 14 px labels, 20 px values and 48 px peek and toasts; 12 px only for legends beside a hardware miniature. Names shorten with a middle ellipsis. Long messages wrap at 20 px instead of being cut.
+**Typography:** IBM Plex Sans Condensed at 14 px labels, 20 px values (and touched knobs) and 48 px toasts; 12 px only for legends beside a hardware miniature. Names shorten with a middle ellipsis. Long messages wrap at 20 px instead of being cut.
 
 **Color**
 

@@ -145,6 +145,7 @@ def test_tempo_encoder_moves_a_bpm_or_a_tenth_with_shift_and_peeks(app):
     assert app.play.clock.tempo == pytest.approx(121.1)
     app.encoder_touched(c.ENCODER_SWING_ENCODER)
     assert app.view()["peek"]["name"] == "Swing"
+    assert app.view()["peek"]["side"] == "left"  # shown at the edge beside the knob
     app.encoder_released(c.ENCODER_SWING_ENCODER)
     assert "peek" not in app.view()
 

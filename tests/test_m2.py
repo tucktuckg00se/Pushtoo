@@ -75,7 +75,8 @@ def test_touch_alone_never_changes_a_value(env):
     app, sent = env()
     app.button_pressed(c.BUTTON_DEVICE)
     app.encoder_touched("Track1 Encoder")
-    assert app.view()["peek"]["name"] == "Knob 1"
+    view = app.view()
+    assert view["touched"] == 0 and "peek" not in view  # the knob grows in place
     assert sent == []
 
 

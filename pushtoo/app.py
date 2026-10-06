@@ -539,10 +539,12 @@ class App:
     def view(self) -> dict:
         view = self.mode.view()
         if isinstance(self.peek, str):
-            view["peek"] = self._side_control(self.peek).view()
-        elif self.peek is not None and (control := self.mode.control_at(self.peek)):
-            view["peek"] = control.view()
-        elif self.play.layout_held:
+            # Tempo and Swing sit left of the display, Master right: shown at that edge.
+            side = "right" if self.peek == MASTER else "left"
+            view["peek"] = self._side_control(self.peek).view() | {"side": side}
+        elif self.peek is not None and self.mode.control_at(self.peek):
+            view["touched"] = self.peek  # that column's knob grows; the rest stays
+        if self.play.layout_held:
             lines = ["Button above a layout: switch to it", "Tap Layout: the next layout"]
             view["overlay"] = {"title": "Layout", "lines": lines}
         elif self.shift and not self.shift_used:
