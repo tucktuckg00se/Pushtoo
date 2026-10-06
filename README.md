@@ -45,7 +45,7 @@ The side buttons pick the **voicing**. The right-hand edge of the screen, next t
 
 **Scales.** Besides the major and minor modes, harmonic and melodic minor, pentatonics, blues and whole tone, there are Harmonic Major, Phrygian Dominant, Lydian Dominant, Altered, Hungarian Minor, Double Harmonic, Major Blues, Egyptian, Hirajoshi, In-Sen, Iwato, Pelog, Bebop Dominant and Major, and the two diminished scales. Scales with fewer or more than seven notes take the chord grid's chords from the seven-note scale they belong to (or the nearest one), and the screen says which.
 
-**Chord sets.** A scale decides which notes you have; a chord set decides which flavors fill the chord grid's rows. On the Chord page, the buttons above the display pick one: **Classic** (triads, 7ths, add9, sus, 9ths, borrowed, V7 of), **Pop** (triads, sus2, sus4, add9, 6ths, borrowed, V7 of), **Jazz** (7ths, 6/9, 9ths, 11ths, 13ths, ii of, tritone subs), **Neo-soul**, **Rock** (power chords first), **Cinematic** and **Modal** (quartal chords and chords borrowed from Dorian, Mixolydian and Phrygian). The scale menu's third encoder picks one too. The pad map names each row, colors still show what each chord does, and a chord you're holding changes with the set. Your own sets go in a profile, seven row kinds each, bottom to top:
+**Chord sets.** A scale decides which notes you have; a chord set decides which flavors fill the chord grid's rows. There are fourteen, by style: **Classic** (triads, 7ths, add9, sus, 9ths, borrowed, V7 of), **Pop**, **Anthem**, **Rock** (power chords first), **Blues** (a dominant 7th on every step), **Jazz** (7ths, 6/9, 9ths, 11ths, 13ths, ii of, tritone subs), **Bossa**, **Gospel** (with the diminished chords that lead into each step), **Neo-soul**, **Lo-fi**, **Cinematic**, **Ambient** (sus2, add9, quartal, Lydian color), **Dark** (Phrygian, diminished and augmented chords) and **Modal** (quartal chords and chords borrowed from Dorian, Mixolydian and Phrygian). The scale menu's third encoder scrolls them all; the Chord page's seven buttons above the display hold your favorites (Classic, Pop, Rock, Jazz, Neo-soul, Lo-fi and Cinematic unless a profile's `favorite_sets: [...]` picks others). The Chord page's title names the set in use. The pad map names each row, colors still show what each chord does, and a chord you're holding changes with the set. Your own sets go in a profile, seven row kinds each, bottom to top:
 
 ```yaml
 play:
@@ -53,9 +53,10 @@ play:
     channel: 2
     sets:
       Dreamy: [add9, sixth, ninth, quartal, borrowed_dorian, borrowed, secondary]
+    favorite_sets: [Dreamy, Classic, Jazz, Gospel, Lo-fi, Ambient, Dark]
 ```
 
-Row kinds: `triad`, `seventh`, `add9`, `sus`, `sus2`, `sus4`, `ninth`, `sixth`, `six_nine`, `eleventh`, `thirteenth`, `add11`, `power`, `quartal`, `borrowed`, `borrowed_dorian`, `borrowed_mixolydian`, `borrowed_phrygian`, `secondary` (V7 of), `secondary_ii` (ii of) and `tritone_sub`. Where a tone would rub, a row uses the one players reach for instead: the iii in a 6th row is a iii7, an 11th over a major chord is the pop 11 (9sus4).
+Row kinds: `triad`, `seventh`, `add9`, `sus`, `sus2`, `sus4`, `ninth`, `sixth`, `six_nine`, `eleventh`, `thirteenth`, `add11`, `power`, `quartal`, `borrowed`, `borrowed_dorian`, `borrowed_mixolydian`, `borrowed_phrygian`, `borrowed_lydian`, `dominant` (a dominant 7th on every step), `augmented`, `secondary` (V7 of), `secondary_ii` (ii of), `secondary_dim` (vii°7 of) and `tritone_sub`. Where a tone would rub, a row uses the one players reach for instead: the iii in a 6th row is a iii7, an 11th over a major chord is the pop 11 (9sus4).
 
 **More voicings.** **Drop 3** and **Shell** (root, 3rd and 7th, the jazz-piano left hand) join the others. The side buttons are seven shortcuts (Smooth, Root, 1st, 2nd, Open, Drop 3, Shell by default; a profile's `play: {chord: {voicing_buttons: [...]}}` picks others), and the **Voicing** encoder on the Chord page reaches all nine, 3rd inversion and Wide included. **Brightness** on the Style page moves Smooth's register up (brighter) or down (darker).
 

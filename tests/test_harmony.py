@@ -6,7 +6,11 @@ from push2_python import constants as c
 
 from pushtoo.chords import (
     APPROXIMATE_PARENTS,
+    BORROWED_KINDS,
     CHORD_SETS,
+    COLOR_KINDS,
+    DEFAULT_FAVORITE_SETS,
+    LEADING_KINDS,
     PARENT_SCALES,
     ROW_CHORD_KINDS,
     ROW_KINDS,
@@ -25,8 +29,7 @@ from tests.test_chord_layout import LATCH, TRIAD, make_chord_play, notes_on
 
 C_MAJOR = KeyboardLayout(root=0, scale="Major")
 A_MINOR = KeyboardLayout(root=9, scale="Minor")
-SPICE = {"borrowed", "borrowed_dorian", "borrowed_mixolydian", "borrowed_phrygian",
-         "secondary", "secondary_ii", "tritone_sub"}  # fmt: skip
+SPICE = {*BORROWED_KINDS, *LEADING_KINDS, *COLOR_KINDS}  # outside the key on purpose
 
 
 def name(key, kind, degree):
@@ -102,8 +105,9 @@ def test_classic_is_the_grid_as_it_was():
 def test_main_page_buttons_pick_a_set_and_the_map_relabels():
     play, *_ = make_chord_play()
     upper, _ = play.button_rows()
-    assert [item["label"] for item in upper[:7]] == list(CHORD_SETS)
-    play.button_pressed("Upper Row 3")  # Jazz
+    assert [item["label"] for item in upper[:7]] == list(DEFAULT_FAVORITE_SETS)
+    assert upper[7] is None  # the rail's column
+    play.button_pressed("Upper Row 4")  # Jazz
     assert play.chord.chord_set == "Jazz"
     assert play.view()["panel"]["row_names"][1:3] == ["7th", "6/9"]
 
@@ -118,7 +122,7 @@ def test_a_held_chord_revoices_into_the_new_set():
 def test_the_scale_menu_chooses_sets_too():
     play, *_ = make_chord_play()
     play.button_pressed(c.BUTTON_SCALE)
-    play.encoder_turned(2, 6 * 2)
+    play.encoder_turned(2, 6 * list(CHORD_SETS).index("Jazz"))
     assert play.chord.chord_set == "Jazz"
     assert play.view()["panel"]["chord_set"] == "Jazz"
 
@@ -187,3 +191,32 @@ def test_a_held_chord_stops_on_a_layout_switch(env):
     tap_layout(app)
     assert not app.router.notes_on("Pushtoo Out", 1)
     assert "over" not in " ".join(status_parts(app.view()["panel"]))
+
+
+def test_newer_kinds():
+    assert name(C_MAJOR, "dominant", 3) == "F7"  # IV7, the blues way
+    assert numeral_label(chord_at(C_MAJOR, "dominant", 3), C_MAJOR) == "IV7"
+    assert name(C_MAJOR, "augmented", 0) == "Caug"
+    assert name(C_MAJOR, "secondary_dim", 1) == "C#dim7"  # leads into ii
+    assert numeral_label(chord_at(C_MAJOR, "secondary_dim", 1), C_MAJOR) == "vii°7/ii"
+    assert name(C_MAJOR, "borrowed_lydian", 3) == "F#dim"  # #iv°, Lydian's color
+
+
+def test_favorites_come_from_the_profile_and_must_exist():
+    profile = parse(
+        "play:\n  chord:\n    channel: 2\n"
+        "    favorite_sets: [Gospel, Blues, Mine]\n"
+        "    sets:\n      Mine: [triad, sixth, ninth, quartal, power, borrowed, tritone_sub]\n"
+    )
+    play, *_ = make_chord_play()
+    play.apply_settings(profile.play)
+    upper, _ = play.button_rows()
+    assert [item["label"] for item in upper[:3]] == ["Gospel", "Blues", "Mine"]
+    with pytest.raises(ProfileError, match="no chord set called 'Nope'"):
+        parse("play:\n  chord:\n    channel: 2\n    favorite_sets: [Nope]\n")
+
+
+def test_the_chord_title_names_the_set():
+    play, *_ = make_chord_play()
+    play.chord.set_chord_set("Dark")
+    assert play.view()["panel"]["layout"] == "Chord · Dark"

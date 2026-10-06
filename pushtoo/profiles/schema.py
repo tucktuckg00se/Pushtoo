@@ -7,7 +7,14 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from pushtoo.chords import DEFAULT_VOICING_BUTTONS, ROW_CHORD_KINDS, SET_ROWS, VOICINGS
+from pushtoo.chords import (
+    CHORD_SETS,
+    DEFAULT_VOICING_BUTTONS,
+    FAVORITE_SLOTS,
+    ROW_CHORD_KINDS,
+    SET_ROWS,
+    VOICINGS,
+)
 from pushtoo.midi.router import OUT_PORT
 from pushtoo.music import VELOCITY_CURVES
 from pushtoo.rhythm.repeat import RATE_NAMES
@@ -119,6 +126,16 @@ class ChordLayoutSettings(PlayLayout):
     sets: dict[Annotated[str, Field(min_length=1, max_length=24)], ChordRows] = Field(
         default_factory=dict
     )
+    # Up to 7 sets for the Chord page's upper buttons; built-in or from `sets`.
+    favorite_sets: list[str] | None = Field(None, max_length=FAVORITE_SLOTS)
+
+    @model_validator(mode="after")
+    def _favorites_exist(self) -> Self:
+        known = set(CHORD_SETS) | set(self.sets)
+        unknown = [name for name in self.favorite_sets or [] if name not in known]
+        if unknown:
+            raise ValueError(f"no chord set called {unknown[0]!r}")
+        return self
 
 
 class Play(Strict):

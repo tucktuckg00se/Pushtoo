@@ -16,6 +16,7 @@ from collections.abc import Callable
 from pushtoo.chords import (
     BORROWED_KINDS,
     CHORD_SETS,
+    DEFAULT_FAVORITE_SETS,
     DEFAULT_VOICING_BUTTONS,
     KIND_LABELS,
     LEADING_KINDS,
@@ -83,6 +84,7 @@ class ChordPlayer:
         self.sets: dict[str, tuple[str, ...]] = dict(CHORD_SETS)
         self.chord_set = "Classic"  # which flavors fill the rows
         self.voicing_buttons: tuple[str, ...] = DEFAULT_VOICING_BUTTONS
+        self.favorite_sets: tuple[str, ...] = DEFAULT_FAVORITE_SETS  # the upper buttons
         self.brightness = 0  # semitones up or down for Smooth's register
         self.timing = TimingSpread()  # the Timing page
         self.last_velocities: list[int] = []  # what the sounding chord's notes got
@@ -393,8 +395,8 @@ class ChordPlayer:
         return colors
 
     def _role_color(self, chord: Chord) -> str:
-        if chord.kind in BORROWED_KINDS:
-            return led("borrowed")
+        if chord.kind in BORROWED_KINDS or chord.kind == "augmented":
+            return led("borrowed")  # deliberate color from outside the key
         if chord.kind in LEADING_KINDS:
             return led("secondary")
         return ROLE_COLORS[role(chord, self.key)]

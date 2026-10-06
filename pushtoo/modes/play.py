@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from push2_python import constants as c
 
-from pushtoo.chords import VOICINGS
+from pushtoo.chords import FAVORITE_SLOTS, VOICINGS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
 from pushtoo.modes.chord import HOLD_SECONDS, SCENE_BUTTONS, ChordPlayer
@@ -183,11 +183,13 @@ class PlayMode(Mode):
                 lambda: chord.mute_bass,
             ),
         ]
-        # The buttons above pick a chord set; the scale menu's third encoder reaches
-        # every set, a profile's own included.
+        # The buttons above hold favorite chord sets; the scale menu's third encoder
+        # reaches every set, a profile's own included.
+        favorites = [name for name in chord.favorite_sets if name in chord.sets]
+        favorites = favorites[:FAVORITE_SLOTS]
         set_options: list[Option | None] = [
             Option(name, lambda n=name: chord.set_chord_set(n), lambda n=name: chord.chord_set == n)
-            for name in list(chord.sets)[:COLUMNS]
+            for name in favorites
         ]
         main = Page(
             "Chord",
@@ -837,6 +839,8 @@ class PlayMode(Mode):
         else:
             held = sorted(self.router.notes_on(destination, layout.channel))
             if self.in_chord:
+                # The set changes what every pad plays, so it's named with the layout.
+                panel["layout"] = f"Chord · {self.chord.chord_set}"
                 panel |= self.chord.panel() | {
                     "key_name": self.keyboard.key_name,
                     "in_key": self.keyboard.in_key,
@@ -892,6 +896,8 @@ class PlayMode(Mode):
         self.strip_mode = STRIP_MODES.index(settings.strip)
         self.chord.apply_sets({name: tuple(rows) for name, rows in settings.chord.sets.items()})
         self.chord.voicing_buttons = tuple(settings.chord.voicing_buttons)
+        if settings.chord.favorite_sets is not None:
+            self.chord.favorite_sets = tuple(settings.chord.favorite_sets)
         chord_layout = self.layouts[2]
         chord_layout.pages = self._build_chord_pages(chord_layout)  # set buttons follow
 

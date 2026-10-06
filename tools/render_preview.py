@@ -281,7 +281,7 @@ def _chord_views(views: dict[str, dict]) -> None:
     play = _play()
     _tap_layout(play)
     _tap_layout(play)
-    play.button_pressed("Upper Row 3")  # the Jazz chord set
+    play.button_pressed("Upper Row 4")  # the Jazz chord set
     play.chord.voicing = "Shell"
     play.pad_pressed(4, 4, 100)  # 11th row, V
     views["chord_jazz_shell"] = play.view()

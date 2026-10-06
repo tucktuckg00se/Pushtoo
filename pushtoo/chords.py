@@ -32,7 +32,11 @@ KIND_LABELS = {
     "borrowed_dorian": "Dorian",
     "borrowed_mixolydian": "Mixolyd.",
     "borrowed_phrygian": "Phrygian",
+    "borrowed_lydian": "Lydian",
+    "dominant": "Dom 7",
+    "augmented": "Aug",
     "secondary": "V7 of",
+    "secondary_dim": "vii°7 of",
     "secondary_ii": "ii of",
     "tritone_sub": "Tri sub",
 }
@@ -44,23 +48,43 @@ BORROWED_KINDS = {
     "borrowed_dorian": "Dorian",
     "borrowed_mixolydian": "Mixolydian",
     "borrowed_phrygian": "Phrygian",
+    "borrowed_lydian": "Lydian",
 }
-LEADING_KINDS = ("secondary", "secondary_ii", "tritone_sub")  # chords that pull to a column
+# Chords that pull to a column: V7 of it, the ii7 before that V7, the V7's tritone
+# substitute, and the diminished 7th a half step below it.
+LEADING_KINDS = ("secondary", "secondary_ii", "tritone_sub", "secondary_dim")
+# Deliberately outside the key on every step: a blues dominant 7th, an augmented triad.
+COLOR_KINDS = ("dominant", "augmented")
 
 # Chord sets: the seven rows above the bass row, bottom to top. Scales choose the
 # notes you have; a set chooses which flavors fill the grid.
+# Grouped by style: pop and rock, blues and jazz, soul, then the atmospheric ones.
 CHORD_SETS: dict[str, tuple[str, ...]] = {
     "Classic": ("triad", "seventh", "add9", "sus", "ninth", "borrowed", "secondary"),
     "Pop": ("triad", "sus2", "sus4", "add9", "sixth", "borrowed", "secondary"),
+    "Anthem": ("triad", "power", "sus4", "add9", "sus2", "borrowed", "secondary"),
+    "Rock": ("power", "triad", "sus4", "add9", "seventh", "borrowed", "secondary"),
+    "Blues": ("power", "triad", "dominant", "ninth", "thirteenth", "borrowed", "secondary"),
     "Jazz": ("seventh", "six_nine", "ninth", "eleventh", "thirteenth", "secondary_ii",
              "tritone_sub"),
+    "Bossa": ("seventh", "ninth", "six_nine", "thirteenth", "secondary_ii", "secondary",
+              "tritone_sub"),
+    "Gospel": ("seventh", "ninth", "six_nine", "secondary_dim", "secondary", "tritone_sub",
+               "borrowed"),
     "Neo-soul": ("seventh", "ninth", "eleventh", "add9", "quartal", "borrowed", "secondary"),
-    "Rock": ("power", "triad", "sus4", "add9", "seventh", "borrowed", "secondary"),
+    "Lo-fi": ("seventh", "ninth", "add9", "eleventh", "sus2", "borrowed", "secondary"),
     "Cinematic": ("triad", "power", "sus2", "add9", "quartal", "borrowed",
                   "borrowed_phrygian"),
+    "Ambient": ("sus2", "add9", "add11", "quartal", "power", "borrowed_lydian", "borrowed"),
+    "Dark": ("triad", "seventh", "borrowed_phrygian", "secondary_dim", "augmented", "power",
+             "secondary"),
     "Modal": ("triad", "quartal", "sus2", "sus4", "borrowed_dorian", "borrowed_mixolydian",
               "borrowed_phrygian"),
 }  # fmt: skip
+# The Chord page's upper buttons, unless a profile picks its own: seven, since the
+# eighth column belongs to the side buttons' rail.
+FAVORITE_SLOTS = 7
+DEFAULT_FAVORITE_SETS = ("Classic", "Pop", "Rock", "Jazz", "Neo-soul", "Lo-fi", "Cinematic")
 SET_ROWS = 7
 # Rows, bottom to top, of the default set. Row 0 is single bass notes, not chords.
 ROW_KINDS = ("bass", *CHORD_SETS["Classic"])
@@ -270,6 +294,14 @@ def chord_at(key: KeyboardLayout, kind: str, degree: int) -> Chord:
         minor = _stack(scale, degree, STEPS["triad"])[1] == 3
         shape = (0, 3, 6, 10) if minor else (0, 3, 7, 10)
         return Chord(root + 2, shape, kind, degree, target=degree)
+    if kind == "secondary_dim":
+        # vii°7 of this column: a diminished 7th a half step below it, leading in.
+        return Chord(root - 1, (0, 3, 6, 9), kind, degree, target=degree)
+    if kind == "dominant":
+        # A dominant 7th on every step, the blues way, whatever the key says.
+        return Chord(root, (0, 4, 7, 10), kind, degree)
+    if kind == "augmented":
+        return Chord(root, (0, 4, 8), kind, degree)
     if kind == "tritone_sub":
         # The V7 a tritone away from V7/x: a dominant 7th a half step above the column.
         return Chord(root + 1, (0, 4, 7, 10), kind, degree, target=degree)
@@ -301,9 +333,18 @@ def numeral_label(chord: Chord, key: KeyboardLayout) -> str:
     """Roman numeral for the screen: "V7", "ii", "bVII", "V7/vi"."""
     if chord.kind in LEADING_KINDS:
         target = chord.target or 0
-        prefix = {"secondary": "V7", "secondary_ii": _ii_label(chord), "tritone_sub": "subV7"}
+        prefix = {
+            "secondary": "V7",
+            "secondary_ii": _ii_label(chord),
+            "tritone_sub": "subV7",
+            "secondary_dim": "vii°7",
+        }
         label = prefix[chord.kind]
         return label if target % 7 == 0 else f"{label}/{numeral(key, target)}"
+    if chord.kind == "dominant":
+        return ROMAN[chord.degree % 7] + "7"
+    if chord.kind == "augmented":
+        return ROMAN[chord.degree % 7] + "+"
     if chord.kind in BORROWED_KINDS:
         own_root = degree_root(key, chord.degree)
         accidental = {-1: "b", 1: "#"}.get(chord.root - own_root, "")
@@ -357,7 +398,7 @@ def _diatonic_label(base: str, chord: Chord) -> str:
 def role(chord: Chord, key: KeyboardLayout) -> str:
     """What a chord does, for colors and the screen: home, away, tension, borrowed, or
     the step a secondary dominant pulls toward."""
-    if chord.kind in BORROWED_KINDS:
+    if chord.kind in BORROWED_KINDS or chord.kind == "augmented":
         return "borrowed"
     if chord.kind in LEADING_KINDS:
         return f"→ {numeral(key, chord.target)}"
@@ -473,7 +514,7 @@ VOICING_NAMES = {
     "Open": "Open (drop 2)",
     "Drop 3": "Drop 3",
     "Wide": "Wide",
-    "Shell": "Shell (root, 3rd, 7th)",
+    "Shell": "Shell",
 }
 
 
