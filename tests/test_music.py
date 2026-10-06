@@ -82,14 +82,25 @@ def test_drum_banks_cover_36_to_99_starting_bottom_left():
     assert notes == set(range(36, 100))
 
 
-def test_octave_moves_drums_two_banks_within_midi():
+def test_octave_moves_drums_two_banks_and_keeps_c2_starting_a_bank():
     drums = DrumLayout(start=36)
     drums.shift(-1)
     assert drums.start == 4
-    drums.shift(-1)
-    assert drums.start == 0
-    drums.shift(+5)
-    assert drums.start == 64 and drums.note_at(7, 7) == 127
+    drums.shift(-1)  # no room: it stays, rather than clamping out of line
+    assert drums.start == 4
+    for _ in range(5):
+        drums.shift(+1)
+    assert drums.start == 68  # 36 + 32: the highest in line
+    assert drums.note_at(4, 4) == 116 and drums.note_at(7, 7) is None  # past 127: dark
+    for _ in range(5):
+        drums.shift(-1)
+    assert drums.note_at(0, 0) == 4 and DrumLayout().note_at(0, 0) == 36  # C2, never Ab1
+
+
+def test_saved_starts_out_of_line_with_c2_are_ignored():
+    assert DrumLayout.valid_start(36) and DrumLayout.valid_start(84)
+    assert not DrumLayout.valid_start(32)  # Ab1, from the earlier layout
+    assert not DrumLayout.valid_start(100)
 
 
 def test_drum_banks_checkerboard_beyond_the_pads_too():

@@ -144,7 +144,15 @@ GM_DRUM_NAMES: dict[int, str] = {
 
 BANK_SIZE = 16
 DRUM_STEP = 32  # what the Octave buttons move: two banks, half the pads
-DRUM_LOWEST_START, DRUM_HIGHEST_START = 0, 128 - 4 * BANK_SIZE
+# Banks always start in line with the GM kick (C2, 36), so wherever the pads move,
+# 36 begins a bank and the default puts it bottom-left. Starts run 4, 20, ... 84: the
+# highest still has two full banks of real notes (up to 127) at the bottom.
+DRUM_DEFAULT_START = 36
+DRUM_LOWEST_START = DRUM_DEFAULT_START % BANK_SIZE
+_TOP_START = 128 - 2 * BANK_SIZE  # the last start whose bottom two banks are real notes
+DRUM_HIGHEST_START = (
+    DRUM_LOWEST_START + (_TOP_START - DRUM_LOWEST_START) // BANK_SIZE * BANK_SIZE
+)
 
 
 def drum_name(midi_note: int) -> str:
@@ -156,7 +164,7 @@ class DrumLayout:
     """Four 4x4 banks of 16 consecutive notes: bottom-left, bottom-right, top-left,
     top-right. With the default start of 36, the bottom-left bank is the GM kit."""
 
-    start: int = 36
+    start: int = DRUM_DEFAULT_START
 
     @staticmethod
     def bank_of(row: int, col: int) -> int:
@@ -166,9 +174,22 @@ class DrumLayout:
         note = self.start + self.bank_of(row, col) * BANK_SIZE + (row % 4) * 4 + col % 4
         return note if 0 <= note <= 127 else None
 
+    def can_shift(self, delta: int) -> bool:
+        return DRUM_LOWEST_START <= self.start + delta * DRUM_STEP <= DRUM_HIGHEST_START
+
     def shift(self, delta: int) -> None:
-        """The Octave buttons: 32 notes (two banks, a row of banks) up or down."""
-        self.start = max(DRUM_LOWEST_START, min(DRUM_HIGHEST_START, self.start + delta * DRUM_STEP))
+        """The Octave buttons: 32 notes (two banks, a row of banks) up or down. At the
+        ends they stop rather than clamp, so the banks stay in line with C2."""
+        if self.can_shift(delta):
+            self.start += delta * DRUM_STEP
+
+    @staticmethod
+    def valid_start(start: object) -> bool:
+        return (
+            isinstance(start, int)
+            and DRUM_LOWEST_START <= start <= DRUM_HIGHEST_START
+            and (start - DRUM_LOWEST_START) % BANK_SIZE == 0
+        )
 
     def role_of(self, note: int) -> str:
         """The banks' checkerboard, for pads and the screen's map alike: bottom-left and

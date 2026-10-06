@@ -42,12 +42,12 @@ def test_accent_forces_full_velocity():
 def test_octave_buttons_move_the_drum_pads_32_notes():
     play, virtual, _ = make_play()
     tap_layout(play)
-    play.button_pressed(c.BUTTON_OCTAVE_UP)  # 36 + 32 = 68, past the top: 64-127
+    play.button_pressed(c.BUTTON_OCTAVE_UP)  # 36 + 32 = 68
     play.pad_pressed(0, 0, 90)
-    assert virtual.sent[-1] == [0x99, 64, 90]
-    assert play.button_colors()[c.BUTTON_OCTAVE_UP] == "dark_gray"
+    assert virtual.sent[-1] == [0x99, 68, 90]
+    assert play.button_colors()[c.BUTTON_OCTAVE_UP] == "dark_gray"  # 100 would be too high
     play.encoder_turned(0, -STEP)  # the Notes encoder moves a bank
-    assert play.drums.start == 48
+    assert play.drums.start == 52
 
 
 def test_drums_screen_names_the_last_hit_once_and_shows_the_window():
@@ -59,7 +59,7 @@ def test_drums_screen_names_the_last_hit_once_and_shows_the_window():
     assert "held" not in panel  # no second copy of the name
     assert panel["held_notes"] == [38]
     assert (panel["start"], panel["end"]) == (36, 99)
-    assert panel["moves"] == {"up": "64–127", "down": "4–67"}
+    assert panel["moves"] == {"up": "68–127", "down": "4–67"}
     assert panel["map"][36] == "root" and len(panel["map"]) == 128
 
 

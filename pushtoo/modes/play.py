@@ -760,8 +760,7 @@ class PlayMode(Mode):
         if self.layout.name == "Keyboard":
             octave = self.keyboard.octave
             return octave > MIN_OCTAVE, octave < MAX_OCTAVE
-        start = self.drums.start
-        return start > DRUM_LOWEST_START, start < DRUM_HIGHEST_START
+        return self.drums.can_shift(-1), self.drums.can_shift(1)
 
     def button_colors(self) -> dict[str, str]:
         lit = "white"
@@ -973,7 +972,7 @@ class PlayMode(Mode):
             self.keyboard.in_key = state["in_key"]
         if state.get("octave") in range(MIN_OCTAVE, MAX_OCTAVE + 1):
             self.keyboard.octave = state["octave"]
-        if state.get("drums_start") in range(DRUM_LOWEST_START, DRUM_HIGHEST_START + 1):
+        if DrumLayout.valid_start(state.get("drums_start")):  # out of line resets to C2
             self.drums.start = state["drums_start"]
         if state.get("strip") in STRIP_MODES:
             self.strip_mode = STRIP_MODES.index(state["strip"])
