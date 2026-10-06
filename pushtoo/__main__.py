@@ -48,7 +48,8 @@ def main() -> int:
     stop = threading.Event()
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
-    logging.getLogger("pushtoo").info("Running. Ctrl+C to quit.")
+    hint = " Ctrl+C to quit." if sys.stdin.isatty() else ""
+    logging.getLogger("pushtoo").info("Running.%s", hint)
     stop.wait()
     app.close()
     return 0

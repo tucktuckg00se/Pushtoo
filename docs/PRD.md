@@ -356,8 +356,8 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | N1   | Pad-to-MIDI latency under 3 ms at p99; rendering never blocks MIDI | P0 | Passing |
 | N2   | Display at 30 fps minimum, 60 fps target                     | P0 | Passing |
 | N3   | Survives Push unplug and replug without restart; held notes released on unplug | P0 | Built, hands-on check pending |
-| N4   | One-command install with udev rule and bundled IBM Plex font | P0 | Beta |
-| N5   | Runs on a Raspberry Pi 4 at reduced frame rate               | P1 | Beta |
+| N4   | One-command install with udev rule and bundled IBM Plex font | P0 | Built: install.sh asks before each step; `pushtoo doctor` |
+| N5   | Runs on a Raspberry Pi 4 at reduced frame rate               | P1 | Ready (30 fps on a Pi); needs a Pi check |
 
 Removed in this revision: DAW feedback (F7), Launch mode (F20), and auto-switching profiles per focused app (F11). They serve DAW control, which DrivenByMoss already does well.
 
@@ -372,11 +372,13 @@ Removed in this revision: DAW feedback (F7), Launch mode (F20), and auto-switchi
 | M4 Rhythm       | Clock, note repeat, arpeggiator                                       | Built; hardware check pending |
 | M5 Loops        | Drum step sequencer, MIDI looper                                      | Next   |
 | M6 Delight      | Living pads, Life mode, Dice, snapshot morph                          |        |
-| M7 Beta         | One-command installer, 5-tester study, Raspberry Pi check             |        |
+| M7 Beta         | One-command installer, 5-tester study, Raspberry Pi check             | In progress: installer and service built; tester study and Pi check next |
 
 The latency gate (`tools/latency/latency.py`) runs at every milestone and must pass before the next starts.
 
 **Notes from building**
+
+- Running as a background service: Pushtoo starts without a Push and keeps looking for one; only one instance runs (a lock in `$XDG_RUNTIME_DIR`); repeated log lines are written once; the scheduler rests at 50 ms when nothing is timed and the renderer stops drawing without a display. Measured idle with no Push: about 0.7% CPU in total. The systemd user unit restarts on failure, at most 5 times a minute.
 
 - Clock timing (`tools/clock/jitter.py`, 120 BPM, 24 ppqn, a busy Python thread competing): sleeping until each tick's deadline has p99 0.08 ms idle but 23 ms under load, because a thread holding the GIL keeps it for up to Python's 5 ms switch interval. Ticks stamped ahead on an ALSA queue hold p99 0.42 ms either way. With a 1 ms switch interval, a 20 ms lookahead holds 0.42 ms max under load, short enough that releasing a pad stops repeats at once; 10 ms needs the shorter interval too.
 

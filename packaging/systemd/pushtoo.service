@@ -1,0 +1,25 @@
+# Pushtoo as a user service: it starts when you log in and waits for the Push, so
+# plugging the Push in is all it takes. Installed by install.sh as
+# ~/.config/systemd/user/pushtoo.service, with ExecStart pointing at your pushtoo.
+#
+#   systemctl --user status pushtoo        is it running?
+#   journalctl --user -u pushtoo -f        its log
+#   systemctl --user stop pushtoo          stop it (until next login)
+#   systemctl --user disable --now pushtoo stop starting it at login
+
+[Unit]
+Description=Pushtoo: Ableton Push 2 as an instrument
+Documentation=https://github.com/tucktuckg00se/Pushtoo
+# A crash loop stops after 5 tries in a minute instead of spinning.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+ExecStart=%h/.local/bin/pushtoo
+Restart=on-failure
+RestartSec=3
+# On stop, Pushtoo sends Panic (all notes off) before it quits.
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

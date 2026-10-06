@@ -260,7 +260,7 @@ dependencies = [
 
 [[package]]
 name = "pushtoo"
-version = "0.1.0.dev0"
+version = "0.1.0b1"
 source = { editable = "." }
 dependencies = [
     { name = "alsa-midi" },

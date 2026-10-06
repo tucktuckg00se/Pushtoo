@@ -22,3 +22,18 @@ jobs:
       - run: uv run ruff check
       - run: uv run ruff format --check
       - run: uv run pytest
+      - name: Lint the installer
+        run: uvx --from shellcheck-py shellcheck -s sh install.sh
+
+  install:
+    # The one-command installer on a clean Debian, as root (no sudo), without the
+    # parts that need a desktop session (udev, the user service).
+    runs-on: ubuntu-latest
+    container: debian:bookworm
+    steps:
+      - run: apt-get update && apt-get install -y curl git ca-certificates
+      - uses: actions/checkout@v4
+      - run: ./install.sh --yes --no-udev --no-service --from .
+      - run: '"$HOME/.local/bin/pushtoo" --version'
+      - name: pushtoo doctor (no MIDI or Push in CI, so it reports rather than passes)
+        run: '"$HOME/.local/bin/pushtoo" doctor || true'

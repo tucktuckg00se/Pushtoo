@@ -77,3 +77,14 @@ def test_stopping_the_service_sends_panic_first(env, signal_name):
     app.close()  # what __main__ calls on SIGTERM
     assert [0xB0, 123, 0] in sent  # All Notes Off on channel 1
     assert sent.index([0x80, 48, 0]) < sent.index([0xB0, 123, 0])
+
+
+def test_a_missing_push_is_logged_as_information_not_an_error():
+    from pushtoo.logs import PushMissingFilter
+
+    record = logging.LogRecord(
+        "root", logging.ERROR, __file__, 1, "Could not initialize Push 2 Display: ", None, None
+    )
+    PushMissingFilter().filter(record)
+    assert record.levelno == logging.INFO
+    assert record.getMessage() == "Push 2 display not found yet"

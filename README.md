@@ -4,11 +4,49 @@ Pushtoo turns an Ableton Push 2 on Linux into an instrument for any synth, DAW o
 
 Pushtoo is for *playing*. If you want deep control of a DAW from the Push (tracks, devices, clips, mixer), use [DrivenByMoss](https://mossgrabers.de) for Bitwig or Reaper instead; the two can't share the Push at the same time.
 
-> **Status:** early development. Keyboard, Drums and the chord grid, note repeat, the arpeggiator and the clock, Knobs, and YAML profiles work; loops (a step sequencer and a MIDI looper) are next. See [docs/PRD.md](docs/PRD.md) for the product spec.
+> **Status:** beta (0.1.0b1). Testers welcome: see [docs/beta-testing.md](docs/beta-testing.md). Keyboard, Drums and the chord grid, note repeat, the arpeggiator and the clock, Knobs, and YAML profiles work; loops (a step sequencer and a MIDI looper) are next. See [docs/PRD.md](docs/PRD.md) for the product spec.
+
+## Install
+
+On Linux (Arch, Debian, Ubuntu, Raspberry Pi OS or Fedora), one command:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tucktuckg00se/Pushtoo/main/install.sh | sh
+```
+
+Or from a clone: `./install.sh`. The installer **asks before every step**, recaps your answers, and changes nothing until you confirm. It uses `sudo` only for steps 1, 4 and 5, and only if you say yes:
+
+| Question | What it does | Why |
+| --- | --- | --- |
+| 1. Install system packages? | Installs, with your package manager, cairo and its headers, pkg-config, a C compiler, the ALSA library and libusb. It shows the exact command first. | Two of Pushtoo's parts (pycairo, evdev) are built from source. |
+| 2. Install uv? | Only asked if `uv` is missing: Astral's official installer puts it in `~/.local/bin`. | uv installs Pushtoo in its own environment, with its own Python, so nothing else on your system is affected. |
+| 3. Install Pushtoo? | `uv tool install` gives you a `pushtoo` command in `~/.local/bin`. Re-running the installer upgrades it. | |
+| 4. Install the udev rule? | Copies [packaging/udev/50-pushtoo.rules](packaging/udev/50-pushtoo.rules) to `/etc/udev/rules.d/`. | Lets your user open the Push's display and type Undo shortcuts without root, also headless (SSH, a Raspberry Pi, the background service). |
+| 5. Join the audio group? | Only asked if you're not in it: adds you with `usermod -aG audio`. Takes effect at your next login. | The udev rule grants access to that group. |
+| 6. Start Pushtoo automatically when you log in? | Installs a systemd user service ([packaging/systemd/pushtoo.service](packaging/systemd/pushtoo.service)). | Pushtoo waits in the background for the Push, so plugging it in is all it takes. |
+| 7. Start it now? | Starts the service straight away. | |
+
+To answer every question with its default (yes), add `--yes`; to skip steps, `--no-packages`, `--no-udev`, `--no-service` or `--no-start`. `--main` installs the latest code instead of the release. When the installer has no terminal to ask on, it stops and asks for these flags rather than guessing. `./install.sh --help` lists everything.
+
+**Running in the background.** The service starts at login and waits for the Push, using under 1% CPU while it waits. Unplug and replug the Push whenever you like; held notes are released and it reconnects. When the service stops, it sends all notes off first, so nothing hangs in your synth.
+
+```sh
+systemctl --user status pushtoo          # is it running?
+journalctl --user -u pushtoo -f          # its log
+systemctl --user stop pushtoo            # stop it (it starts again at next login)
+systemctl --user disable --now pushtoo   # stop it starting at login
+systemctl --user enable --now pushtoo    # start it at login again
+```
+
+Only one Pushtoo runs at a time. If you run `pushtoo` while the service is up, it says so and exits; stop the service first to run it by hand (with `-v` for a detailed log).
+
+**Something not working?** `pushtoo doctor` checks Python, the screen font, MIDI, whether the Push is plugged in and its display is accessible, Undo keystrokes and the service, and says how to fix whatever isn't right. It only looks, so it's safe to run any time.
+
+**Upgrading:** run the installer again. **Uninstalling:** `./install.sh --uninstall` (or `curl -fsSL https://raw.githubusercontent.com/tucktuckg00se/Pushtoo/main/install.sh | sh -s -- --uninstall`) removes the service, the `pushtoo` command and the udev rule, asking about each. It keeps your profiles and themes in `~/.config/pushtoo` unless you add `--purge`, which also deletes them and the saved state. The audio group and system packages are left as they are.
 
 ## Playing
 
-1. Plug in Push 2 and run `uv run pushtoo`.
+1. Plug in Push 2. If you didn't set up the background service, run `pushtoo`.
 2. In your DAW or synth, choose the MIDI input **Pushtoo Out**. Under PipeWire it may appear as `Midi-Bridge:Pushtoo: Out (capture)`. Pushtoo marks its port as leading to a device, so DAWs that list only hardware MIDI ports on JACK or PipeWire, such as REAPER, list it too: enable it in REAPER's Preferences > MIDI Devices.
 3. Play the pads. Pushtoo starts in C minor on MIDI channel 1.
 
@@ -129,13 +167,15 @@ Colors are hex `RRGGBB` or the name of another color in the theme (`home: play`)
 
 ## Development
 
-Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and the ALSA, JACK and cairo development headers.
+Requires Python 3.12+, [uv](https://docs.astral.sh/uv/), and the ALSA, JACK and cairo development headers. Stop the background service while developing (`systemctl --user stop pushtoo`), since only one Pushtoo runs at a time.
 
 ```sh
 uv sync
 uv run pytest
 uv run ruff check
-uv run pushtoo
+uv run pushtoo                           # -v for a detailed log, --fps to set the screen rate
+uv run pushtoo doctor
+uvx --from shellcheck-py shellcheck -s sh install.sh
 uv run python tools/render_preview.py   # every screen as PNG, no hardware needed
 uv run python tools/latency/latency.py  # latency gate; needs Push attached
 uv run python tools/clock/jitter.py     # clock timing gate (p99 < 1 ms); needs ALSA
@@ -147,8 +187,10 @@ uv run python tools/clock/jitter.py     # clock timing gate (p99 < 1 ms); needs 
 | --------------- | ----------------------------------------------------- |
 | `pushtoo/`      | The application package                               |
 | `tests/`        | Unit tests (no hardware required)                     |
-| `tools/`        | Screen previews and the latency gate                  |
-| `docs/`         | PRD and architecture decision records                 |
+| `tools/`        | Screen previews, the latency gate and the clock gate  |
+| `packaging/`    | The udev rule and the systemd user service            |
+| `install.sh`    | The one-command installer                             |
+| `docs/`         | PRD, architecture decision records, beta testing      |
 | `legacy/pysha/` | Original Pysha code, kept as reference while porting  |
 
 ## Credits

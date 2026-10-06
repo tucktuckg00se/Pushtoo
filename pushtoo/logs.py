@@ -27,6 +27,22 @@ class RepeatFilter(logging.Filter):
         return last is None or now - last >= self.quiet
 
 
+class PushMissingFilter(logging.Filter):
+    """push2-python reports a Push that isn't plugged in as a bare ERROR ("Could not
+    initialize Push 2 Display: "). That's an expected state, so it's said plainly."""
+
+    PARTS = {"MIDI in": "MIDI", "MIDI out": "MIDI", "Display": "display"}
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        prefix = "Could not initialize Push 2 "
+        if record.levelno == logging.ERROR and message.startswith(prefix):
+            part = message[len(prefix) :].split(":")[0]
+            record.levelno, record.levelname = logging.INFO, "INFO"
+            record.msg, record.args = f"Push 2 {self.PARTS.get(part, part)} not found yet", None
+        return True
+
+
 def setup(verbose: bool = False) -> None:
     logging.basicConfig(
         level=logging.DEBUG if verbose else logging.INFO,
@@ -40,4 +56,5 @@ def quiet_repeats() -> None:
     process does after it starts)."""
     for handler in logging.getLogger().handlers:
         if not any(isinstance(f, RepeatFilter) for f in handler.filters):
+            handler.addFilter(PushMissingFilter())  # first, so repeats compare the new text
             handler.addFilter(RepeatFilter())
