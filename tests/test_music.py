@@ -70,18 +70,19 @@ def test_root_wraps_and_scale_clamps():
     assert layout.key_name == "C Major"
 
 
-def test_drum_pads_count_up_eight_per_row_from_the_bottom_left():
+def test_drum_banks_cover_36_to_99_starting_bottom_left():
     drums = DrumLayout()
     assert drums.note_at(0, 0) == 36  # Kick
-    assert drums.note_at(0, 2) == 38  # Snare, two pads right
-    assert drums.note_at(0, 7) == 43
-    assert drums.note_at(1, 0) == 44  # the next row up
+    assert drums.note_at(0, 3) == 39
+    assert drums.note_at(3, 3) == 51  # top-right of the GM bank
+    assert drums.note_at(0, 4) == 52  # bottom-right bank
+    assert drums.note_at(4, 0) == 68  # top-left bank
     assert drums.note_at(7, 7) == 99
     notes = {drums.note_at(r, c) for r in range(8) for c in range(8)}
     assert notes == set(range(36, 100))
 
 
-def test_octave_moves_drums_32_notes_within_midi():
+def test_octave_moves_drums_two_banks_within_midi():
     drums = DrumLayout(start=36)
     drums.shift(-1)
     assert drums.start == 4
@@ -91,10 +92,16 @@ def test_octave_moves_drums_32_notes_within_midi():
     assert drums.start == 64 and drums.note_at(7, 7) == 127
 
 
-def test_drum_landmarks():
-    assert DrumLayout.role_of(36) == "root"  # every C
-    assert DrumLayout.role_of(38) == "in_scale"  # a named GM drum
-    assert DrumLayout.role_of(100) == "out_of_scale"
+def test_drum_banks_checkerboard_beyond_the_pads_too():
+    drums = DrumLayout(start=36)
+    assert [drums.role_of(36 + 16 * b) for b in range(4)] == [
+        "root",
+        "in_scale",
+        "in_scale",
+        "root",
+    ]
+    assert drums.role_of(100) == "root" and drums.role_of(116) == "in_scale"  # the next bank row
+    assert drums.role_of(4) == "in_scale" and drums.role_of(20) == "root"  # the row below
 
 
 def test_drum_names_fall_back_to_note_names():

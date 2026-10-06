@@ -46,8 +46,8 @@ def test_octave_buttons_move_the_drum_pads_32_notes():
     play.pad_pressed(0, 0, 90)
     assert virtual.sent[-1] == [0x99, 64, 90]
     assert play.button_colors()[c.BUTTON_OCTAVE_UP] == "dark_gray"
-    play.encoder_turned(0, -STEP)  # the Notes encoder moves a row
-    assert play.drums.start == 56
+    play.encoder_turned(0, -STEP)  # the Notes encoder moves a bank
+    assert play.drums.start == 48
 
 
 def test_drums_screen_names_the_last_hit_once_and_shows_the_window():
@@ -63,13 +63,12 @@ def test_drums_screen_names_the_last_hit_once_and_shows_the_window():
     assert panel["map"][36] == "root" and len(panel["map"]) == 128
 
 
-def test_drum_pads_light_their_landmarks():
+def test_drum_pads_checkerboard_their_banks():
     play, *_ = make_play()
     tap_layout(play)
     colors = play.pad_colors()
-    assert colors[0][0] == "pt_root"  # C2, the kick
-    assert colors[0][2] == "pt_in_scale"  # snare
-    assert colors[7][7] == "pt_out_of_scale"  # 99, no GM name
+    assert colors[0][0] == colors[7][7] == "pt_root"  # bottom-left and top-right banks
+    assert colors[0][4] == colors[4][0] == "pt_in_scale"  # the other two
 
 
 def test_scale_selector_buttons_pick_roots_and_toggle_in_key():

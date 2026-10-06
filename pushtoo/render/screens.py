@@ -206,15 +206,15 @@ def _panel_keyboard(ctx, panel, x0, width, accent) -> None:
     _notes_or_hint(ctx, panel, x0 + width / 2, width / 2)
 
 
-DRUM_PITCH, DRUM_CELL = 6, 5  # the drum map's cells: up to 17 rows in 112 px
+DRUM_PITCH, DRUM_CELL, DRUM_GAP = 5, 4, 2  # the drum map: 4x4 banks of cells
 
 
 def _panel_drums(ctx, panel, x0, width, accent) -> None:
-    """All 128 notes in rows of 8, the pads' 8x8 window outlined on it, then the last
+    """All 128 notes in banks of 16, the pads' four banks outlined on it, then the last
     hit (once), how hard it was, and where the pads sit and can move."""
     map_x = x0 + 34
     _drum_map(ctx, panel, map_x, accent)
-    x = map_x + 8 * DRUM_PITCH + 18
+    x = map_x + 8 * DRUM_PITCH + DRUM_GAP + 18
     width = x0 + width - x - 12
     _layout_title(ctx, panel, x)
     left = width * 0.55
@@ -249,42 +249,52 @@ def _panel_drums(ctx, panel, x0, width, accent) -> None:
 
 
 def _drum_map(ctx, panel, x, accent) -> None:
-    """Rows of 8 lined up with the pads (so the window is a clean box); notes outside
-    MIDI's 0-127 are empty cells. Held notes white, the last hit ringed."""
+    """All 128 notes as banks of 16, shaped like the pads: 4x4 banks, two side by side,
+    bottom to top. Bank rows line up with the pads' start, so the four banks the pads
+    play are a clean outlined 2x2 box; notes outside MIDI's 0-127 are left empty. Held
+    notes white, the last hit ringed."""
     start = panel["start"]
-    phase = start % 8
-    base = phase - 8 if phase else 0  # the first row's first note (may be below 0)
-    rows = 17 if phase else 16
-    top = BAND + (HEIGHT - 2 * BAND - rows * DRUM_PITCH) / 2
+    phase = start % 32
+    base = phase - 32 if phase else 0  # the first bank row's first note
+    bank_rows = -(-(128 - base) // 32)  # rows of two banks, enough to reach 127
+    block = 4 * DRUM_PITCH  # one bank's height and width
+    row_height = block + DRUM_GAP
+    height = bank_rows * row_height - DRUM_GAP
+    top = BAND + (HEIGHT - 2 * BAND - height) / 2
     held = set(panel["held_notes"])
     last = panel["last_hit"]["note"] if panel["last_hit"] else None
-    for row in range(rows):
-        y = top + (rows - 1 - row) * DRUM_PITCH
-        first = base + row * 8
-        if row % 2 == 0 and 0 <= max(first, 0) <= 127:
+    for bank_row in range(bank_rows):
+        y0 = top + (bank_rows - 1 - bank_row) * row_height  # this bank row's top edge
+        first = base + bank_row * 32
+        if 0 <= max(first, 0) <= 127:
             label = str(max(first, 0))
             _font(ctx, SMALL - 3, False)
             w = ctx.text_extents(label).x_advance
-            _text(ctx, label, x - 6 - w, y + DRUM_CELL, SMALL - 3, _c["text_dim"])
-        for col in range(8):
-            note = first + col
-            if not 0 <= note <= 127:
-                continue
-            color = _c["held"] if note in held else _led_rgb(f"pt_{panel['map'][note]}")
-            ctx.set_source_rgb(*color)
-            ctx.rectangle(x + col * DRUM_PITCH, y, DRUM_CELL, DRUM_CELL)
-            ctx.fill()
-            if note == last:
-                ctx.set_source_rgb(*_c["text"])
-                ctx.set_line_width(1)
-                ctx.rectangle(x + col * DRUM_PITCH - 1.5, y - 1.5, DRUM_CELL + 3, DRUM_CELL + 3)
-                ctx.stroke()
-    # The pads' window: 8 rows from the start, outlined in the accent.
-    window_row = (start - base) // 8
-    y_top = top + (rows - 1 - (window_row + 7)) * DRUM_PITCH - 1.5
+            _text(ctx, label, x - 6 - w, y0 + block - 1, SMALL - 3, _c["text_dim"])
+        for side in (0, 1):
+            for cell_row in range(4):
+                for cell_col in range(4):
+                    note = first + side * 16 + cell_row * 4 + cell_col
+                    if not 0 <= note <= 127:
+                        continue
+                    cx = x + side * (block + DRUM_GAP) + cell_col * DRUM_PITCH
+                    cy = y0 + (3 - cell_row) * DRUM_PITCH
+                    role = panel["map"][note]
+                    color = _c["held"] if note in held else _led_rgb(f"pt_{role}")
+                    ctx.set_source_rgb(*color)
+                    ctx.rectangle(cx, cy, DRUM_CELL, DRUM_CELL)
+                    ctx.fill()
+                    if note == last:
+                        ctx.set_source_rgb(*_c["text"])
+                        ctx.set_line_width(1)
+                        ctx.rectangle(cx - 1.5, cy - 1.5, DRUM_CELL + 3, DRUM_CELL + 3)
+                        ctx.stroke()
+    # The pads' four banks: two bank rows from the start, outlined in the accent.
+    window_row = (start - base) // 32
+    y_top = top + (bank_rows - 1 - (window_row + 1)) * row_height - 2
     ctx.set_source_rgb(*accent)
     ctx.set_line_width(1.5)
-    ctx.rectangle(x - 1.5, y_top, 8 * DRUM_PITCH + 2, 8 * DRUM_PITCH + 2)
+    ctx.rectangle(x - 2, y_top, 2 * block + DRUM_GAP + 3, 2 * row_height - DRUM_GAP + 3)
     ctx.stroke()
 
 

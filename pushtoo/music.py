@@ -142,9 +142,9 @@ GM_DRUM_NAMES: dict[int, str] = {
     81: "Open Triangle",
 }  # fmt: skip
 
-DRUM_ROW = 8  # notes per pad row, as on the screen's map of all 128
-DRUM_STEP = 32  # what the Octave buttons move: four rows, half the pads
-DRUM_LOWEST_START, DRUM_HIGHEST_START = 0, 128 - DRUM_ROW * 8
+BANK_SIZE = 16
+DRUM_STEP = 32  # what the Octave buttons move: two banks, half the pads
+DRUM_LOWEST_START, DRUM_HIGHEST_START = 0, 128 - 4 * BANK_SIZE
 
 
 def drum_name(midi_note: int) -> str:
@@ -153,26 +153,29 @@ def drum_name(midi_note: int) -> str:
 
 @dataclass
 class DrumLayout:
-    """64 consecutive notes in rows of 8, counting up from the bottom-left pad: the
-    same shape as the screen's map of all 128 MIDI notes. With the default start of 36,
-    the bottom two rows are the core General MIDI kit (kick, snare, hats)."""
+    """Four 4x4 banks of 16 consecutive notes: bottom-left, bottom-right, top-left,
+    top-right. With the default start of 36, the bottom-left bank is the GM kit."""
 
     start: int = 36
 
+    @staticmethod
+    def bank_of(row: int, col: int) -> int:
+        return (row // 4) * 2 + col // 4
+
     def note_at(self, row: int, col: int) -> int | None:
-        note = self.start + row * DRUM_ROW + col
+        note = self.start + self.bank_of(row, col) * BANK_SIZE + (row % 4) * 4 + col % 4
         return note if 0 <= note <= 127 else None
 
     def shift(self, delta: int) -> None:
-        """The Octave buttons: 32 notes (four rows) up or down, within MIDI."""
+        """The Octave buttons: 32 notes (two banks, a row of banks) up or down."""
         self.start = max(DRUM_LOWEST_START, min(DRUM_HIGHEST_START, self.start + delta * DRUM_STEP))
 
-    @staticmethod
-    def role_of(note: int) -> str:
-        """Landmarks for pads and the map: every C stands out, named drums are lit."""
-        if note % 12 == 0:
-            return "root"
-        return "in_scale" if note in GM_DRUM_NAMES else "out_of_scale"
+    def role_of(self, note: int) -> str:
+        """The banks' checkerboard, for pads and the screen's map alike: bottom-left and
+        top-right banks in one color, the other two in another, continuing beyond the
+        pads so the map shows every bank of 16 the same way."""
+        bank = (note - self.start) // BANK_SIZE
+        return "root" if (bank // 2 + bank % 2) % 2 == 0 else "in_scale"
 
 
 # A profile's starting pad feel; Setup takes over once used (pushtoo/setup.py).

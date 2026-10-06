@@ -20,9 +20,9 @@ from pushtoo.modes.chord import MAX_OCTAVE as CHORD_MAX_OCTAVE
 from pushtoo.modes.chord import MIN_BRIGHTNESS as CHORD_MIN_BRIGHTNESS
 from pushtoo.modes.chord import MIN_OCTAVE as CHORD_MIN_OCTAVE
 from pushtoo.music import (
+    BANK_SIZE,
     DRUM_HIGHEST_START,
     DRUM_LOWEST_START,
-    DRUM_ROW,
     MAX_OCTAVE,
     MIN_OCTAVE,
     NOTE_NAMES,
@@ -380,8 +380,8 @@ class PlayMode(Mode):
                 lambda v: setattr(self.drums, "start", v),
                 minimum=DRUM_LOWEST_START,
                 maximum=DRUM_HIGHEST_START,
-                step=DRUM_ROW,  # a row at a time; the Octave buttons jump four
-                format=lambda v: f"{v}–{min(127, v + 8 * DRUM_ROW - 1)}",
+                step=BANK_SIZE,  # a bank at a time; the Octave buttons move two
+                format=lambda v: f"{v}–{min(127, v + 4 * BANK_SIZE - 1)}",
             )
         strip_options: list[Option | None] = [
             Option(label, self._strip_setter(i), lambda i=i: self.strip_mode == i)
@@ -744,7 +744,7 @@ class PlayMode(Mode):
                 elif note in held:
                     line.append("pt_held")
                 elif isinstance(grid, DrumLayout):
-                    line.append(led(grid.role_of(note)))  # Cs and named drums, as on the map
+                    line.append(led(grid.role_of(note)))  # the banks' checkerboard
                 elif note % 12 in chord_tones:
                     line.append(led("chord_tone"))  # a note of the chord playing on
                 else:
@@ -891,7 +891,7 @@ class PlayMode(Mode):
             probe = DrumLayout(start)
             probe.shift(delta)
             if probe.start != start:
-                moves[label] = f"{probe.start}–{min(127, probe.start + 8 * DRUM_ROW - 1)}"
+                moves[label] = f"{probe.start}–{min(127, probe.start + 4 * BANK_SIZE - 1)}"
         last = None
         if self.last_drum is not None:
             last = {
@@ -902,9 +902,9 @@ class PlayMode(Mode):
             }
         return {
             "start": start,
-            "end": min(127, start + 8 * DRUM_ROW - 1),
+            "end": min(127, start + 4 * BANK_SIZE - 1),
             "moves": moves,
-            "map": [DrumLayout.role_of(n) for n in range(128)],
+            "map": [self.drums.role_of(n) for n in range(128)],
             "held_notes": list(held),
             "last_hit": last,
             "first_run": not self.played_once,
