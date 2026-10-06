@@ -165,7 +165,7 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 
 **Playing**
 
-- One press plays one chord. The last chord pressed sounds; releasing it stops it. Changes re-trigger the whole chord.
+- One press plays one chord. Chords play together like hands on a piano: a new chord adds its notes, a note another chord already sounds keeps ringing instead of restriking, and releasing a pad stops only the notes no other held chord plays. A bump on a neighbouring pad never cuts the chord you're holding, and a legato change keeps the common tones. The screen names the latest chord.
 - Each chord also sends its root to the bass channel (default 3). The bottom row plays single bass notes by hand, alongside chords. While one is held under a chord, the screen names it as a slash chord (G/B; the lowest held bass note wins, and a bass on the chord's root adds no slash).
 - Rows 2–6 are always in key. Where a step's 9th would be a harsh flat 9th (iii and vii in major), the add9 and 9th rows use the 11th instead. Rows 7–8 are the deliberate spice.
 - Scales with fewer than 7 notes build their chords from a parent scale (pentatonic and blues from major or minor), and the screen says so.
@@ -182,7 +182,7 @@ A scale chooses the notes; a chord set chooses the flavors in the seven rows abo
 - **Smooth** (default) voices each chord with the least movement from the previous one, kept near that chord's root, so progressions glide instead of jumping. The same pad can therefore play different inversions depending on what came before, which is what makes it sound good. Measured over 5,000 random changes: about 5.5 semitones of total movement per change (a fixed voicing per pad would be about 17), and the register stays within roughly two octaves; it cannot drift away.
 - **Root, 1st, 2nd, 3rd** force an inversion, so every pad plays the same notes every time; **Open** is drop 2 and **Drop 3** drops the third-highest note; **Wide** puts the root an octave down and spreads the rest; **Shell** keeps root, 3rd and 7th. The seven voicing buttons are shortcuts (by default Smooth, Root, 1st, 2nd, Open, Drop 3, Shell; a profile can choose), and the Voicing encoder on the Chord page reaches all nine. **Brightness** (Style page) moves Smooth's register up or down.
 - Tap a voicing button to keep it; hold one to use it only while held. Pressing a voicing while a chord sounds re-voices it so you hear the difference. The current voicing stays lit.
-- **Latch** (bottom) keeps a chord sounding after you let go, until you press another chord, tap the same pad again, or turn Latch off. One hand taps chords while the other strums or plays the bass row.
+- **Latch** (bottom) keeps chords sounding after you let go: chords pressed together latch together, and they stop when a fresh press (with no pad held) plays another chord, when you tap a latched chord again, or when Latch goes off. One hand taps chords while the other strums or plays the bass row.
 
 **Strum** (Style page)
 
@@ -235,12 +235,12 @@ Rhythm comes from a button: hold pads and they repeat in time, or hold a chord a
 - Repeat turns rhythm on or off; holding it makes rhythm last only while held.
 - With rhythm on, held pads retrigger on the beat grid at the chosen rate, with a 50% gate. Pressure on a held pad sets each repeat's velocity, as on stock Push. A pad still sounds the moment it's pressed; repeats follow on the grid.
 - Rates sit on the side buttons, as printed on them, top to bottom: 1/32t, 1/32, 1/16t, 1/16, 1/8t, 1/8, 1/4t, 1/4. In Keyboard and Drums the side buttons are rates while rhythm is on. In the Chord layout they stay voicings, and holding Repeat turns them into rates until it's released. The screen rail names whichever set is active.
-- In the Chord layout, Repeat retriggers the whole voiced chord.
+- In the Chord layout, Repeat retriggers the whole voiced chord, and its bass note on the bass channel; a note two held chords share repeats once per step.
 
 **Arpeggiator**
 
 - A Rhythm page in Keyboard and Chord picks **Repeat** or **Arp** on the buttons above the display, with Rate on the first encoder and, for the Arp only, Pattern (Up, Down, Up-down, As played, Random), Octaves (1–4) and Gate (10–100%). Drums only repeat. Choosing Repeat or Arp turns rhythm on.
-- Keyboard arpeggiates the notes you hold. Chord arpeggiates the voiced chord, and Latch keeps it going after you let go.
+- Keyboard arpeggiates the notes you hold. Chord arpeggiates the voiced chords together with their bass notes and any held bass-row pads, each note on its own channel (bass notes on the bass channel), so Up starts from the bass; Latch keeps it going after you let go.
 
 **Screen:** while rhythm is on, the status line shows "Repeat 1/16" or "Arp Up 1/16" and the tempo; the tempo also shows while the transport runs.
 

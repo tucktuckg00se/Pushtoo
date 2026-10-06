@@ -451,3 +451,49 @@ def test_bass_note_under_a_chord_makes_a_slash_chord():
     play.pad_released(0, 6)
     play.pad_pressed(0, 4, 100)  # G under Gm is just Gm
     assert play.view()["panel"]["chord_name"] == "Gm"
+
+
+def test_releasing_a_rolled_chord_takes_back_only_its_own_notes(env):
+    app, sent = env()
+    app.play.select_layout(2)
+    chord = app.play.chord
+    chord.timing.spread, chord.timing.roll = True, 30
+    chord._clock = lambda: 100.0
+    virtual = app.router._outputs["Pushtoo Out"]
+    app.pad_pressed(TRIAD, 0, 100)  # Cm rolls in
+    app.pad_pressed(TRIAD, 3, 100)  # a bumped Fm rolls in too
+    app.pad_released(TRIAD, 3)
+    queued = sorted(m[1] for _, m, _ in virtual.scheduled)
+    assert queued and all(n in (51, 55) for n in queued)  # Cm's roll survives
+
+
+def test_a_note_two_held_chords_share_repeats_once_per_step(env):
+    app, _ = env()
+    app.play.select_layout(2)
+    app.play.time = lambda: 100.0
+    app.play.clock.origin = 100.0
+    app.play.set_rhythm(True)
+    app.pad_pressed(TRIAD, 0, 100)  # Cm
+    app.pad_pressed(SEVENTH, 0, 100)  # Cm7 shares C, Eb and G
+    for k in range(10):
+        app.rhythm_tick(100.0 + k * 0.02)
+    virtual = app.router._outputs["Pushtoo Out"]
+    at_step = [m[1] for at, m, _ in virtual.scheduled if m[0] == CHORDS and round(at, 4) == 100.125]
+    assert sorted(at_step) == sorted(set(at_step))  # no note twice in one step
+    assert len(at_step) == 4  # C Eb G Bb
+
+
+def test_a_held_bass_row_pad_joins_the_arpeggio(env):
+    app, _ = env()
+    app.play.select_layout(2)
+    app.play.time = lambda: 100.0
+    app.play.clock.origin = 100.0
+    app.play.rhythm.mode = "Arp"
+    app.play.set_rhythm(True)
+    app.pad_pressed(0, 4, 100)  # bass row: G2
+    app.pad_pressed(TRIAD, 0, 100)  # Cm with its bass C2
+    for k in range(50):  # a full cycle of the five-note pattern
+        app.rhythm_tick(100.0 + k * 0.02)
+    virtual = app.router._outputs["Pushtoo Out"]
+    played = {m[1] for _, m, _ in virtual.scheduled if m[0] == BASS}
+    assert {36, 43} <= played  # both bass notes are in the pattern, on the bass channel
