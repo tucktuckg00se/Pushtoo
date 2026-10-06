@@ -86,7 +86,7 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 | Push 2 control                                               | Pushtoo function                                             |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | Note                                                         | Play mode                                                    |
-| Layout                                                       | Tap: cycle Play's layouts (Keyboard, Drums, Chord). Hold: the buttons above the display name and pick them |
+| Layout                                                       | Tap: cycle Play's layouts (Keyboard, Drums, Chord), switching on release. Hold: the buttons above the display name and pick them |
 | Scale                                                        | Open the scale selector                                      |
 | Device                                                       | Knobs mode                                                   |
 | Browse                                                       | Profile browser                                              |

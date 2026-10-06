@@ -90,6 +90,7 @@ class PlayMode(Mode):
         self.accent = False
         self.scale_open = False
         self.layout_held = False  # while Layout is held, the upper buttons pick a layout
+        self._layout_picked = False  # one was picked, so releasing Layout won't move on
         self.played_once = False
         self.last_drum: int | None = None
         # Rhythm (PRD: Rhythm). Repeat toggles it; held, it's momentary, and in the
@@ -563,7 +564,11 @@ class PlayMode(Mode):
         """Side buttons need releases: a held voicing button only lasts while held.
         So does Layout, whose layout picker shows only while it's held."""
         if name == c.BUTTON_LAYOUT:
+            if not self.layout_held:
+                return False  # a release without its press (say, after a replug)
             self.layout_held = False
+            if not self._layout_picked:
+                self.select_layout((self.current + 1) % len(self.layouts))
             return True
         if name == c.BUTTON_REPEAT:
             self._repeat_released()
@@ -572,6 +577,11 @@ class PlayMode(Mode):
             self.chord.voicing_released(SCENE_BUTTONS.index(name))
             return True
         return False
+
+    def pick_layout(self, index: int) -> None:
+        """An upper button while Layout is held: go straight to that layout."""
+        self._layout_picked = True
+        self.select_layout(index)
 
     def select_layout(self, index: int) -> bool:
         if index == self.current or not 0 <= index < len(self.layouts):
@@ -601,9 +611,10 @@ class PlayMode(Mode):
             self.scale_open = not self.scale_open
             return True
         if name == c.BUTTON_LAYOUT:
-            # A tap moves to the next layout; held, the upper buttons also pick one.
+            # Nothing switches yet: held, the upper buttons pick a layout; released
+            # without picking one, it moves to the next (button_released).
             self.layout_held = True
-            self.select_layout((self.current + 1) % len(self.layouts))
+            self._layout_picked = False
             return True
         if name == c.BUTTON_ACCENT:
             self.accent = not self.accent

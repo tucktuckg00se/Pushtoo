@@ -4,7 +4,7 @@ from pushtoo.midi.router import OUT_PORT
 from pushtoo.modes.play import PlayMode
 from pushtoo.render.screens import status_parts
 from pushtoo.ui.controls import INCREMENTS_PER_STEP
-from tests.pages import open_page
+from tests.pages import open_page, tap_layout
 from tests.test_router import make_router
 
 USB = "USB MIDI:USB MIDI MIDI 1"
@@ -24,7 +24,7 @@ def test_keyboard_pad_plays_in_key_on_channel_1():
 
 def test_layout_button_switches_to_drums_on_channel_10():
     play, virtual, _ = make_play()
-    assert play.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(play)
     play.pad_pressed(0, 0, 90)
     assert virtual.sent == [[0x99, 36, 90]]
     assert play.view()["panel"]["kind"] == "drums"
@@ -40,7 +40,7 @@ def test_accent_forces_full_velocity():
 
 def test_octave_buttons_move_drum_banks():
     play, virtual, _ = make_play()
-    play.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(play)
     play.button_pressed(c.BUTTON_OCTAVE_UP)
     play.pad_pressed(0, 0, 90)
     assert virtual.sent[-1] == [0x99, 52, 90]
@@ -102,11 +102,11 @@ def test_output_page_routes_new_notes_and_releases_old_ones_where_they_started()
 def test_each_layout_remembers_its_page():
     play, *_ = make_play()
     open_page(play, "Strip")
-    play.button_pressed(c.BUTTON_LAYOUT)  # Drums
+    tap_layout(play)  # Drums
     assert play.page.name == "Drums"  # each layout opens on its main page
-    play.button_pressed(c.BUTTON_LAYOUT)  # Chord
+    tap_layout(play)  # Chord
     assert play.page.name == "Chord"
-    play.button_pressed(c.BUTTON_LAYOUT)  # back to Keyboard
+    tap_layout(play)  # back to Keyboard
     assert play.page.name == "Strip"
 
 
@@ -159,7 +159,7 @@ def test_octave_buttons_go_dark_at_their_limits():
         colors = play.button_colors()
         assert colors[c.BUTTON_OCTAVE_UP] == "white"
         assert colors[c.BUTTON_OCTAVE_DOWN] == "dark_gray"
-        play.button_pressed(c.BUTTON_LAYOUT)
+        tap_layout(play)
 
 
 def test_details_show_state_not_settings():
@@ -171,8 +171,8 @@ def test_details_show_state_not_settings():
     play.button_pressed(c.BUTTON_ACCENT)
     play.layout.destination = "USB MIDI:USB MIDI MIDI 1"
     assert status_parts(play.view()["panel"]) == ["Chromatic", "Accent", "→ USB MIDI MIDI 1"]
-    play.button_pressed(c.BUTTON_LAYOUT)
-    play.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(play)
+    tap_layout(play)
     play.button_pressed(c.BUTTON_ACCENT)
     assert status_parts(play.view()["panel"]) == ["C Minor"]
     play.button_pressed(c.BUTTON_OCTAVE_UP)
@@ -181,14 +181,23 @@ def test_details_show_state_not_settings():
     assert status_parts(play.view()["panel"]) == ["C Minor", "Oct 4", "Strum the strip"]
 
 
+def test_layout_switches_on_release_not_on_press(env):
+    app, _ = env()
+    app.button_pressed(c.BUTTON_LAYOUT)
+    assert app.play.layout.name == "Keyboard"  # held: nothing switches yet
+    app.button_released(c.BUTTON_LAYOUT)
+    assert app.play.layout.name == "Drums"
+    app.button_released(c.BUTTON_LAYOUT)  # a release with no press does nothing
+    assert app.play.layout.name == "Drums"
+
+
 def test_holding_layout_picks_a_layout_with_the_upper_buttons(env):
     app, _ = env()
-    app.button_pressed(c.BUTTON_LAYOUT)  # a tap still moves to the next layout
-    assert app.play.layout.name == "Drums"
+    app.button_pressed(c.BUTTON_LAYOUT)
     view = app.view()
     assert view["overlay"]["title"] == "Layout"
     assert [item["label"] for item in view["upper"][:3]] == ["Keyboard", "Drums", "Chord"]
-    assert view["upper"][1]["selected"]
+    assert view["upper"][0]["selected"]
     app.button_pressed("Upper Row 3")
     assert app.play.layout.name == "Chord"
     app.button_released(c.BUTTON_LAYOUT)
@@ -219,7 +228,7 @@ def test_keyboard_and_drums_have_their_own_velocity_pages():
         play.pad_released(0, 0)
     hits = {m[2] for m in virtual.sent if m[0] == 0x90}
     assert len(hits) > 5 and min(hits) >= 30
-    play.button_pressed(c.BUTTON_LAYOUT)  # Drums keep their own settings
+    tap_layout(play)  # Drums keep their own settings
     assert play.layout.velocity.random is False
 
 

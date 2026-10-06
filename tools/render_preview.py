@@ -215,6 +215,7 @@ def sample_views() -> dict[str, dict]:
 
     play = _play()
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     play.pad_pressed(0, 1, 100)
     play.pad_released(0, 1)
     play.button_pressed(c.BUTTON_ACCENT)
@@ -234,7 +235,9 @@ def sample_views() -> dict[str, dict]:
 def _chord_views(views: dict[str, dict]) -> None:
     play = _play()
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     views["chord_idle"] = play.view()
     play.pad_pressed(1, 0, 100)  # Cm
     play.pad_released(1, 0)
@@ -264,13 +267,17 @@ def _chord_views(views: dict[str, dict]) -> None:
     play = _play()
     play.keyboard.scale = "Minor Pentatonic"
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     play.pad_pressed(4, 2, 100)  # sus on III
     views["chord_pentatonic"] = play.view()
 
     play = _play()
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_released(c.BUTTON_LAYOUT)
     play.pad_pressed(1, 7, 100)  # the right column: the first chord an octave up
     views["chord_lift"] = play.view()
     play.pad_released(1, 7)

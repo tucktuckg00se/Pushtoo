@@ -19,7 +19,7 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 | Note, Device                    | Play and Knobs modes                                                 |
 | Browse                          | Profile list: encoder 1 picks, top-left button loads. Browse again, or the `‹` button at the bottom right, goes back |
 | Setup                           | Pad feel, aftertouch, brightness and clock (see below). Setup again, or `‹`, goes back |
-| Layout                          | Tap to cycle Keyboard (channel 1), Drums (channel 10) and the chord grid (channels 2 and 3). Hold it and press the button above a layout's name to go straight there |
+| Layout                          | Tap to cycle Keyboard (channel 1), Drums (channel 10) and the chord grid (channels 2 and 3); it switches when you let go. Hold it and press the button above a layout's name to go straight there |
 | Scale                           | Open or close the scale selector: top buttons pick In key/Chromatic and C G D A E B F#, bottom buttons pick F Bb Eb Ab Db Gb, encoder 1 picks the scale, encoder 2 the root |
 | Octave up / down                | Keyboard and chords: shift an octave. Drums: shift one bank of 16 notes. A button goes dark when it can't go further |
 | Buttons below the display       | Pages. The first is each layout's main page, named for it (Keyboard: octave; Drums: notes; Chord: octave, voicing and the pad map); the rest are its settings, ending with **Output** (destination port and channel) |

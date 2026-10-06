@@ -6,3 +6,11 @@ def open_page(target, name: str) -> None:
     mode = getattr(target, "mode", target)
     index = [page.name for page in mode.pages].index(name)
     target.button_pressed(f"Lower Row {index + 1}")
+
+
+def tap_layout(target) -> None:
+    """Press and release Layout: the next layout, which switches on release."""
+    from push2_python import constants as c
+
+    target.button_pressed(c.BUTTON_LAYOUT)
+    target.button_released(c.BUTTON_LAYOUT)

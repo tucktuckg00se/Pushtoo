@@ -5,7 +5,7 @@ from push2_python import constants as c
 
 from pushtoo.modes.play import PlayMode
 from pushtoo.profiles.schema import Profile
-from tests.pages import open_page
+from tests.pages import open_page, tap_layout
 from tests.test_router import make_router
 
 CHORDS, BASS = 0x91, 0x92  # note-on, channels 2 and 3
@@ -32,8 +32,8 @@ def make_chord_play(key=None):
     play.apply_settings(Profile().play)
     if key:
         play.keyboard.root, play.keyboard.scale = key
-    play.button_pressed(c.BUTTON_LAYOUT)
-    play.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(play)
+    tap_layout(play)
     assert play.layout.name == "Chord"
     clock = Clock()
     play.chord._clock = clock
@@ -162,7 +162,7 @@ def test_leaving_the_layout_releases_everything():
     play, _, _ = make_chord_play()
     play.pad_pressed(TRIAD, 0, 100)
     play.pad_pressed(0, 2, 100)
-    play.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(play)
     assert play.router.notes_on("Pushtoo Out", 1) == set()
     assert play.router.notes_on("Pushtoo Out", 2) == set()
 
@@ -226,8 +226,8 @@ def test_state_round_trip():
 
 def test_voicing_buttons_work_from_knobs_mode(env):
     app, sent = env()
-    app.button_pressed(c.BUTTON_LAYOUT)
-    app.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(app)
+    tap_layout(app)
     app.button_pressed(c.BUTTON_DEVICE)
     app.button_pressed(VOICING["Root"])  # tapped
     app.button_released(VOICING["Root"])
@@ -371,8 +371,8 @@ def test_chord_pages_leave_the_rail_column_free():
 
 def test_side_buttons_outside_the_chord_screen_toast(env):
     app, _ = env()
-    app.button_pressed(c.BUTTON_LAYOUT)
-    app.button_pressed(c.BUTTON_LAYOUT)
+    tap_layout(app)
+    tap_layout(app)
     app.button_pressed(c.BUTTON_DEVICE)
     app.button_pressed(VOICING["Open"])
     assert app.view()["toast"] == "Voicing: Open (held)"

@@ -251,6 +251,7 @@ def main() -> None:
             for label, chord, hog, layout, pads in rounds:
                 while app.play.layout.name != layout:
                     app.button_pressed(c.BUTTON_LAYOUT)
+                    app.button_released(c.BUTTON_LAYOUT)  # layouts switch on release
                 # A fixed voicing, so each pad's first note is predictable (Smooth
                 # depends on the previous chord).
                 app.play.chord.voicing = "Root"

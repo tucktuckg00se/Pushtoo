@@ -336,7 +336,7 @@ class App:
             self._switch(self.play)
             self.play.button_pressed(name)
         elif self.play.layout_held and (index := row_index(name, "Upper")) is not None:
-            self.play.select_layout(index)
+            self.play.pick_layout(index)
         elif name in PLAY_BUTTONS:
             self.play.button_pressed(name)
             self._describe_side_button(name)

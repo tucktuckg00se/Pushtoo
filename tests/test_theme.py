@@ -10,6 +10,7 @@ from push2_python.constants import DEFAULT_COLOR_PALETTE
 from push2_python.push2_map import push2_map
 
 from pushtoo.theme import LED_COLORS
+from tests.pages import tap_layout
 
 RGB_NAMES = {rgb for rgb, _ in DEFAULT_COLOR_PALETTE.values() if rgb} | set(LED_COLORS)
 BW_NAMES = {bw for _, bw in DEFAULT_COLOR_PALETTE.values() if bw} | set(LED_COLORS)
@@ -32,7 +33,7 @@ def test_every_mode_and_layout_uses_known_colors(env):
     check(app)
     app.button_pressed(c.BUTTON_SCALE)
     for _ in range(2):  # Drums, then Chord
-        app.button_pressed(c.BUTTON_LAYOUT)
+        tap_layout(app)
         check(app)
     app.pad_pressed(1, 0, 100)
     check(app)
