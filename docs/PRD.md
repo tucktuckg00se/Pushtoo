@@ -399,7 +399,7 @@ The latency gate (`tools/latency/latency.py`) runs at every milestone and must p
 
 **Open questions**
 
-- [x] Pysha's license allows this fork: yes, MIT for Pysha and push2-python.
+- [x] Pysha's license allows this fork: yes, MIT for Pysha and push2-python. Pushtoo itself is GPL-3.0-or-later; MIT code may be included in it as long as its notice is kept (LICENSES/MIT-Pysha.txt).
 - [ ] Which audio stacks are in the v1 test matrix: PipeWire only, or also plain ALSA and JACK?
 - [ ] Should Life mode play notes by default, or stay silent until switched on?
 - [x] Does the Smooth voicing need a "brightness" control? Yes: Brightness on the Style page, −6…+6 semitones.

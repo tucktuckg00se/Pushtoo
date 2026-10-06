@@ -153,4 +153,8 @@ uv run python tools/clock/jitter.py     # clock timing gate (p99 < 1 ms); needs 
 
 ## Credits
 
-Pushtoo is a fork of [Pysha](https://github.com/ffont/pysha) by Frederic Font and uses a fork of his [push2-python](https://github.com/ffont/push2-python). Both are MIT licensed.
+Pushtoo is a fork of [Pysha](https://github.com/ffont/pysha) by Frederic Font and uses a fork of his [push2-python](https://github.com/ffont/push2-python). Both are MIT licensed; Pysha's MIT notice is kept in [LICENSES/MIT-Pysha.txt](LICENSES/MIT-Pysha.txt).
+
+## License
+
+Pushtoo is free software under the [GNU General Public License, version 3](LICENSE) or (at your option) any later version. Versions up to commit `55fea34` were released under the MIT License.
