@@ -5,6 +5,7 @@ from push2_python import constants as c
 
 from pushtoo.modes.play import PlayMode
 from pushtoo.profiles.schema import Profile
+from tests.pages import open_page
 from tests.test_router import make_router
 
 CHORDS, BASS = 0x91, 0x92  # note-on, channels 2 and 3
@@ -130,7 +131,7 @@ def test_bass_row_plays_single_notes_alongside_chords():
 
 def test_mutes():
     play, sent, _ = make_chord_play()
-    play.button_pressed("Lower Row 4")  # Output page
+    open_page(play, "Output")
     play.button_pressed("Upper Row 2")  # Mute bass
     play.pad_pressed(TRIAD, 0, 100)
     assert notes_on(sent, BASS) == []
@@ -168,7 +169,8 @@ def test_leaving_the_layout_releases_everything():
 
 def test_strum():
     play, sent, clock = make_chord_play()
-    play.button_pressed("Upper Row 2")  # Style page: Strum
+    open_page(play, "Style")
+    play.button_pressed("Upper Row 2")  # Strum
     assert play.hardware_settings()["strip_mode"] == "Mod wheel"
     play.pad_pressed(TRIAD, 0, 100)
     assert notes_on(sent) == [] and notes_on(sent, BASS) == [36]
@@ -213,6 +215,7 @@ def test_pentatonic_borrows_its_parents_chords():
 def test_state_round_trip():
     play, _, clock = make_chord_play()
     tap_voicing(play, clock, "Open")
+    open_page(play, "Style")
     play.button_pressed("Upper Row 2")  # Strum
     play.button_pressed(c.BUTTON_OCTAVE_DOWN)
     state = play.snapshot()
@@ -262,6 +265,7 @@ def test_turning_latch_off_releases_a_latched_chord():
 
 def test_latch_lets_one_hand_strum():
     play, sent, clock = make_chord_play()
+    open_page(play, "Style")
     play.button_pressed("Upper Row 2")  # Strum
     play.button_pressed(LATCH)
     play.pad_pressed(TRIAD, 0, 100)

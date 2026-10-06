@@ -8,6 +8,7 @@ from pushtoo.midi.router import OUT_PORT
 from pushtoo.render.screens import status_parts
 from pushtoo.rhythm.repeat import CHORD_TAG
 from pushtoo.rhythm.timing import TimingSpread
+from tests.pages import open_page
 
 CHORD = [55, 48, 51]  # G, C, Eb: offsets come back in this order
 TRIAD = 1
@@ -104,7 +105,7 @@ def test_repeats_roll_too(rolled):
 def test_timing_page_shows_its_encoders_only_when_spread_out(env):
     app, _ = env()
     app.play.select_layout(2)
-    app.button_pressed("Lower Row 3")  # Timing
+    open_page(app, "Timing")
     assert all(control is None for control in app.view()["controls"])
     app.button_pressed("Upper Row 2")  # Spread out
     assert [c["name"] for c in app.view()["controls"][:3]] == ["Roll", "Direction", "Loose"]

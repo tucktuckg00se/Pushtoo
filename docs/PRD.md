@@ -124,6 +124,7 @@ In key / Chromatic applies to the Keyboard layout; the chord grid is always buil
 **Navigation rules**
 
 - The 8 buttons below the display pick pages; the 8 above pick options. Each label sits next to its button, and the current page is highlighted.
+- Each layout's first page is its main page, named for the layout and holding what you reach for while playing; the pages after it are settings, in the same order everywhere (feel, then Rhythm, then Output last). Big playing aids like the chord grid's pad map appear only on the main page, so settings pages keep the room for the setting at hand.
 - Shift combinations are secondary actions, and holding Shift lists them on screen.
 - Touching an encoder "peeks" without changing anything: its control grows in place (a bigger arc, a brighter name, a larger value) and the rest of the screen stays. Tempo, Swing and Master have no column, so they show the same way in the edge column nearest them (left for Tempo and Swing, right for Master).
 - Each mode remembers its page and layout, and each profile remembers where you left off.
@@ -183,7 +184,7 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 
 A chord pad plays only its bass note, and the touch strip strums the voiced chord across 1–3 octaves, one note per tone crossed, like an Omnichord. Strummed notes ring until the chord changes or is released. In Strum style the strip runs in the Push's mod-wheel mode, because pitch-bend mode springs back to center and would strum again on release.
 
-**Pages:** Style (Press or Strum, strum range), Velocity and Timing (below), Output (destination, chords channel, bass channel, Mute chords, Mute bass) and Rhythm.
+**Pages:** Chord, the main page (Octave and Voicing on the encoders, the pad map on screen), then the settings: Style (Press or Strum, strum range), Velocity and Timing (below), Rhythm, and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
 
 **Velocity** (Velocity page)
 

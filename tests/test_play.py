@@ -4,6 +4,7 @@ from pushtoo.midi.router import OUT_PORT
 from pushtoo.modes.play import PlayMode
 from pushtoo.render.screens import status_parts
 from pushtoo.ui.controls import INCREMENTS_PER_STEP
+from tests.pages import open_page
 from tests.test_router import make_router
 
 USB = "USB MIDI:USB MIDI MIDI 1"
@@ -88,7 +89,7 @@ def test_key_change_while_held_releases_the_original_pitch():
 def test_output_page_routes_new_notes_and_releases_old_ones_where_they_started():
     play, virtual, opened = make_play()
     play.pad_pressed(0, 0, 100)  # held on Pushtoo Out
-    play.button_pressed("Lower Row 3")  # Output page, refreshes destinations
+    open_page(play, "Output")  # refreshes destinations
     assert play.page.name == "Output"
     play.encoder_turned(0, STEP)
     assert play.layout.destination == USB
@@ -100,11 +101,11 @@ def test_output_page_routes_new_notes_and_releases_old_ones_where_they_started()
 
 def test_each_layout_remembers_its_page():
     play, *_ = make_play()
-    play.button_pressed("Lower Row 2")
+    open_page(play, "Strip")
     play.button_pressed(c.BUTTON_LAYOUT)  # Drums
-    assert play.page.name == "Play"
+    assert play.page.name == "Drums"  # each layout opens on its main page
     play.button_pressed(c.BUTTON_LAYOUT)  # Chord
-    assert play.page.name == "Style"
+    assert play.page.name == "Chord"
     play.button_pressed(c.BUTTON_LAYOUT)  # back to Keyboard
     assert play.page.name == "Strip"
 
@@ -113,7 +114,7 @@ def test_touch_strip_sends_pitch_bend_or_mod_wheel():
     play, virtual, _ = make_play()
     play.touchstrip(0)
     assert virtual.sent[-1] == [0xE0, 0, 64]
-    play.button_pressed("Lower Row 2")  # Strip page
+    open_page(play, "Strip")
     play.button_pressed("Upper Row 2")  # Mod wheel
     assert play.hardware_settings()["strip_mode"] == "Mod wheel"
     play.touchstrip(90)
@@ -139,7 +140,7 @@ def test_view_has_eight_columns_everywhere():
 def test_unknown_destination_still_renders():
     play, *_ = make_play()
     play.layout.destination = "Gone:Port"
-    play.button_pressed("Lower Row 3")
+    open_page(play, "Output")
     assert play.view()["controls"][0]["text"] == "—"
     assert OUT_PORT in play.router.destinations()
 
@@ -175,7 +176,8 @@ def test_details_show_state_not_settings():
     play.button_pressed(c.BUTTON_ACCENT)
     assert status_parts(play.view()["panel"]) == ["C Minor"]
     play.button_pressed(c.BUTTON_OCTAVE_UP)
-    play.button_pressed("Upper Row 2")  # Style page: Strum
+    open_page(play, "Style")
+    play.button_pressed("Upper Row 2")  # Strum
     assert status_parts(play.view()["panel"]) == ["C Minor", "Oct 4", "Strum the strip"]
 
 

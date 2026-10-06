@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from push2_python import constants as c
 
+from pushtoo.chords import VOICINGS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
 from pushtoo.modes.chord import HOLD_SECONDS, SCENE_BUTTONS, ChordPlayer
@@ -172,13 +173,37 @@ class PlayMode(Mode):
                 lambda: chord.mute_bass,
             ),
         ]
+        main = Page(
+            "Chord",
+            controls=[
+                Control(
+                    "Octave",
+                    lambda: chord.octave,
+                    lambda v: chord.shift_octave(v - chord.octave),
+                    minimum=CHORD_MIN_OCTAVE,
+                    maximum=CHORD_MAX_OCTAVE,
+                ),
+                Control(
+                    "Voicing",
+                    lambda: VOICINGS.index(chord.voicing),
+                    lambda v: self._set_voicing(VOICINGS[v]),
+                    choices=VOICINGS,
+                ),
+            ],
+        )
+        # The main page first, where you play; then the settings that shape it.
         return [
+            main,
             Page("Style", controls=[strum_range], options=style_options),
             self._velocity_page(),
             self._timing_page(),
-            Page("Output", controls=output, options=mute_options),
             self._rhythm_page(),
+            Page("Output", controls=output, options=mute_options),
         ]
+
+    def _set_voicing(self, voicing: str) -> None:
+        self.chord.voicing = voicing
+        self.chord.revoice()  # hear it on the chord you're holding
 
     def _timing_page(self) -> Page:
         """When each chord note starts: Together, or Spread out by Roll and Loose."""
@@ -325,13 +350,12 @@ class PlayMode(Mode):
                 "Channel", lambda: layout.channel, lambda v: setattr(layout, "channel", v)
             ),
         ]
-        pages = [
-            Page("Play", controls=[first]),  # pad feel is in Setup
-            Page("Strip", options=strip_options),
-            Page("Output", controls=output),
-        ]
+        # The main page, named for the layout, first; then its settings, Output last.
+        # (Pad feel is in Setup.)
+        pages = [Page(layout.name, controls=[first]), Page("Strip", options=strip_options)]
         if layout.name == "Keyboard":  # Drums only repeat, with rates on the side buttons
             pages.append(self._rhythm_page())
+        pages.append(Page("Output", controls=output))
         return pages
 
     def _strip_setter(self, index: int) -> Callable[[], None]:
@@ -727,6 +751,7 @@ class PlayMode(Mode):
             "destination": short_port_name(destination),
             "kind": "scale_selector" if self.scale_open else layout.name.lower(),
             "layout": layout.name,
+            "main": self.page_index == 0,  # the playing page; the rest are settings
             "default_destination": destination == OUT_PORT,
             "channel": layout.channel,
             "accent": self.accent,

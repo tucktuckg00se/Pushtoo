@@ -321,10 +321,10 @@ def _rail(ctx: cairo.Context, rail: list[dict], accent) -> None:
 
 
 def _panel_chord(ctx, panel, x0, width, accent) -> None:
-    if width >= MAP_MIN_PANEL:
+    if panel.get("main", True) and width >= MAP_MIN_PANEL:
         _pad_map(ctx, panel, x0 + 12, 28)
         x = x0 + 12 + 8 * PITCH + MAP_LABELS + 8
-    else:  # pages with many encoders: the chord and its velocities need the room
+    else:  # settings pages show the chord, not the grid
         x = x0 + 16
     width = x0 + width - x - 12
     title_end = _layout_title(ctx, panel, x)

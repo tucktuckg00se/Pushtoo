@@ -11,6 +11,7 @@ from pushtoo.midi.router import OUT_PORT
 from pushtoo.render.screens import status_parts
 from pushtoo.setup import DeviceSettings, hardware
 from pushtoo.ui.controls import INCREMENTS_PER_STEP
+from tests.pages import open_page
 
 STEP = INCREMENTS_PER_STEP
 TRIAD = 1
@@ -165,7 +166,7 @@ def test_accent_centers_random_chords_at_max(env):
 
 def test_the_velocity_page_shows_spread_only_for_random(env):
     app, _ = chord_app(env)
-    app.button_pressed("Lower Row 2")
+    open_page(app, "Velocity")
     names = [c["name"] if c else None for c in app.view()["controls"]]
     assert names[:4] == ["Min", "Max", None, None]
     app.button_pressed("Upper Row 2")  # Random

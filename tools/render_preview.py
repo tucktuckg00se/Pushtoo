@@ -64,6 +64,12 @@ knobs:
 """
 
 
+def _page(target, name: str) -> None:
+    """Press the button below the page called `name` (on a mode, or an App's mode)."""
+    mode = getattr(target, "mode", target)
+    target.button_pressed(f"Lower Row {[p.name for p in mode.pages].index(name) + 1}")
+
+
 def _app(tmp: Path, profile: str | None = None) -> App:
     config = tmp / "profiles"
     config.mkdir(parents=True, exist_ok=True)
@@ -108,7 +114,7 @@ def _m2_views(views: dict[str, dict]) -> None:
         app.button_pressed("1/8t")
         app.button_pressed(c.BUTTON_PLAY)
         views["keyboard_repeat_rates"] = app.view()
-        app.button_pressed("Lower Row 4")
+        _page(app, "Rhythm")
         views["keyboard_rhythm_page"] = app.view()
         app.encoder_touched(c.ENCODER_TEMPO_ENCODER)
         views["peek_tempo"] = app.view()
@@ -123,13 +129,13 @@ def _m2_views(views: dict[str, dict]) -> None:
         app.button_pressed(c.BUTTON_REPEAT)  # held: the side buttons are rates
         views["chord_repeat_held"] = app.view()
         app.button_released(c.BUTTON_REPEAT)
-        app.button_pressed("Lower Row 2")  # Velocity page
+        _page(app, "Velocity")
         app.button_pressed("Upper Row 2")  # Random
         app.encoder_rotated("Track3 Encoder", 6 * 30)  # Spread
         app.pad_pressed(2, 3, 90)  # Fm7
         views["chord_random_velocity"] = app.view()
         app.pad_released(2, 3)
-        app.button_pressed("Lower Row 3")  # Timing page
+        _page(app, "Timing")
         app.button_pressed("Upper Row 2")  # Spread out
         views["chord_timing"] = app.view()
         app.button_pressed(c.BUTTON_SETUP)
@@ -201,10 +207,10 @@ def sample_views() -> dict[str, dict]:
     views["toast"] = toast
 
     play = _play()
-    play.button_pressed("Lower Row 3")  # Output page
+    _page(play, "Output")
     play.encoder_turned(0, 6)
     views["keyboard_output_page"] = play.view()
-    play.button_pressed("Lower Row 2")
+    _page(play, "Strip")
     views["keyboard_strip_page"] = play.view()
 
     play = _play()
@@ -247,11 +253,12 @@ def _chord_views(views: dict[str, dict]) -> None:
     clock[0] += 1.0
     play.button_released("1/8")
     play.button_pressed("1/4")  # Latch (bottom side button)
+    _page(play, "Style")
     play.button_pressed("Upper Row 2")  # Strum
     play.pad_pressed(1, 3, 100)
     play.pad_released(1, 3)
     views["chord_latched_strum"] = play.view()
-    play.button_pressed("Lower Row 4")
+    _page(play, "Output")
     views["chord_output_page"] = play.view()
 
     play = _play()
