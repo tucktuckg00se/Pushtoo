@@ -200,7 +200,51 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
         parts.insert(0, "Latch")
     if panel["accent"]:
         parts.append("Accent")
-    _text(ctx, _fit(ctx, " · ".join(parts), width - 32, BODY), x0 + 16, 116, BODY, TEXT)
+    status = _fit(ctx, " · ".join(parts), width - 32, BODY)
+    _text(ctx, status, x0 + 16, 116, BODY, TEXT)
+    status_end = x0 + 16 + ctx.text_extents(status).x_advance
+    _history(ctx, panel, max(status_end + 24, right), accent)
+
+
+FUNCTION_COLORS = {"away": "blue", "tension": "amber", "borrowed": "violet", "secondary": "pink"}
+
+
+def _history(ctx: cairo.Context, panel: dict, left: float, accent) -> None:
+    """Recent chords as a lead-sheet line, | Cm | Gm | Fm7 |, newest at the right edge.
+    Numerals take the pad colors; the oldest chords drop off when space runs out."""
+    pad, right = 12, WIDTH - 16
+    cells = []
+    for chord in reversed(panel["history"]):
+        _font(ctx, BODY, True)
+        name_width = ctx.text_extents(chord["name"]).x_advance
+        _font(ctx, 12, False)
+        width = max(name_width, ctx.text_extents(chord["numeral"]).x_advance) + 2 * pad
+        if right - sum(w for _, w in cells) - width < left:
+            break
+        cells.append((chord, width))
+    if not cells:
+        return
+    x = right - sum(w for _, w in cells)
+    ctx.set_line_width(1)
+    for i, (chord, width) in enumerate(reversed(cells)):
+        newest = i == len(cells) - 1
+        _bar_line(ctx, x)
+        if newest:
+            color = accent if panel["sounding"] else TEXT
+        else:
+            color = TEXT_DIM
+        _text(ctx, chord["name"], x + pad, 113, BODY, color, bold=newest)
+        function = FUNCTION_COLORS.get(chord["function"])
+        _text(ctx, chord["numeral"], x + pad, 129, 12, rgb(function) if function else accent)
+        x += width
+    _bar_line(ctx, x - 1)
+
+
+def _bar_line(ctx: cairo.Context, x: float) -> None:
+    ctx.set_source_rgb(*TEXT_DIM)
+    ctx.move_to(x + 0.5, 99)
+    ctx.line_to(x + 0.5, 131)
+    ctx.stroke()
 
 
 def _panel_knobs(ctx, panel, x0, width, accent) -> None:

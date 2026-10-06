@@ -285,3 +285,58 @@ def test_octave_column_is_the_first_column_lifted():
     left = play.chord.notes_for((TRIAD, 0))
     right = play.chord.notes_for((TRIAD, 7))
     assert right == [n + 12 for n in left]
+
+
+def history(play):
+    return [(h["name"], h["numeral"], h["function"]) for h in play.view()["panel"]["history"]]
+
+
+def tap(play, row, col):
+    play.pad_pressed(row, col, 100)
+    play.pad_released(row, col)
+
+
+def test_history_lists_chords_played_and_skips_repeats():
+    play, _, _ = make_chord_play()
+    assert history(play) == []
+    for col in (0, 4, 4, 3):  # Cm, Gm, Gm again, Fm
+        tap(play, TRIAD, col)
+    tap(play, SEVENTH, 3)  # Fm7 counts: a different chord from Fm
+    assert history(play) == [
+        ("Cm", "i", "home"),
+        ("Gm", "v", "tension"),
+        ("Fm", "iv", "away"),
+        ("Fm7", "iv7", "away"),
+    ]
+
+
+def test_history_colors_borrowed_and_secondary_chords():
+    play, _, _ = make_chord_play()
+    tap(play, SECONDARY, 0)
+    tap(play, 6, 0)  # borrowed row: C major from C major
+    assert [h[2] for h in history(play)] == ["secondary", "borrowed"]
+
+
+def test_history_keeps_names_from_when_they_were_played():
+    play, _, _ = make_chord_play()
+    tap(play, TRIAD, 0)
+    play.keyboard.root = 2  # D minor
+    play.chord.revoice()
+    tap(play, TRIAD, 0)
+    assert [h[0] for h in history(play)] == ["Cm", "Dm"]
+
+
+def test_history_ignores_bass_notes_and_stopping_a_latched_chord():
+    play, _, _ = make_chord_play()
+    play.button_pressed(LATCH)
+    tap(play, TRIAD, 0)
+    tap(play, 0, 3)  # bass row
+    tap(play, TRIAD, 0)  # stops the latched Cm
+    assert [h[0] for h in history(play)] == ["Cm"]
+
+
+def test_history_is_capped():
+    play, _, _ = make_chord_play()
+    for i in range(40):
+        tap(play, TRIAD + i % 2, i % 7)
+    assert len(history(play)) == 16

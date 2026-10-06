@@ -39,6 +39,7 @@ BASS_ROW = 0
 MAX_TONES = 8
 NEW_TOUCH_GAP = 0.08  # seconds without strip messages that count as lifting the finger
 HOLD_SECONDS = 0.3  # a voicing button held this long acts only while held
+HISTORY = 16  # recent chords kept for the screen; it shows as many as fit
 MIN_OCTAVE, MAX_OCTAVE = 1, 6
 # Side buttons, top to bottom: the voicings, then Latch. push2-python's map puts
 # "1/32t" on CC 43, the top button, and "1/4" on CC 36, the bottom.
@@ -75,6 +76,7 @@ class ChordPlayer:
         self.velocity = 100
         self.notes: list[int] = []  # what the sounding (or last) chord played
         self.last_chord: Chord | None = None
+        self.history: list[dict] = []  # recent chords as shown when played, oldest first
         self.bass_pads: set[Pad] = set()
         self._strum_index: int | None = None
         self._strum_time = 0.0
@@ -169,6 +171,20 @@ class ChordPlayer:
         self._silence()  # the last chord pressed wins; changes re-trigger
         self._sound(pad, velocity)
         self.current_held = True
+        self._remember(self.chord_for(pad))
+
+    def _remember(self, chord: Chord) -> None:
+        """Add a pressed chord to the history. Names are fixed when played, so a later
+        key change doesn't rename the past; pressing the same chord again counts once."""
+        names = key_spelling(self.key)
+        entry = {
+            "name": chord_name(chord.pitch_class(self.key), chord.intervals, names),
+            "numeral": numeral_label(chord, self.key),
+            "function": self._function(chord),
+        }
+        if self.history and self.history[-1]["name"] == entry["name"]:
+            return
+        self.history = [*self.history, entry][-HISTORY:]
 
     def pad_released(self, row: int, col: int) -> None:
         pad = (row, col)
@@ -292,6 +308,10 @@ class ChordPlayer:
             return led("pink")
         return ROLE_COLORS[role(chord, self.key)]
 
+    def _function(self, chord: Chord) -> str:
+        """What a chord does, for its color: home, away, tension, borrowed, secondary."""
+        return chord.kind if chord.kind in ("borrowed", "secondary") else role(chord, self.key)
+
     def scene_colors(self) -> dict[str, str]:
         colors = {name: "black" for name in SCENE_BUTTONS}
         for i, voicing in enumerate(VOICINGS):
@@ -307,6 +327,7 @@ class ChordPlayer:
             "sounding": self.current is not None,
             "latch": self.latch,
             "parent": None,
+            "history": self.history,
         }
         if uses_parent(self.key):
             parent = next(n for n, s in SCALES.items() if s == parent_scale(self.key))

@@ -181,7 +181,7 @@ A chord pad plays only its bass note, and the touch strip strums the voiced chor
 
 **Pages:** Style (Off or Strum, strum range) and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
 
-**Screen:** the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
+**Screen:** the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away. Below the notes, the recent chords run as a lead-sheet line (| Cm | Gm | Fm7 |), newest at the right, each numeral in its pad color; a repeat of the last chord counts once, and the oldest drop off when space runs out.
 
 ## Visual design system
 
