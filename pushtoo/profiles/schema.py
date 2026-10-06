@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from pushtoo.midi.router import OUT_PORT
 from pushtoo.music import VELOCITY_CURVES
+from pushtoo.rhythm.repeat import RATE_NAMES
 from pushtoo.theme import CONTROL_COLOR_NAMES
 
 Channel = Annotated[int, Field(ge=1, le=16)]
@@ -136,6 +137,15 @@ class Undo(Strict):
     redo: Action = Field(default_factory=lambda: Action(keys="ctrl+shift+z"))
 
 
+class Rhythm(Strict):
+    """Clock and note repeat defaults (PRD: Rhythm)."""
+
+    clock_out: bool = True  # send MIDI clock on Pushtoo Out while leading
+    tempo: float = Field(120.0, ge=40, le=240)
+    swing: int = Field(50, ge=50, le=75)
+    rate: Literal[RATE_NAMES] = "1/16"  # type: ignore[valid-type]
+
+
 class Profile(Strict):
     name: str = Field("Default", min_length=1, max_length=40)
     output: str = OUT_PORT  # where Knobs, Mix and Undo MIDI go
@@ -144,3 +154,4 @@ class Profile(Strict):
     knobs: Knobs = Field(default_factory=Knobs)
     mix: Mix = Field(default_factory=Mix)
     undo: Undo = Field(default_factory=Undo)
+    rhythm: Rhythm = Field(default_factory=Rhythm)

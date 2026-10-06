@@ -38,6 +38,7 @@ secondary: f06595   # secondary dominants (V7 of)
 latch: fcc419       # Latch side button and the screen's "Latched" note
 mute: ff6b6b        # Mix mute pads
 solo: 4dabf7        # Mix solo pads
+rate: 22b8cf        # the chosen repeat or arp rate on the side buttons
 
 # Colors a profile can give a knob (color: orange)
 red: ff6b6b

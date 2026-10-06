@@ -177,6 +177,7 @@ def status_parts(panel: dict) -> list[str]:
         parts.append("Accent")
     if not panel["default_destination"]:
         parts.append(f"→ {panel['destination']}")  # otherwise a silent DAW is a mystery
+    parts += [text for text in (panel.get("rhythm"), panel.get("tempo")) if text]
     return parts
 
 
@@ -281,9 +282,11 @@ def _rail(ctx: cairo.Context, rail: list[dict], accent) -> None:
     row = HEIGHT / len(rail)
     ctx.set_source_rgb(*_c["line"])
     ctx.rectangle(x0, 0, 1, HEIGHT)
-    ctx.rectangle(x0 + 8, row * (len(rail) - 1), COLUMN - 16, 1)  # Latch is not a voicing
+    for i, entry in enumerate(rail):
+        if entry.get("apart"):  # a different kind of button, like Latch below voicings
+            ctx.rectangle(x0 + 8, row * i, COLUMN - 16, 1)
     ctx.fill()
-    fills = {"kept": accent, "held": _c["text"], "latch_on": _c["latch"]}
+    fills = {"kept": accent, "held": _c["text"], "latch_on": _c["latch"], "rate": _c["rate"]}
     for i, entry in enumerate(rail):
         top = i * row
         fill = fills.get(entry["state"])
@@ -304,7 +307,6 @@ def _rail(ctx: cairo.Context, rail: list[dict], accent) -> None:
 
 
 def _panel_chord(ctx, panel, x0, width, accent) -> None:
-    width -= COLUMN  # the last column is the side-button rail
     _pad_map(ctx, panel, x0 + 12, 28)
     x = x0 + 12 + 8 * PITCH + MAP_LABELS + 8
     width = x0 + width - x - 12
@@ -431,7 +433,8 @@ def draw_view(ctx: cairo.Context, view: dict, now: float | None = None) -> None:
         x0 = (max(used) + 1) * COLUMN if used else 0
         panel = view.get("panel")
         if panel and panel["kind"] in PANELS and x0 < WIDTH:
-            PANELS[panel["kind"]](ctx, panel, x0, WIDTH - x0, accent)
+            rail = COLUMN if panel.get("rail") else 0  # the side buttons' column
+            PANELS[panel["kind"]](ctx, panel, x0, WIDTH - x0 - rail, accent)
         if panel and panel.get("rail"):
             _rail(ctx, panel["rail"], _c["play"])
 

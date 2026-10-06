@@ -21,6 +21,10 @@ def main() -> int:
 
     from pushtoo.app import App  # imported late so --version works without hardware libs
 
+    # A thread holding the GIL keeps it for up to this long. 1 ms lets the rhythm
+    # scheduler in well within its 20 ms lookahead (tools/clock/jitter.py).
+    sys.setswitchinterval(0.001)
+
     app = App()
     stop = threading.Event()
     signal.signal(signal.SIGINT, lambda *_: stop.set())

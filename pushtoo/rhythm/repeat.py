@@ -28,6 +28,7 @@ RATE_NAMES = tuple(RATES)
 MODES = ("Repeat", "Arp")
 REPEAT_GATE = 50  # percent of a step
 FIRST_STEP_GAP = 0.3  # grid steps this soon after a press (in steps) are skipped
+CLOCK_TAG = 255  # MIDI clock ticks; pads use 1-254
 
 Scheduled = tuple[float, str, Message, int]  # (time, destination, message, tag)
 
@@ -51,6 +52,7 @@ class Rhythm:
         self.pattern = PATTERNS[0]
         self.octaves = 1
         self.gate = REPEAT_GATE  # the arp's gate; repeats always use REPEAT_GATE
+        self.allow_arp = True  # Drums only repeat
         self.held: dict[Hashable, Held] = {}
         self._order = 0
         self._tag = 0
@@ -59,10 +61,10 @@ class Rhythm:
 
     @property
     def arp(self) -> bool:
-        return self.mode == "Arp"
+        return self.mode == "Arp" and self.allow_arp
 
     def _next_tag(self) -> int:
-        self._tag = self._tag % 255 + 1  # 1..255; 0 means "never take back"
+        self._tag = self._tag % (CLOCK_TAG - 1) + 1  # 1..254; 0 means "never take back"
         return self._tag
 
     def _step_seconds(self, clock: Clock) -> float:

@@ -15,7 +15,7 @@ from push2_python import constants as c
 
 from pushtoo.hw.push import PushController
 from pushtoo.keys import KeySender, describe
-from pushtoo.midi.router import MidiRouter
+from pushtoo.midi.router import IN_PORT, OUT_PORT, MidiRouter
 from pushtoo.modes.base import Mode, row_index
 from pushtoo.modes.browse import BrowseMode
 from pushtoo.modes.chord import SCENE_BUTTONS
@@ -26,14 +26,27 @@ from pushtoo.profiles.loader import ProfileError, ProfileStore, default_config_d
 from pushtoo.profiles.schema import Action, Profile
 from pushtoo.profiles.state import StateSaver, StateStore, default_state_path
 from pushtoo.render.process import Renderer
+from pushtoo.rhythm.clock import MAX_SWING, MAX_TEMPO, MIN_SWING, MIN_TEMPO
+from pushtoo.rhythm.repeat import CLOCK_TAG
 from pushtoo.theme import DEFAULT_THEME, Theme
 from pushtoo.themes.loader import ThemeFileError, ThemeStore
+from pushtoo.ui.controls import Control
 
 TOAST_SECONDS = 1.5
 ERROR_TOAST_SECONDS = 6.0
 UNTIL_CLEARED = 24 * 3600.0
 ENCODERS = {f"Track{i + 1} Encoder": i for i in range(8)}
 MASTER = "master"
+# The encoders left and right of the display, and what touching one peeks at.
+SIDE_ENCODERS = {
+    c.ENCODER_MASTER_ENCODER: MASTER,
+    c.ENCODER_TEMPO_ENCODER: "tempo",
+    c.ENCODER_SWING_ENCODER: "swing",
+}
+LOOKAHEAD = 0.02  # seconds of rhythm and clock queued ahead (tools/clock/jitter.py)
+RHYTHM_TICK = 0.005  # how often the scheduler tops the queue up
+PULSE = 0.15  # the part of each beat the Play button lights
+MIDI_CLOCK, MIDI_START, MIDI_STOP = 0xF8, 0xFA, 0xFC
 MODE_BUTTONS = {
     c.BUTTON_NOTE: "play",
     c.BUTTON_DEVICE: "knobs",
@@ -47,7 +60,8 @@ PLAY_BUTTONS = {
     c.BUTTON_ACCENT,
     c.BUTTON_OCTAVE_UP,
     c.BUTTON_OCTAVE_DOWN,
-    *SCENE_BUTTONS,  # Chord layout voicings
+    c.BUTTON_REPEAT,
+    *SCENE_BUTTONS,  # voicings in the Chord layout, rates while rhythm picks them
 }
 
 log = logging.getLogger(__name__)
@@ -94,6 +108,30 @@ class App:
         self._select_theme(self.profile.theme)
         self.play = PlayMode(self.router)
         self.play.apply_settings(self.profile.play)
+        self.play.apply_rhythm(self.profile.rhythm)
+        clock = self.play.clock
+        self.tempo = Control(
+            "Tempo",
+            lambda: round(clock.tempo * 10),
+            lambda v: clock.set_tempo(v / 10, time.monotonic()),
+            minimum=round(MIN_TEMPO * 10),
+            maximum=round(MAX_TEMPO * 10),
+            step=10,
+            fine_step=1,  # Shift: 0.1 BPM
+            format=lambda v: f"{v / 10:g} BPM",
+        )
+        self.swing = Control(
+            "Swing",
+            lambda: clock.swing,
+            lambda v: setattr(clock, "swing", v),
+            minimum=MIN_SWING,
+            maximum=MAX_SWING,
+            format=lambda v: f"{v}%",
+        )
+        self._steps_until: float | None = None  # rhythm queued up to here
+        self._ticks_until: float | None = None  # MIDI clock queued up to here
+        self._pulse_on = False
+        self._shown_tempo: str | None = None
         self.knobs = KnobsMode(self.router, self.play, self.profile.knobs, self.profile.output)
         self.mix = MixMode(self.router, self.play, self.profile.mix, self.profile.output)
         self.browse = BrowseMode(
@@ -121,6 +159,15 @@ class App:
             self.push = PushController(self)
             self.push.theme = self.theme
             self.push.setup_hardware()
+        if self.router.sequencer is not None:
+            self.router.sequencer.read_input(IN_PORT, self._midi_in)
+        self._rhythm_stop = threading.Event()
+        self._rhythm_thread: threading.Thread | None = None
+        if connect:
+            self._rhythm_thread = threading.Thread(
+                target=self._run_rhythm, name="pushtoo-rhythm", daemon=True
+            )
+            self._rhythm_thread.start()
         self.profiles.watch(self._profile_changed)
         self.themes.watch(self._theme_changed)
         self.refresh()
@@ -164,6 +211,8 @@ class App:
 
     def _apply_profile(self, profile: Profile) -> None:
         self._select_theme(profile.theme)
+        if profile.rhythm != self.profile.rhythm:  # an edit elsewhere keeps your tempo
+            self.play.apply_rhythm(profile.rhythm)
         self.profile = profile
         self.play.apply_settings(profile.play)
         self.knobs.apply_settings(profile.knobs, profile.output)
@@ -241,6 +290,11 @@ class App:
         elif name == c.BUTTON_STOP and self.shift:
             self.router.panic()
             self.toast("Panic: all notes off")
+        elif name == c.BUTTON_PLAY:
+            self._toggle_transport()
+        elif name == c.BUTTON_TAP_TEMPO:
+            if self.play.clock.tap(time.monotonic()):
+                self.toast(f"{self.play.clock.tempo:.0f} BPM")
         elif name == c.BUTTON_UNDO:
             self._undo(redo=self.shift)
         elif name == BACK_BUTTON and self.mode in (self.mix, self.browse):
@@ -276,7 +330,7 @@ class App:
 
     @locked
     def button_released(self, name: str) -> None:
-        if name == c.BUTTON_LAYOUT:
+        if name in (c.BUTTON_LAYOUT, c.BUTTON_REPEAT):
             self.play.button_released(name)
             self.refresh()
         elif name in SCENE_BUTTONS:
@@ -289,6 +343,85 @@ class App:
         elif name == c.BUTTON_DELETE:
             self.delete = False
             self.refresh()
+
+    def _side_control(self, key: str) -> Control:
+        return {MASTER: self.mix.master, "tempo": self.tempo, "swing": self.swing}[key]
+
+    # Clock and rhythm
+
+    def _toggle_transport(self) -> None:
+        clock = self.play.clock
+        if clock.following:
+            self.toast("Following the clock on Pushtoo In")
+            return
+        now = time.monotonic()
+        if clock.running:
+            clock.stop()
+            if self.profile.rhythm.clock_out:
+                self.router.schedule(OUT_PORT, [MIDI_STOP], now)
+            return
+        clock.start(now)
+        if self.profile.rhythm.clock_out:
+            # Clock restarts on beat 0: take back ticks queued on the old grid.
+            self.router.cancel(CLOCK_TAG)
+            self._ticks_until = now
+            self.router.schedule(OUT_PORT, [MIDI_START], now)
+
+    @locked
+    def _midi_in(self, kind: str, now: float) -> None:
+        """A leader's clock on Pushtoo In (reader thread)."""
+        clock = self.play.clock
+        was = (clock.following, clock.running)
+        if kind == "clock":
+            clock.external_tick(now)
+        elif kind == "start":
+            clock.external_start(now)
+        elif kind == "continue":
+            clock.running = True
+        elif kind == "stop":
+            clock.external_stop()
+        if (clock.following, clock.running) != was:
+            self.refresh()
+
+    def _run_rhythm(self) -> None:
+        while not self._rhythm_stop.wait(RHYTHM_TICK):
+            self.rhythm_tick(time.monotonic())
+
+    @locked
+    def rhythm_tick(self, now: float) -> None:
+        """Top up the queue to `now + LOOKAHEAD`: repeat and arp notes, and MIDI clock
+        while leading. Windows never overlap, so no step plays twice; after a stall,
+        missed steps are skipped rather than played late."""
+        clock, play = self.play.clock, self.play
+        if clock.check_leader(now):
+            self.refresh()
+        end = now + LOOKAHEAD
+        start = max(self._steps_until or now, now)
+        if play.rhythm.on:
+            play.send_scheduled(play.rhythm.events(clock, start, end))
+        self._steps_until = end
+        start = max(self._ticks_until or now, now)
+        if self.profile.rhythm.clock_out:
+            for at in clock.ticks(start, end):
+                self.router.schedule(OUT_PORT, [MIDI_CLOCK], at, CLOCK_TAG)
+        self._ticks_until = end
+        self._pulse(now)
+        shown = play.tempo_text()
+        if shown != self._shown_tempo:  # a followed tempo drifting, say
+            self._shown_tempo = shown
+            self.refresh()
+
+    def _pulse(self, now: float) -> None:
+        """The Play button lights on each beat while the transport runs."""
+        clock = self.play.clock
+        on = clock.running and clock.beat_at(now) % 1 < PULSE
+        if on != self._pulse_on:
+            self._pulse_on = on
+            if self.push is not None:
+                self.push.set_button_colors({c.BUTTON_PLAY: self._play_color()})
+
+    def _play_color(self) -> str:
+        return "white" if self._pulse_on else "dark_gray"
 
     def _describe_side_button(self, name: str) -> None:
         """The voicing rail is on the Chord screen only; elsewhere a toast says what a
@@ -324,8 +457,8 @@ class App:
     def encoder_rotated(self, name: str, increment: int) -> None:
         if self.shift:
             self.shift_used = True
-        if name == c.ENCODER_MASTER_ENCODER:
-            changed = self.mix.master.turn(increment, fine=self.shift)
+        if name in SIDE_ENCODERS:
+            changed = self._side_control(SIDE_ENCODERS[name]).turn(increment, fine=self.shift)
         elif (index := ENCODERS.get(name)) is not None:
             changed = self.mode.encoder_turned(index, increment, fine=self.shift)
         else:
@@ -335,8 +468,8 @@ class App:
 
     @locked
     def encoder_touched(self, name: str) -> None:
-        if name == c.ENCODER_MASTER_ENCODER:
-            self.peek = MASTER
+        if name in SIDE_ENCODERS:
+            self.peek = SIDE_ENCODERS[name]
         elif (index := ENCODERS.get(name)) is not None and self.mode.control_at(index):
             if self.delete and hasattr(self.mode, "reset"):
                 self.delete_used = True
@@ -349,7 +482,7 @@ class App:
 
     @locked
     def encoder_released(self, name: str) -> None:
-        key = MASTER if name == c.ENCODER_MASTER_ENCODER else ENCODERS.get(name)
+        key = SIDE_ENCODERS.get(name, ENCODERS.get(name))
         if key == self.peek:
             self.peek = None
             self.refresh()
@@ -383,8 +516,8 @@ class App:
 
     def view(self) -> dict:
         view = self.mode.view()
-        if self.peek == MASTER:
-            view["peek"] = self.mix.master.view()
+        if isinstance(self.peek, str):
+            view["peek"] = self._side_control(self.peek).view()
         elif self.peek is not None and (control := self.mode.control_at(self.peek)):
             view["peek"] = control.view()
         elif self.play.layout_held:
@@ -421,6 +554,9 @@ class App:
         colors[c.BUTTON_SHIFT] = "white" if self.shift else "dark_gray"
         colors[c.BUTTON_STOP] = "white" if self.shift else "black"
         colors[c.BUTTON_UNDO] = "dark_gray"
+        colors[c.BUTTON_PLAY] = self._play_color()
+        colors[c.BUTTON_TAP_TEMPO] = "dark_gray"
+        colors[c.BUTTON_REPEAT] = "white" if self.play.rhythm.on else "dark_gray"
         colors[c.BUTTON_DELETE] = "white" if self.delete else "dark_gray"
         if self.mode in (self.mix, self.browse):
             colors[BACK_BUTTON] = "white"
@@ -438,6 +574,9 @@ class App:
             self.push.apply_settings(self.play.hardware_settings())
 
     def close(self) -> None:
+        self._rhythm_stop.set()
+        if self._rhythm_thread is not None:
+            self._rhythm_thread.join()
         self.profiles.stop()
         self.themes.stop()
         self.saver.stop()

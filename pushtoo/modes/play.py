@@ -5,6 +5,7 @@ Pad callbacks run on the MIDI input thread, so they send first and do nothing el
 expensive. Everything the screen needs is computed in view().
 """
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -12,9 +13,9 @@ from push2_python import constants as c
 
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
+from pushtoo.modes.chord import HOLD_SECONDS, SCENE_BUTTONS, ChordPlayer
 from pushtoo.modes.chord import MAX_OCTAVE as CHORD_MAX_OCTAVE
 from pushtoo.modes.chord import MIN_OCTAVE as CHORD_MIN_OCTAVE
-from pushtoo.modes.chord import SCENE_BUTTONS, ChordPlayer
 from pushtoo.music import (
     BANK_SIZE,
     DRUM_HIGHEST_START,
@@ -32,7 +33,11 @@ from pushtoo.music import (
     spelling,
 )
 from pushtoo.profiles.schema import Play as PlaySettings
-from pushtoo.theme import OFF, PAD_ROLE_COLORS
+from pushtoo.profiles.schema import Rhythm as RhythmSettings
+from pushtoo.rhythm.arp import MAX_OCTAVES, PATTERNS
+from pushtoo.rhythm.clock import Clock
+from pushtoo.rhythm.repeat import MODES, RATE_NAMES, Rhythm, Scheduled
+from pushtoo.theme import OFF, PAD_ROLE_COLORS, led
 from pushtoo.ui.controls import COLUMNS, Control, Option, Page
 
 # Scale selector roots, in circle-of-fifths order as on stock Push. Upper button 1
@@ -45,6 +50,7 @@ LOWER_ROOT_LABELS = ("F", "Bb", "Eb", "Ab", "Db", "Gb")
 STRIP_MODES = ("Pitch bend", "Mod wheel")
 MOD_WHEEL_CC = 1
 ACCENT_VELOCITY = 127
+CHORD_SOURCE = ("chord",)  # the sounding chord, as one source for repeat and arp
 
 
 @dataclass
@@ -56,6 +62,16 @@ class Layout:
     destination: str = OUT_PORT
     page: int = 0
     pages: list[Page] = field(default_factory=list)
+
+
+@dataclass
+class RhythmPage(Page):
+    """Rate always; the arp's Pattern, Octaves and Gate only while it's the Arp."""
+
+    arp: Callable[[], bool] = lambda: False
+
+    def control(self, column: int) -> Control | None:
+        return super().control(column) if column == 0 or self.arp() else None
 
 
 class PlayMode(Mode):
@@ -72,6 +88,15 @@ class PlayMode(Mode):
         self.layout_held = False  # while Layout is held, the upper buttons pick a layout
         self.played_once = False
         self.last_drum: int | None = None
+        # Rhythm (PRD: Rhythm). Repeat toggles it; held, it's momentary, and in the
+        # Chord layout the side buttons pick rates while it's held.
+        self.clock = Clock()
+        self.rhythm = Rhythm()
+        self.time: Callable[[], float] = time.monotonic
+        self.repeat_held = False
+        self._repeat_pressed_at = 0.0
+        self._repeat_was_on = False
+        self._repeat_used = False  # a rate was picked while Repeat was held
 
         self.layouts = [
             Layout("Keyboard", channel=0),
@@ -82,6 +107,8 @@ class PlayMode(Mode):
         self.chord = ChordPlayer(
             router, self.keyboard, output=lambda: (chord_layout.destination, chord_layout.channel)
         )
+        self.chord.hand_to_rhythm = self._chord_to_rhythm
+        self.chord.take_from_rhythm = lambda: self._rhythm_release(CHORD_SOURCE)
         self.current = 0
         for layout in self.layouts:
             layout.pages = self._build_pages(layout)
@@ -144,7 +171,54 @@ class PlayMode(Mode):
         return [
             Page("Style", controls=[strum_range], options=style_options),
             Page("Output", controls=output, options=mute_options),
+            self._rhythm_page(),
         ]
+
+    def _rhythm_page(self) -> Page:
+        """Repeat or Arp above the display; the arp's shape on the encoders."""
+        rhythm = self.rhythm
+        controls: list[Control | None] = [
+            Control(
+                "Rate",
+                lambda: RATE_NAMES.index(rhythm.rate),
+                lambda v: setattr(rhythm, "rate", RATE_NAMES[v]),
+                choices=RATE_NAMES,
+            ),
+            Control(
+                "Pattern",
+                lambda: PATTERNS.index(rhythm.pattern),
+                lambda v: setattr(rhythm, "pattern", PATTERNS[v]),
+                choices=PATTERNS,
+            ),
+            Control(
+                "Octaves",
+                lambda: rhythm.octaves,
+                lambda v: setattr(rhythm, "octaves", v),
+                minimum=1,
+                maximum=MAX_OCTAVES,
+            ),
+            Control(
+                "Gate",
+                lambda: rhythm.gate,
+                lambda v: setattr(rhythm, "gate", v),
+                minimum=10,
+                maximum=100,
+                step=5,
+                format=lambda v: f"{v}%",
+            ),
+        ]
+        options: list[Option | None] = [
+            Option(mode, self._mode_setter(mode), lambda m=mode: rhythm.mode == m) for mode in MODES
+        ]
+        return RhythmPage("Rhythm", controls=controls, options=options, arp=lambda: rhythm.arp)
+
+    def _mode_setter(self, mode: str) -> Callable[[], None]:
+        def choose() -> None:
+            self._stop_rhythm_notes()  # held pads restart in the new mode
+            self.rhythm.mode = mode
+            self.rhythm.on = True  # picking a mode means you want to hear it
+
+        return choose
 
     def _set_chord_flag(self, flag: str, value: bool) -> None:
         setattr(self.chord, flag, value)
@@ -187,11 +261,14 @@ class PlayMode(Mode):
                 "Channel", lambda: layout.channel, lambda v: setattr(layout, "channel", v)
             ),
         ]
-        return [
+        pages = [
             Page("Play", controls=[first, velocity]),
             Page("Strip", options=strip_options),
             Page("Output", controls=output),
         ]
+        if layout.name == "Keyboard":  # Drums only repeat, with rates on the side buttons
+            pages.append(self._rhythm_page())
+        return pages
 
     def _strip_setter(self, index: int) -> Callable[[], None]:
         return lambda: setattr(self, "strip_mode", index)
@@ -252,21 +329,99 @@ class PlayMode(Mode):
         if note is None:
             return
         layout = self.layout
-        self.router.note_on((row, col), layout.destination, layout.channel, note, velocity)
         self.played_once = True
         if layout.name == "Drums":
             self.last_drum = note
+        if self.rhythm.on:
+            hits = self.rhythm.press(
+                (row, col),
+                layout.destination,
+                layout.channel,
+                [note],
+                velocity,
+                self.clock,
+                self.time(),
+            )
+            self.send_scheduled(hits)
+            return
+        self.router.note_on((row, col), layout.destination, layout.channel, note, velocity)
 
     def pad_released(self, row: int, col: int) -> None:
         # Always release the plain pad source too: a note held while switching layouts
         # must not stick.
         self.router.note_off((row, col))
+        self._rhythm_release((row, col))
         if self.in_chord:
             self.chord.pad_released(row, col)
 
     def pad_aftertouch(self, row: int, col: int, pressure: int) -> None:
-        if not self.in_chord:
+        if self.rhythm.on:  # pressure sets the velocity of the repeats to come
+            pad = (row, col)
+            source = CHORD_SOURCE if self.in_chord and pad == self.chord.current else pad
+            self.rhythm.pressure(source, pressure)
+        elif not self.in_chord:
             self.router.poly_aftertouch((row, col), pressure)
+
+    # Rhythm
+
+    def send_scheduled(self, events: list[Scheduled]) -> None:
+        for at, destination, message, tag in events:
+            self.router.schedule(destination, message, at, tag)
+
+    def _chord_to_rhythm(self, destination: str, channel: int, notes: list[int], velocity: int):
+        if not self.rhythm.on:
+            return False
+        self.send_scheduled(
+            self.rhythm.press(
+                CHORD_SOURCE, destination, channel, notes, velocity, self.clock, self.time()
+            )
+        )
+        return True
+
+    def _rhythm_release(self, source) -> None:
+        tag = self.rhythm.release(source)
+        if tag is not None:
+            self.router.cancel(tag)  # take back its queued notes; note-offs stay
+
+    def _stop_rhythm_notes(self) -> None:
+        for tag in self.rhythm.release_all():
+            self.router.cancel(tag)
+
+    def set_rhythm(self, on: bool) -> None:
+        if on == self.rhythm.on:
+            return
+        self._stop_rhythm_notes()
+        self.rhythm.on = on
+        if self.in_chord and self.chord.current is not None:
+            self.chord.revoice()  # a sounding chord switches between held and rhythmic
+
+    @property
+    def rates_on_side(self) -> bool:
+        """Side buttons pick rates: in Keyboard and Drums while rhythm is on, and in
+        the Chord layout (where they're voicings) while Repeat is held."""
+        return self.repeat_held or (self.rhythm.on and not self.in_chord)
+
+    def _repeat_pressed(self) -> None:
+        self.repeat_held = True
+        self._repeat_pressed_at = self.time()
+        self._repeat_was_on = self.rhythm.on
+        self._repeat_used = False
+        self.set_rhythm(True)
+
+    def _repeat_released(self) -> None:
+        self.repeat_held = False
+        held = self.time() - self._repeat_pressed_at >= HOLD_SECONDS
+        if held or self._repeat_used:
+            self.set_rhythm(self._repeat_was_on)  # momentary, or just picking a rate
+        elif self._repeat_was_on:
+            self.set_rhythm(False)  # a tap turns it off again
+
+    def rhythm_text(self) -> str | None:
+        if not self.rhythm.on:
+            return None
+        if self.rhythm.arp and not self.layout.name == "Drums":
+            return f"Arp {self.rhythm.pattern} {self.rhythm.rate}"
+        return f"Repeat {self.rhythm.rate}"
 
     def touchstrip(self, value: int) -> None:
         if self.in_chord and self.chord.strum:
@@ -299,6 +454,9 @@ class PlayMode(Mode):
         if name == c.BUTTON_LAYOUT:
             self.layout_held = False
             return True
+        if name == c.BUTTON_REPEAT:
+            self._repeat_released()
+            return True
         if name in SCENE_BUTTONS and self.in_chord:
             self.chord.voicing_released(SCENE_BUTTONS.index(name))
             return True
@@ -309,7 +467,9 @@ class PlayMode(Mode):
             return False
         if self.in_chord:
             self.chord.release_all()
+        self._stop_rhythm_notes()
         self.current = index
+        self.rhythm.allow_arp = self.layout.name != "Drums"
         return True
 
     def layout_choices(self) -> Row:
@@ -345,6 +505,13 @@ class PlayMode(Mode):
                 self.keyboard.shift_octave(delta)
             else:
                 self.drums.shift_bank(delta)
+            return True
+        if name == c.BUTTON_REPEAT:
+            self._repeat_pressed()
+            return True
+        if name in SCENE_BUTTONS and self.rates_on_side:
+            self.rhythm.rate = name  # the side buttons are labelled with their rates
+            self._repeat_used = self.repeat_held
             return True
         if name in SCENE_BUTTONS and self.in_chord:
             self.chord.voicing_pressed(SCENE_BUTTONS.index(name))
@@ -432,10 +599,25 @@ class PlayMode(Mode):
         )
 
     def scene_colors(self) -> dict[str, str]:
-        """Side buttons: voicings in the Chord layout, dark otherwise."""
+        """Side buttons: rates while they pick rates, voicings in the Chord layout,
+        dark otherwise."""
+        if self.rates_on_side:
+            return {
+                name: led("rate") if name == self.rhythm.rate else "dark_gray"
+                for name in SCENE_BUTTONS
+            }
         if self.in_chord:
             return self.chord.scene_colors()
         return {name: "black" for name in SCENE_BUTTONS}
+
+    def rail(self) -> list[dict] | None:
+        """The screen column beside the side buttons, naming what they do now."""
+        if self.rates_on_side:
+            return [
+                {"label": name, "state": "rate" if name == self.rhythm.rate else "off"}
+                for name in SCENE_BUTTONS
+            ]
+        return self.chord.rail() if self.in_chord else None
 
     def button_rows(self) -> tuple[Row, Row]:
         if self.scale_open:
@@ -501,9 +683,28 @@ class PlayMode(Mode):
                     "last_hit": drum_name(self.last_drum) if self.last_drum is not None else None,
                     "first_run": not self.played_once,
                 }
+        if not self.scale_open:
+            panel["rail"] = self.rail()
+            panel["rhythm"] = self.rhythm_text()
+            panel["tempo"] = self.tempo_text()
         return panel
 
+    def tempo_text(self) -> str | None:
+        """The tempo, while it matters: rhythm on, the transport running, or following."""
+        clock = self.clock
+        if clock.following:
+            return f"Following clock · {clock.tempo:.0f}"
+        if self.rhythm.on or clock.running:
+            return f"{clock.tempo:.0f} BPM"
+        return None
+
     # Profiles and session state
+
+    def apply_rhythm(self, settings: RhythmSettings) -> None:
+        """Profile defaults for tempo, swing and rate."""
+        self.clock.set_tempo(settings.tempo, self.time())
+        self.clock.swing = settings.swing
+        self.rhythm.rate = settings.rate
 
     def apply_settings(self, settings: PlaySettings) -> None:
         """Profile defaults for channels, outputs, velocity curve and touch strip."""
@@ -531,6 +732,15 @@ class PlayMode(Mode):
                 for lo in self.layouts
             ],
             "chord": self.chord.snapshot(),
+            "rhythm": {
+                "tempo": round(self.clock.tempo, 1),
+                "swing": self.clock.swing,
+                "mode": self.rhythm.mode,
+                "rate": self.rhythm.rate,
+                "pattern": self.rhythm.pattern,
+                "octaves": self.rhythm.octaves,
+                "gate": self.rhythm.gate,
+            },
         }
 
     def restore(self, state: dict) -> None:
@@ -558,5 +768,25 @@ class PlayMode(Mode):
                 layout.page = saved["page"]
         if isinstance(state.get("chord"), dict):
             self.chord.restore(state["chord"])
+        self._restore_rhythm(state.get("rhythm"))
         if state.get("layout") in range(len(self.layouts)):
             self.current = state["layout"]
+            self.rhythm.allow_arp = self.layout.name != "Drums"
+
+    def _restore_rhythm(self, saved) -> None:
+        if not isinstance(saved, dict):
+            return
+        if isinstance(saved.get("tempo"), int | float) and 40 <= saved["tempo"] <= 240:
+            self.clock.set_tempo(float(saved["tempo"]), self.time())
+        if saved.get("swing") in range(50, 76):
+            self.clock.swing = saved["swing"]
+        if saved.get("mode") in MODES:
+            self.rhythm.mode = saved["mode"]
+        if saved.get("rate") in RATE_NAMES:
+            self.rhythm.rate = saved["rate"]
+        if saved.get("pattern") in PATTERNS:
+            self.rhythm.pattern = saved["pattern"]
+        if saved.get("octaves") in range(1, MAX_OCTAVES + 1):
+            self.rhythm.octaves = saved["octaves"]
+        if saved.get("gate") in range(10, 101):
+            self.rhythm.gate = saved["gate"]

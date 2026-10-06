@@ -4,7 +4,7 @@ Pushtoo turns an Ableton Push 2 on Linux into an instrument for any synth, DAW o
 
 Pushtoo is for *playing*. If you want deep control of a DAW from the Push (tracks, devices, clips, mixer), use [DrivenByMoss](https://mossgrabers.de) for Bitwig or Reaper instead; the two can't share the Push at the same time.
 
-> **Status:** early development. Keyboard, Drums and the chord grid, Knobs, and YAML profiles work; rhythm features (note repeat, arpeggiator, clock) are next. See [docs/PRD.md](docs/PRD.md) for the product spec.
+> **Status:** early development. Keyboard, Drums and the chord grid, note repeat, the arpeggiator and the clock, Knobs, and YAML profiles work; loops (a step sequencer and a MIDI looper) are next. See [docs/PRD.md](docs/PRD.md) for the product spec.
 
 ## Playing
 
@@ -26,6 +26,11 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 | Encoders above the display      | The current page's controls. Touch one to see its value full-size    |
 | Shift + encoder                 | Fine adjust (4x finer)                                               |
 | Accent                          | Every note at full velocity                                          |
+| Repeat                          | Rhythm on or off: held pads repeat in time, or arpeggiate. Hold it for rhythm only while held |
+| Side buttons (with rhythm on)   | The rate, as printed on them: 1/32t to 1/4. In the Chord layout, hold Repeat to pick one |
+| Play                            | Start and stop: sends MIDI Start and Stop; the button flashes on each beat |
+| Tap Tempo                       | Set the tempo from your last four taps                               |
+| Tempo and Swing encoders (left) | Tempo (Shift for 0.1 BPM steps) and swing. Touch one to see its value |
 | Touch strip                     | Pitch bend or mod wheel, set on the Strip page                       |
 | Shift + Stop                    | Panic: all notes off on every output                                 |
 | Undo, Shift + Undo              | Undo and redo in your DAW (Ctrl+Z and Ctrl+Shift+Z by default)       |
@@ -36,6 +41,8 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 **The chord grid** (the Chord layout) makes every pad a full chord in your key, played with one press. Columns are the steps of the key, so a progression is a hand shape: I–V–vi–IV is the same four pads in any key. Rows, bottom to top: bass notes, triads (the home row), 7ths, add9, sus, 9ths, borrowed chords from the parallel major or minor (violet), and secondary dominants that pull toward the chord in their column (pink). Colors show what each chord does: home chords in orange, chords that move away in blue, tension in yellow. The screen has a small map of the pads in the same colors, with each row's name beside it. With nothing playing it also shows a color legend; while you play, it lights the row you pressed.
 
 The side buttons pick the **voicing**. The right-hand edge of the screen, next to them, names each button from top to bottom: the voicing you kept is filled in the Play accent, one you're holding is white, and Latch turns yellow when it's on. The buttons light up the same way. **Smooth** (top, the default) moves as little as possible from one chord to the next so progressions glide; the same pad may voice differently depending on what you played before. The others force an inversion (Root, 1st, 2nd, 3rd) or spread the chord out (Open, Wide), so a pad always plays the same notes. Tap one to keep it, or hold it to use it only while held. The bottom side button is **Latch**: chords keep sounding after you let go, so one hand can tap chords while the other strums. While Latch is holding a chord, the screen says "Latched · tap it again to stop". If you press a side button from Knobs or Mix, a short message says what it did. The right-hand column is the first column's chord an octave higher, and the screen says "octave up" when you play it. The screen shows each chord's name, its Roman numeral and what it does ("V7 · tension"). Hold a bass-row pad under a chord and the name shows the bass after a slash, such as G/B. On the **Style** page, **Press** plays the chord on pad press and **Strum** turns the touch strip into a strum plate: hold a chord and slide across the strip. Each chord's root also plays on channel 3 for a bass synth; the **Output** page changes channels and mutes chords or bass.
+
+**Rhythm.** Tap **Repeat** and held pads repeat at the rate lit on the side buttons; press harder on a pad and its repeats get louder. The **Rhythm** page (Keyboard and Chord) switches between **Repeat** and **Arp**, the arpeggiator, with its Pattern (Up, Down, Up-down, As played, Random), Octaves and Gate. In the Chord layout, Repeat retriggers the chord and Arp plays it note by note; Latch keeps it going. Pushtoo keeps its own tempo and sends MIDI clock on Pushtoo Out, so a synth or DAW can follow it. If your DAW sends clock to **Pushtoo In**, Pushtoo follows instead and says "Following clock" on screen. Steps are scheduled ahead on the ALSA sequencer, so timing holds steady (under 1 ms) however busy Pushtoo is.
 
 **Knobs mode** gives you up to 8 pages of 8 named controls, defined in your profile. Each column's top button glows in that control's color. To map a control in your DAW, start the DAW's MIDI learn, hold **Shift** and tap the button above the knob: Pushtoo sends just that control's CC, three times, so the DAW catches the right one. Hold **Delete** and touch a knob to reset it to its default.
 
@@ -94,6 +101,7 @@ uv run ruff check
 uv run pushtoo
 uv run python tools/render_preview.py   # every screen as PNG, no hardware needed
 uv run python tools/latency/latency.py  # latency gate; needs Push attached
+uv run python tools/clock/jitter.py     # clock timing gate (p99 < 1 ms); needs ALSA
 ```
 
 ## Layout

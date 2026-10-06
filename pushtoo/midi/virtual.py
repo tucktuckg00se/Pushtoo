@@ -22,13 +22,16 @@ from collections.abc import Callable
 
 from alsa_midi import (
     ALSAError,
-    Event,
+    ClockEvent,
+    ContinueEvent,
     MidiBytesEvent,
     PortCaps,
     PortType,
     RealTime,
     RemoveCondition,
     SequencerClient,
+    StartEvent,
+    StopEvent,
 )
 
 from pushtoo.midi.notes import Message
@@ -94,16 +97,6 @@ class Sequencer:
             # Drain at once: alsa-midi buffers even "direct" output until drained.
             self.client.drain_output()
 
-    def send_event(self, port, event: Event, at: float | None = None) -> None:
-        """A system real-time event (clock, start, stop), now or at `at`."""
-        with self._lock:
-            if at is None:
-                self.client.event_output(event, port=port)
-            else:
-                event.time = RealTime(max(0.0, at - self._t0))
-                self.client.event_output(event, queue=self.queue, port=port)
-            self.client.drain_output()
-
     def cancel(self, tag: int | None = None) -> None:
         """Take back queued events: those with `tag`, or every tagged one if None.
         Untagged events (note-offs) always stay, so nothing is left hanging."""
@@ -117,12 +110,19 @@ class Sequencer:
 
     # Input
 
-    def read_input(self, name: str, on_event: Callable[[Event, float], None]) -> None:
-        """Open the input port on a client of its own and call on_event(event, now) for
-        everything that arrives, on a reader thread."""
+    def read_input(self, name: str, on_message: Callable[[str, float], None]) -> None:
+        """Open the input port on a client of its own, and call on_message(kind, now)
+        on a reader thread for each "clock", "start", "continue" or "stop" that
+        arrives, the messages a leader's MIDI clock is made of."""
         reader = SequencerClient(self.client_name)
         reader.create_port(name, PortCaps.WRITE | PortCaps.SUBS_WRITE, PORT_TYPE)
         self._reader = reader
+        kinds = {
+            ClockEvent: "clock",
+            StartEvent: "start",
+            ContinueEvent: "continue",
+            StopEvent: "stop",
+        }
 
         def run() -> None:
             while not self._reading.is_set():
@@ -130,8 +130,9 @@ class Sequencer:
                     event = reader.event_input(timeout=0.2)
                 except ALSAError:
                     continue
-                if event is not None:
-                    on_event(event, time.monotonic())
+                kind = kinds.get(type(event))
+                if kind is not None:
+                    on_message(kind, time.monotonic())
 
         threading.Thread(target=run, name="pushtoo-midi-in", daemon=True).start()
 
@@ -154,9 +155,6 @@ class SequencerOutput:
 
     def send_at(self, message: Message, at: float, tag: int = NO_TAG) -> None:
         self.sequencer.send(self.port, message, at, tag)
-
-    def send_event(self, event: Event, at: float | None = None) -> None:
-        self.sequencer.send_event(self.port, event, at)
 
     def cancel(self, tag: int | None = None) -> None:
         self.sequencer.cancel(tag)

@@ -31,6 +31,9 @@ class Control:
     minimum: int = 0
     maximum: int = 127
     step: int = 1  # value change per encoder step
+    # With Shift, move by this smaller step at the normal speed (tempo's 0.1 BPM)
+    # instead of the usual 4x slower turning.
+    fine_step: int | None = None
     wrap: bool = False  # past either end, continue from the other (e.g. note names)
     # Labels for enumerated values; the value is then an index into them. A callable
     # lets the list change at runtime (for example, available MIDI ports).
@@ -54,7 +57,8 @@ class Control:
 
     def turn(self, increment: int, fine: bool = False) -> bool:
         """Apply a raw encoder increment. Returns True if the value changed."""
-        per_step = INCREMENTS_PER_STEP * (FINE_FACTOR if fine else 1)
+        slower = fine and self.fine_step is None
+        per_step = INCREMENTS_PER_STEP * (FINE_FACTOR if slower else 1)
         total = self._accumulated + increment
         steps = int(total / per_step)  # truncates toward zero in both directions
         self._accumulated = total - steps * per_step
@@ -62,7 +66,7 @@ class Control:
             return False
         low, high = self.bounds()
         old = self.get()
-        new = old + steps * self.step
+        new = old + steps * (self.fine_step if fine and self.fine_step else self.step)
         if self.wrap:
             new = low + (new - low) % (high - low + 1)
         else:

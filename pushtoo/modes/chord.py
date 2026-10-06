@@ -68,6 +68,10 @@ class ChordPlayer:
     ) -> None:
         self.router = router
         self.key = key
+        # Set by PlayMode: while rhythm is on, a chord's notes go to the repeat or arp
+        # engine instead of sounding held. hand_to_rhythm returns True if it took them.
+        self.hand_to_rhythm: Callable[[str, int, list[int], int], bool] = lambda *_: False
+        self.take_from_rhythm: Callable[[], None] = lambda: None
         self._output = output  # (destination, chord channel) of the Chord layout
         self._clock = clock
         self.bass_channel = 2
@@ -139,8 +143,9 @@ class ChordPlayer:
         notes = self._voiced(chord)
         destination, channel = self._output()
         if not self.strum and not self.mute_chords:
-            for i, note in enumerate(notes):
-                self.router.note_on(("chord", i), destination, channel, note, velocity)
+            if not self.hand_to_rhythm(destination, channel, notes, velocity):
+                for i, note in enumerate(notes):
+                    self.router.note_on(("chord", i), destination, channel, note, velocity)
         if not self.mute_bass:
             bass = self.register() - 12 + chord.root
             if bass >= 0:
@@ -152,6 +157,7 @@ class ChordPlayer:
         for i in range(MAX_TONES):
             self.router.note_off(("chord", i))
         self.router.note_off(("bass",))
+        self.take_from_rhythm()
         self._release_strum()
 
     def _retrigger(self) -> None:
@@ -313,7 +319,8 @@ class ChordPlayer:
             else:
                 state = "off"
             entries.append({"label": voicing, "state": state})
-        entries.append({"label": "Latch", "state": "latch_on" if self.latch else "off"})
+        latch = "latch_on" if self.latch else "off"
+        entries.append({"label": "Latch", "state": latch, "apart": True})
         return entries
 
     def scene_colors(self) -> dict[str, str]:

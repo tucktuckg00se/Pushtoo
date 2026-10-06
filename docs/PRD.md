@@ -207,7 +207,7 @@ Rhythm comes from a button: hold pads and they repeat in time, or hold a chord a
 
 **Arpeggiator**
 
-- A Rhythm page in Keyboard and Chord picks **Repeat** or **Arp** on the buttons above the display, with Pattern (Up, Down, Up-down, As played, Random), Octaves (1–4) and Gate (10–100%) on the encoders. Drums only repeat.
+- A Rhythm page in Keyboard and Chord picks **Repeat** or **Arp** on the buttons above the display, with Rate on the first encoder and, for the Arp only, Pattern (Up, Down, Up-down, As played, Random), Octaves (1–4) and Gate (10–100%). Drums only repeat. Choosing Repeat or Arp turns rhythm on.
 - Keyboard arpeggiates the notes you hold. Chord arpeggiates the voiced chord, and Latch keeps it going after you let go.
 
 **Screen:** while rhythm is on, the status line shows "Repeat 1/16" or "Arp Up 1/16" and the tempo; the tempo also shows while the transport runs.
@@ -303,9 +303,9 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F16  | Undo and redo as keystrokes or MIDI                          | P0 | Built |
 | F17  | Route any layout to a hardware MIDI port                     | P0 | Built |
 | F18  | Default MIDI map, overridable per profile                    | P0 | Built |
-| F23  | Note repeat on the Repeat button, rates on the side buttons in Keyboard and Drums | P0 | In progress |
-| F24  | Arpeggiator for held notes and chords                        | P0 | In progress |
-| F25  | Clock: internal tempo and swing on the left encoders; MIDI clock out on Pushtoo Out; follow incoming clock on Pushtoo In | P0 | In progress |
+| F23  | Note repeat on the Repeat button, rates on the side buttons in Keyboard and Drums | P0 | Built |
+| F24  | Arpeggiator for held notes and chords                        | P0 | Built |
+| F25  | Clock: internal tempo and swing on the left encoders; MIDI clock out on Pushtoo Out; follow incoming clock on Pushtoo In | P0 | Built |
 | F26  | Drum step sequencer                                          | P1 | Loops |
 | F27  | MIDI looper for standalone jams (Record, Play)               | P1 | Loops |
 | F9   | Living pads and Life mode, each toggleable                   | P1 | Delight |
@@ -329,8 +329,8 @@ Removed in this revision: DAW feedback (F7), Launch mode (F20), and auto-switchi
 | M1 Playable     | Keyboard and Drums, scale selector, velocity curves, touch strip, Panic, peek, hardware ports, hot-plug | Done; hands-on checks pending |
 | M2 Design       | Design system, Knobs, YAML profiles and state, Learn Assist, Undo     | Done; hands-on checks pending |
 | M3 Chords       | Chord grid with voicing and Strum                                     | Built; hardware check pending |
-| M4 Rhythm       | Clock, note repeat, arpeggiator                                       | In progress |
-| M5 Loops        | Drum step sequencer, MIDI looper                                      |        |
+| M4 Rhythm       | Clock, note repeat, arpeggiator                                       | Built; hardware check pending |
+| M5 Loops        | Drum step sequencer, MIDI looper                                      | Next   |
 | M6 Delight      | Living pads, Life mode, Dice, snapshot morph                          |        |
 | M7 Beta         | One-command installer, 5-tester study, Raspberry Pi check             |        |
 

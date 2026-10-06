@@ -48,6 +48,7 @@ OPEN_COLOR: dict[str, str] = {
     "latch": "fcc419",
     "mute": "ff6b6b",
     "solo": "4dabf7",
+    "rate": "22b8cf",  # the chosen rate on the side buttons
     # Colors a profile can give a knob
     "red": "ff6b6b",
     "orange": "ff922b",

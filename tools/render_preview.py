@@ -98,6 +98,31 @@ def _m2_views(views: dict[str, dict]) -> None:
         app.button_pressed(c.BUTTON_LAYOUT)  # held: the upper buttons pick a layout
         views["layout_picker"] = app.view()
         app.button_released(c.BUTTON_LAYOUT)
+        app.button_pressed(c.BUTTON_NOTE)
+        app.button_pressed(c.BUTTON_LAYOUT)  # Chord
+        app.button_released(c.BUTTON_LAYOUT)
+        app.button_pressed(c.BUTTON_LAYOUT)  # Keyboard
+        app.button_released(c.BUTTON_LAYOUT)
+        app.button_pressed(c.BUTTON_REPEAT)
+        app.button_released(c.BUTTON_REPEAT)  # a tap: rhythm on
+        app.button_pressed("1/8t")
+        app.button_pressed(c.BUTTON_PLAY)
+        views["keyboard_repeat_rates"] = app.view()
+        app.button_pressed("Lower Row 4")
+        views["keyboard_rhythm_page"] = app.view()
+        app.encoder_touched(c.ENCODER_TEMPO_ENCODER)
+        views["peek_tempo"] = app.view()
+        app.encoder_released(c.ENCODER_TEMPO_ENCODER)
+        app.button_pressed(c.BUTTON_PLAY)
+        app.button_pressed(c.BUTTON_REPEAT)
+        app.button_released(c.BUTTON_REPEAT)  # off again
+        app.button_pressed(c.BUTTON_LAYOUT)  # Drums
+        app.button_released(c.BUTTON_LAYOUT)
+        app.button_pressed(c.BUTTON_LAYOUT)  # Chord
+        app.button_released(c.BUTTON_LAYOUT)
+        app.button_pressed(c.BUTTON_REPEAT)  # held: the side buttons are rates
+        views["chord_repeat_held"] = app.view()
+        app.button_released(c.BUTTON_REPEAT)
 
         app.button_pressed(c.BUTTON_MIX)
         app.pad_pressed(7, 1, 100)
