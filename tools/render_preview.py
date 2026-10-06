@@ -196,6 +196,16 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.pad_pressed(4, 2, 100)  # sus on III
     views["chord_pentatonic"] = play.view()
 
+    play = _play()
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)
+    # Cm Gm Fm7 Ab Eb Bb Fm G7, then Cm held: more history than fits
+    for row, col in ((1, 0), (1, 4), (2, 3), (1, 5), (1, 2), (1, 6), (1, 3), (7, 0)):
+        play.pad_pressed(row, col, 100)
+        play.pad_released(row, col)
+    play.pad_pressed(1, 0, 100)
+    views["chord_history"] = play.view()
+
 
 def render(view: dict) -> cairo.ImageSurface:
     surface = cairo.ImageSurface(cairo.FORMAT_RGB24, WIDTH, HEIGHT)
