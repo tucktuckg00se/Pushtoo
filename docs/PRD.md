@@ -94,17 +94,19 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 | 8 buttons below the display                                  | Pages of the current mode                                    |
 | 8 buttons above the display                                  | Options on the current page; Shift + button is Learn Assist in Knobs |
 | 8 encoders above the display                                 | Current page's controls; touch to peek                       |
-| Tempo and Swing encoders (left)                              | Internal tempo and swing (Rhythm milestone)                  |
+| Tempo and Swing encoders (left)                              | Tempo and swing; touch to peek                               |
 | Master encoder (right)                                       | Master level CC                                              |
 | Octave up and down                                           | Shift the keyboard or chords an octave, or the drums a bank  |
 | Touch strip                                                  | Pitch bend or mod wheel; strums in the Chord layout's Strum style |
-| Scene buttons (right of pads)                                | Chord layout: voicing. Keyboard and Drums: note repeat rates (Rhythm milestone) |
+| Scene buttons (right of pads)                                | Chord layout: voicing (rates while Repeat is held). Keyboard and Drums: rates while rhythm is on |
 | Accent                                                       | Fixed full velocity                                          |
-| Repeat                                                       | Note repeat (Rhythm milestone)                               |
+| Repeat                                                       | Rhythm on and off (note repeat or arpeggiator); hold for momentary |
 | Undo, Shift + Undo                                           | Undo and redo keystrokes or MIDI, per profile                |
 | Shift + Stop Clip                                            | Panic                                                        |
 | Delete + touch an encoder                                    | Reset that control to its default                            |
-| Play, Record, Metronome, Tap Tempo                           | Clock and looper (Rhythm and Loops milestones)               |
+| Play                                                         | Start and stop the transport (MIDI Start and Stop); pulses on beats |
+| Tap Tempo                                                    | Set the tempo from the last four taps                        |
+| Record, Metronome                                            | Looper (Loops milestone)                                     |
 | Session, arrows, Mute, Solo, and the remaining buttons       | Unassigned                                                   |
 
 **Scale selector**
@@ -183,6 +185,34 @@ A chord pad plays only its bass note, and the touch strip strums the voiced chor
 **Pages:** Style (Press or Strum, strum range) and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
 
 **Screen:** the side-button rail and the pad map (see Visual design system), then the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
+
+## Rhythm: clock, note repeat and arpeggiator
+
+Rhythm comes from a button: hold pads and they repeat in time, or hold a chord and it arpeggiates.
+
+**Clock**
+
+- Pushtoo leads with its own tempo by default. When MIDI clock arrives on Pushtoo In, it follows automatically and the screen says "Following clock · 124". Two seconds without clock returns it to its own tempo.
+- The Tempo encoder sets 40–240 BPM (Shift for 0.1 BPM steps); the Swing encoder sets 50–75%, delaying every other step. Touching either shows its value full-size.
+- Tap Tempo sets the tempo from the last four taps.
+- Play starts and stops the transport, sending MIDI Start and Stop, and its LED pulses on beats while running. While following, the leader's Start and Stop drive it.
+- While leading, Pushtoo sends 24-ppqn MIDI clock on Pushtoo Out all the time, so synths and DAWs can lock to its tempo. A profile can turn this off (`rhythm: {clock_out: false}`).
+
+**Repeat and the side buttons**
+
+- Repeat turns rhythm on or off; holding it makes rhythm last only while held.
+- With rhythm on, held pads retrigger on the beat grid at the chosen rate, with a 50% gate. Pressure on a held pad sets each repeat's velocity, as on stock Push. A pad still sounds the moment it's pressed; repeats follow on the grid.
+- Rates sit on the side buttons, as printed on them, top to bottom: 1/32t, 1/32, 1/16t, 1/16, 1/8t, 1/8, 1/4t, 1/4. In Keyboard and Drums the side buttons are rates while rhythm is on. In the Chord layout they stay voicings, and holding Repeat turns them into rates until it's released. The screen rail names whichever set is active.
+- In the Chord layout, Repeat retriggers the whole voiced chord.
+
+**Arpeggiator**
+
+- A Rhythm page in Keyboard and Chord picks **Repeat** or **Arp** on the buttons above the display, with Pattern (Up, Down, Up-down, As played, Random), Octaves (1–4) and Gate (10–100%) on the encoders. Drums only repeat.
+- Keyboard arpeggiates the notes you hold. Chord arpeggiates the voiced chord, and Latch keeps it going after you let go.
+
+**Screen:** while rhythm is on, the status line shows "Repeat 1/16" or "Arp Up 1/16" and the tempo; the tempo also shows while the transport runs.
+
+**Timing:** clock and rhythm run on their own thread and never delay pad input; the latency gate (N1) must still pass with it running. Steps are stamped 20 ms ahead on an ALSA sequencer queue, so the kernel delivers them on time whatever Python is doing; hardware destinations go through the same client and queue. Pushtoo sets Python's thread switch interval to 1 ms so the scheduling thread always gets in within the lookahead. Measured with `tools/clock/jitter.py` (see Notes from building).
 
 ## Visual design system
 
@@ -273,9 +303,9 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F16  | Undo and redo as keystrokes or MIDI                          | P0 | Built |
 | F17  | Route any layout to a hardware MIDI port                     | P0 | Built |
 | F18  | Default MIDI map, overridable per profile                    | P0 | Built |
-| F23  | Note repeat on the Repeat button, rates on the side buttons in Keyboard and Drums | P0 | Rhythm |
-| F24  | Arpeggiator for held notes and chords                        | P0 | Rhythm |
-| F25  | Clock: internal tempo and swing on the left encoders; MIDI clock out on Pushtoo Out; follow incoming clock on Pushtoo In | P0 | Rhythm |
+| F23  | Note repeat on the Repeat button, rates on the side buttons in Keyboard and Drums | P0 | In progress |
+| F24  | Arpeggiator for held notes and chords                        | P0 | In progress |
+| F25  | Clock: internal tempo and swing on the left encoders; MIDI clock out on Pushtoo Out; follow incoming clock on Pushtoo In | P0 | In progress |
 | F26  | Drum step sequencer                                          | P1 | Loops |
 | F27  | MIDI looper for standalone jams (Record, Play)               | P1 | Loops |
 | F9   | Living pads and Life mode, each toggleable                   | P1 | Delight |
@@ -299,7 +329,7 @@ Removed in this revision: DAW feedback (F7), Launch mode (F20), and auto-switchi
 | M1 Playable     | Keyboard and Drums, scale selector, velocity curves, touch strip, Panic, peek, hardware ports, hot-plug | Done; hands-on checks pending |
 | M2 Design       | Design system, Knobs, YAML profiles and state, Learn Assist, Undo     | Done; hands-on checks pending |
 | M3 Chords       | Chord grid with voicing and Strum                                     | Built; hardware check pending |
-| M4 Rhythm       | Clock, note repeat, arpeggiator                                       | Next   |
+| M4 Rhythm       | Clock, note repeat, arpeggiator                                       | In progress |
 | M5 Loops        | Drum step sequencer, MIDI looper                                      |        |
 | M6 Delight      | Living pads, Life mode, Dice, snapshot morph                          |        |
 | M7 Beta         | One-command installer, 5-tester study, Raspberry Pi check             |        |
@@ -307,6 +337,8 @@ Removed in this revision: DAW feedback (F7), Launch mode (F20), and auto-switchi
 The latency gate (`tools/latency/latency.py`) runs at every milestone and must pass before the next starts.
 
 **Notes from building**
+
+- Clock timing (`tools/clock/jitter.py`, 120 BPM, 24 ppqn, a busy Python thread competing): sleeping until each tick's deadline has p99 0.08 ms idle but 23 ms under load, because a thread holding the GIL keeps it for up to Python's 5 ms switch interval. Ticks stamped ahead on an ALSA queue hold p99 0.42 ms either way. With a 1 ms switch interval, a 20 ms lookahead holds 0.42 ms max under load, short enough that releasing a pad stops repeats at once; 10 ms needs the shorter interval too.
 
 - Accent is applied in software: Push's velocity table also sets poly aftertouch sensitivity.
 - The Push re-centers the touch strip by itself in pitch-bend mode.
@@ -331,5 +363,5 @@ The latency gate (`tools/latency/latency.py`) runs at every milestone and must p
 - [ ] Which audio stacks are in the v1 test matrix: PipeWire only, or also plain ALSA and JACK?
 - [ ] Should Life mode play notes by default, or stay silent until switched on?
 - [ ] Does the Smooth voicing need a "brightness" control (register drift up or down) once people play it?
-- [ ] Clock: should Pushtoo lead (send MIDI clock) or follow by default when both are possible?
+- [x] Clock: lead or follow by default? Both, automatically: lead with Pushtoo's tempo, follow when clock arrives on Pushtoo In.
 - [x] What should the spare eighth side button do in the Chord layout? Latch.
