@@ -36,6 +36,7 @@ from pushtoo.profiles.schema import Rhythm as RhythmSettings
 from pushtoo.rhythm.arp import MAX_OCTAVES, PATTERNS
 from pushtoo.rhythm.clock import Clock
 from pushtoo.rhythm.repeat import MODES, RATE_NAMES, Rhythm, Scheduled
+from pushtoo.rhythm.timing import DIRECTIONS, MAX_LOOSE, MAX_ROLL
 from pushtoo.rhythm.velocity import MAX_SPREAD, MAX_TOP
 from pushtoo.theme import OFF, PAD_ROLE_COLORS, led
 from pushtoo.ui.controls import COLUMNS, Control, Option, Page
@@ -174,9 +175,42 @@ class PlayMode(Mode):
         return [
             Page("Style", controls=[strum_range], options=style_options),
             self._velocity_page(),
+            self._timing_page(),
             Page("Output", controls=output, options=mute_options),
             self._rhythm_page(),
         ]
+
+    def _timing_page(self) -> Page:
+        """When each chord note starts: Together, or Spread out by Roll and Loose."""
+        timing = self.chord.timing
+        controls: list[Control | None] = [
+            Control(
+                "Roll",
+                lambda: timing.roll,
+                lambda v: setattr(timing, "roll", v),
+                maximum=MAX_ROLL,
+                step=2,
+                format=lambda v: f"{v} ms",
+            ),
+            Control(
+                "Direction",
+                lambda: DIRECTIONS.index(timing.direction),
+                lambda v: setattr(timing, "direction", DIRECTIONS[v]),
+                choices=DIRECTIONS,
+            ),
+            Control(
+                "Loose",
+                lambda: timing.loose,
+                lambda v: setattr(timing, "loose", v),
+                maximum=MAX_LOOSE,
+                format=lambda v: f"{v} ms",
+            ),
+        ]
+        options: list[Option | None] = [
+            Option("Together", lambda: setattr(timing, "spread", False), lambda: not timing.spread),
+            Option("Spread out", lambda: setattr(timing, "spread", True), lambda: timing.spread),
+        ]
+        return ChoicePage("Timing", controls, options, always=0, more=lambda: timing.spread)
 
     def _velocity_page(self) -> Page:
         """The chord grid's velocities: As played or Random above the display; the
@@ -399,15 +433,22 @@ class PlayMode(Mode):
             self.router.schedule(destination, message, at, tag)
 
     def _chord_to_rhythm(
-        self, destination: str, channel: int, notes: list[int], velocity: int, vary
+        self, destination: str, channel: int, notes: list[int], velocity: int, vary, timing
     ) -> bool:
         if not self.rhythm.on:
             return False
-        self.send_scheduled(
-            self.rhythm.press(
-                CHORD_SOURCE, destination, channel, notes, velocity, self.clock, self.time(), vary
-            )
+        hits = self.rhythm.press(
+            CHORD_SOURCE,
+            destination,
+            channel,
+            notes,
+            velocity,
+            self.clock,
+            self.time(),
+            vary,
+            timing,
         )
+        self.send_scheduled(hits)
         return True
 
     def _rhythm_release(self, source) -> None:

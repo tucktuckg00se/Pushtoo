@@ -31,6 +31,8 @@ from pushtoo.chords import (
 )
 from pushtoo.midi.router import MidiRouter
 from pushtoo.music import ROWS, SCALES, KeyboardLayout, note_name
+from pushtoo.rhythm.repeat import CHORD_TAG
+from pushtoo.rhythm.timing import TimingSpread
 from pushtoo.rhythm.velocity import VelocitySpread
 from pushtoo.theme import accent_name, led
 from pushtoo.ui.controls import COLUMNS
@@ -75,6 +77,7 @@ class ChordPlayer:
         self.take_from_rhythm: Callable[[], None] = lambda: None
         self.accent: Callable[[], bool] = lambda: False  # PlayMode's Accent button
         self.spread = VelocitySpread()  # the Velocity page
+        self.timing = TimingSpread()  # the Timing page
         self.last_velocities: list[int] = []  # what the sounding chord's notes got
         self._output = output  # (destination, chord channel) of the Chord layout
         self._clock = clock
@@ -150,9 +153,20 @@ class ChordPlayer:
         velocities = self.spread.velocities(notes, velocity, accent)
         self.last_velocities = velocities
         if not self.strum and not self.mute_chords:
-            if not self.hand_to_rhythm(destination, channel, notes, velocity, self._vary(notes)):
-                for i, (note, v) in enumerate(zip(notes, velocities, strict=True)):
-                    self.router.note_on(("chord", i), destination, channel, note, v)
+            handed = self.hand_to_rhythm(
+                destination, channel, notes, velocity, self._vary(notes), self.timing.offsets
+            )
+            if not handed:
+                now = self._clock()
+                offsets = self.timing.offsets(notes)
+                for i, (note, v, offset) in enumerate(zip(notes, velocities, offsets, strict=True)):
+                    if offset > 0:  # rolled in: queued, and taken back if released first
+                        at = now + offset
+                        self.router.note_on_at(
+                            ("chord", i), destination, channel, note, v, at, CHORD_TAG
+                        )
+                    else:
+                        self.router.note_on(("chord", i), destination, channel, note, v)
         if not self.mute_bass:
             bass = self.register() - 12 + chord.root
             if bass >= 0:  # the bass stays steady at the center, never randomized
@@ -160,6 +174,16 @@ class ChordPlayer:
                 self.router.note_on(("bass",), destination, self.bass_channel, bass, center)
         self.current, self.velocity = pad, velocity
         self.notes, self.last_chord = notes, chord
+
+    def timing_text(self) -> str | None:
+        """The status line's word for how chords roll in, while they do."""
+        t = self.timing
+        if not t.spread or (t.roll == 0 and t.loose == 0):
+            return None
+        if t.roll == 0:
+            return f"Loose {t.loose} ms"
+        arrows = {"Up": "↑", "Down": "↓", "Alternate": "↕", "Random": "?"}
+        return f"Rolled {arrows[t.direction]} {t.roll} ms"
 
     def _vary(self, chord_notes: list[int]) -> Callable[[list[int], int], list[int]]:
         """Fresh velocities for each repeat or arp step. A note is the top note if it's
@@ -173,6 +197,8 @@ class ChordPlayer:
         return vary
 
     def _silence(self) -> None:
+        if self.timing.spread:
+            self.router.cancel(CHORD_TAG)  # rolled-in notes that haven't started yet
         for i in range(MAX_TONES):
             self.router.note_off(("chord", i))
         self.router.note_off(("bass",))
@@ -374,6 +400,7 @@ class ChordPlayer:
             "octave": self.octave,
             "octave_moved": self.octave != DEFAULT_OCTAVE,
             "random_velocity": self.spread.random,
+            "timing": self.timing_text(),
             "rail": self.rail(),
             "grid": self.pad_colors(),
             "row": self.current[0] if self.current else (BASS_ROW if held_bass else None),
@@ -428,6 +455,7 @@ class ChordPlayer:
             "voicing": self.voicing,
             "latch": self.latch,
             "velocity": self.spread.snapshot(),
+            "timing": self.timing.snapshot(),
         }
 
     def restore(self, state: dict) -> None:
@@ -443,3 +471,4 @@ class ChordPlayer:
             if isinstance(state.get(flag), bool):
                 setattr(self, flag, state[flag])
         self.spread.restore(state.get("velocity"))
+        self.timing.restore(state.get("timing"))

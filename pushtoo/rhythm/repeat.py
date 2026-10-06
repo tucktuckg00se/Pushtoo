@@ -28,7 +28,8 @@ RATE_NAMES = tuple(RATES)
 MODES = ("Repeat", "Arp")
 REPEAT_GATE = 50  # percent of a step
 FIRST_STEP_GAP = 0.3  # grid steps this soon after a press (in steps) are skipped
-CLOCK_TAG = 255  # MIDI clock ticks; pads use 1-254
+CLOCK_TAG = 255  # MIDI clock ticks
+CHORD_TAG = 254  # a chord's rolled-in notes still to come; pads use 1-253
 
 Scheduled = tuple[float, str, Message, int]  # (time, destination, message, tag)
 
@@ -44,6 +45,8 @@ class Held:
     tag: int
     # Per-note velocities for a hit, from the velocity the pad holds (chord Random).
     vary: Callable[[list[int], int], list[int]] | None = None
+    # Seconds after each step that each note starts (chord Timing).
+    timing: Callable[[list[int]], list[float]] | None = None
 
 
 class Rhythm:
@@ -66,7 +69,7 @@ class Rhythm:
         return self.mode == "Arp" and self.allow_arp
 
     def _next_tag(self) -> int:
-        self._tag = self._tag % (CLOCK_TAG - 1) + 1  # 1..254; 0 means "never take back"
+        self._tag = self._tag % (CHORD_TAG - 1) + 1  # 1..253; 0 means "never take back"
         return self._tag
 
     def _step_seconds(self, clock: Clock) -> float:
@@ -84,13 +87,22 @@ class Rhythm:
         clock: Clock,
         now: float,
         vary: Callable[[list[int], int], list[int]] | None = None,
+        timing: Callable[[list[int]], list[float]] | None = None,
     ) -> list[Scheduled]:
         """Hold a pad (or a chord); returns its first hit, to send at once."""
         if not self.held:
             self._arp_index = 0
         self._order += 1
         held = Held(
-            destination, channel, list(notes), velocity, now, self._order, self._next_tag(), vary
+            destination,
+            channel,
+            list(notes),
+            velocity,
+            now,
+            self._order,
+            self._next_tag(),
+            vary,
+            timing,
         )
         self.held[key] = held
         if self.arp:
@@ -138,14 +150,15 @@ class Rhythm:
             velocities = held.vary(held.notes, held.velocity)
         else:
             velocities = [held.velocity] * len(held.notes)
-        on = [
-            (at, held.destination, [NOTE_ON | held.channel, n, v], held.tag)
-            for n, v in zip(held.notes, velocities, strict=True)
-        ]
-        off = [
-            (at + length, held.destination, [NOTE_OFF | held.channel, n, 0], 0) for n in held.notes
-        ]
-        return on + off
+        offsets = held.timing(held.notes) if held.timing else [0.0] * len(held.notes)
+        found: list[Scheduled] = []
+        for note, velocity, offset in zip(held.notes, velocities, offsets, strict=True):
+            start = at + offset
+            found.append(
+                (start, held.destination, [NOTE_ON | held.channel, note, velocity], held.tag)
+            )
+            found.append((start + length, held.destination, [NOTE_OFF | held.channel, note, 0], 0))
+        return found
 
     def _arp_step(self, at: float, clock: Clock) -> list[Scheduled]:
         by_order = sorted(self.held.values(), key=lambda h: h.order)
@@ -171,6 +184,7 @@ class Rhythm:
                 0,
                 owner.tag,
                 owner.vary,
+                owner.timing,
             ),
             at,
             length,

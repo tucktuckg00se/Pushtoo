@@ -183,7 +183,7 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 
 A chord pad plays only its bass note, and the touch strip strums the voiced chord across 1–3 octaves, one note per tone crossed, like an Omnichord. Strummed notes ring until the chord changes or is released. In Strum style the strip runs in the Push's mod-wheel mode, because pitch-bend mode springs back to center and would strum again on release.
 
-**Pages:** Style (Press or Strum, strum range), Velocity (below), Output (destination, chords channel, bass channel, Mute chords, Mute bass) and Rhythm.
+**Pages:** Style (Press or Strum, strum range), Velocity and Timing (below), Output (destination, chords channel, bass channel, Mute chords, Mute bass) and Rhythm.
 
 **Velocity** (Velocity page)
 
@@ -191,6 +191,13 @@ A chord pad plays only its bass note, and the touch strip strums the voiced chor
 - **Random** gives each note of each chord trigger its own velocity within **Spread** of the center, clamped to Min–Max. Spread 0 is an even chord; full Spread is anywhere in the range. **Top note** (−32…+32) offsets the highest note so a melody can stand out or sit back. The bass note plays at the center, unrandomized.
 - **Accent** means as loud as the range allows: the center moves to Max, so Random spreads accented chords downward from Max. With As played, accented chords play at Max.
 - Every trigger rolls fresh: a press, a retrigger, each strummed note, and each Repeat or Arp step. The screen draws each note's velocity as a bar under its name; on pages with many encoders the pad map steps aside to make room.
+
+**Timing** (Timing page)
+
+- **Together** or **Spread out**, above the display. Spread out rolls a chord's notes in one after another: **Roll** (0–100 ms between notes), **Direction** (Up from the lowest note, Down from the highest, Alternate flipping each chord like a strumming hand, or Random) and **Loose** (0–50 ms of random lateness per note).
+- Notes only come later, never early; the first note and the bass play at the press.
+- Later notes are queued on the ALSA sequencer like rhythm steps and tracked like any held note, so releasing mid-roll takes back what hasn't started and nothing hangs. Repeat and Arp steps roll too; Strum keeps its own timing on the strip.
+- The status line says "Rolled ↑ 30 ms" or "Loose 12 ms" while it's on.
 
 **Screen:** the side-button rail and the pad map (see Visual design system), then the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
 
@@ -313,6 +320,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F12  | Chord grid: one-press chords by scale step and flavor, bass row, auto bass, function colors | P0 | Built |
 | F28  | Chord voicing on the side buttons: Smooth voice leading, inversions, Open, Wide; tap to keep, hold for momentary | P0 | Built |
 | F14  | Strum on the touch strip in the Chord layout                 | P0 | Built |
+| F31  | Chord timing: Together or Spread out with Roll, Direction (Up, Down, Alternate, Random) and Loose; never early; releasing mid-roll takes back the rest | P0 | Built |
 | F30  | Chord velocity: As played or Random with Min, Max, Spread and Top note; Accent centers at Max | P0 | Built |
 | F22  | Touch strip as pitch bend or mod wheel                       | P0 | Built |
 | F3   | Knobs mode: up to 8 pages x 8 named CC controls with ranges and colors | P0 | Built |

@@ -129,6 +129,9 @@ def _m2_views(views: dict[str, dict]) -> None:
         app.pad_pressed(2, 3, 90)  # Fm7
         views["chord_random_velocity"] = app.view()
         app.pad_released(2, 3)
+        app.button_pressed("Lower Row 3")  # Timing page
+        app.button_pressed("Upper Row 2")  # Spread out
+        views["chord_timing"] = app.view()
         app.button_pressed(c.BUTTON_SETUP)
         views["setup_pads_idle"] = app.view()
         app.encoder_rotated("Track2 Encoder", -6 * 4)  # softer Dynamics
@@ -248,7 +251,7 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.pad_pressed(1, 3, 100)
     play.pad_released(1, 3)
     views["chord_latched_strum"] = play.view()
-    play.button_pressed("Lower Row 3")
+    play.button_pressed("Lower Row 4")
     views["chord_output_page"] = play.view()
 
     play = _play()

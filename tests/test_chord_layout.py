@@ -130,7 +130,7 @@ def test_bass_row_plays_single_notes_alongside_chords():
 
 def test_mutes():
     play, sent, _ = make_chord_play()
-    play.button_pressed("Lower Row 3")  # Output page
+    play.button_pressed("Lower Row 4")  # Output page
     play.button_pressed("Upper Row 2")  # Mute bass
     play.pad_pressed(TRIAD, 0, 100)
     assert notes_on(sent, BASS) == []

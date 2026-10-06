@@ -135,6 +135,18 @@ class MidiRouter:
         with self._lock:
             self._send(self.notes.press(source, destination, channel, note, velocity))
 
+    def note_on_at(
+        self, source, destination: str, channel: int, note: int, velocity: int, at: float, tag: int
+    ) -> None:
+        """A tracked note that starts at `at`: released like any other, and if it's
+        released before it starts, cancel(tag) takes the note-on back first."""
+        with self._lock:
+            *now, (_, note_on) = self.notes.press(source, destination, channel, note, velocity)
+            self._send(now)  # a note this source was still holding ends at once
+            output = self._output(destination)
+            if output is not None:
+                output.send_at(note_on, at, tag)
+
     def note_off(self, source) -> None:
         with self._lock:
             self._send(self.notes.release(source))
