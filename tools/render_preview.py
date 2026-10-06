@@ -25,6 +25,12 @@ class _NullOutput:
     def send_message(self, message) -> None:
         pass
 
+    def send_at(self, message, at, tag=0) -> None:
+        pass
+
+    def cancel(self, tag=None) -> None:
+        pass
+
     def close_port(self) -> None:
         pass
 

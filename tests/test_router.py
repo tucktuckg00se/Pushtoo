@@ -4,10 +4,19 @@ from pushtoo.midi.router import OUT_PORT, MidiRouter, port_display_name
 class FakeOutput:
     def __init__(self) -> None:
         self.sent: list[list[int]] = []
+        self.scheduled: list[tuple[float, list[int], int]] = []  # (at, message, tag)
         self.closed = False
 
     def send_message(self, message):
         self.sent.append(message)
+
+    def send_at(self, message, at, tag=0):
+        self.scheduled.append((at, message, tag))
+
+    def cancel(self, tag=None):
+        # Untagged events always stay; otherwise drop the tag given, or every tag.
+        keep = [e for e in self.scheduled if not e[2] or (tag is not None and e[2] != tag)]
+        self.scheduled = keep
 
     def close_port(self):
         self.closed = True

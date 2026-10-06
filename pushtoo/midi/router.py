@@ -11,10 +11,8 @@ import threading
 from collections.abc import Callable
 from typing import Protocol
 
-import rtmidi
-
 from pushtoo.midi.notes import Message, Routed, SoundingNotes, panic_messages
-from pushtoo.midi.virtual import VirtualPorts
+from pushtoo.midi.virtual import NO_TAG, Sequencer
 
 CLIENT_NAME = "Pushtoo"
 OUT_PORT = "Pushtoo Out"
@@ -39,6 +37,8 @@ log = logging.getLogger(__name__)
 
 class Output(Protocol):
     def send_message(self, message: Message) -> None: ...
+    def send_at(self, message: Message, at: float, tag: int = NO_TAG) -> None: ...
+    def cancel(self, tag: int | None = None) -> None: ...
     def close_port(self) -> None: ...
 
 
@@ -58,16 +58,6 @@ def short_port_name(destination: str) -> str:
     return port or destination
 
 
-def _open_hardware_port(display_name: str) -> Output | None:
-    output = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name=CLIENT_NAME)
-    for index, name in enumerate(output.get_ports()):
-        if port_display_name(name) == display_name:
-            output.open_port(index, name=f"{CLIENT_NAME} to {display_name}")
-            return output
-    output.delete()
-    return None
-
-
 class MidiRouter:
     """Sends notes and controller messages to named destinations, tracking every note.
 
@@ -79,17 +69,19 @@ class MidiRouter:
         self,
         virtual_out: Output | None = None,
         list_ports: Callable[[], list[str]] | None = None,
-        open_port: Callable[[str], Output | None] = _open_hardware_port,
+        open_port: Callable[[str], Output | None] | None = None,
     ) -> None:
+        self.sequencer: Sequencer | None = None
         if virtual_out is None:
-            # Our own ports come from VirtualPorts so DAWs list them (see virtual.py);
-            # rtmidi only enumerates and opens hardware destinations.
-            virtual_out = VirtualPorts(CLIENT_NAME, OUT_PORT, IN_PORT)
-            self._lister = rtmidi.MidiOut(rtmidi.API_LINUX_ALSA, name=CLIENT_NAME)
-            list_ports = list_ports or self._lister.get_ports  # enumerates live ALSA ports
+            # One ALSA client for our ports and every hardware destination, so all of
+            # them get queue timing (see virtual.py).
+            self.sequencer = Sequencer(CLIENT_NAME)
+            virtual_out = self.sequencer.create_output(OUT_PORT)
+            list_ports = list_ports or self.sequencer.destinations
+            open_port = open_port or self.sequencer.open_destination
         self._outputs: dict[str, Output] = {OUT_PORT: virtual_out}
         self._list_ports = list_ports or (lambda: [])
-        self._open_port = open_port
+        self._open_port = open_port or (lambda name: None)
         self._destinations = [OUT_PORT]
         self._missing_logged: set[str] = set()
         self.notes = SoundingNotes()
@@ -164,7 +156,22 @@ class MidiRouter:
         with self._lock:
             self._send([(destination, [PITCH_BEND | channel, raw & 0x7F, raw >> 7])])
 
+    def schedule(self, destination: str, message: Message, at: float, tag: int = NO_TAG) -> None:
+        """Send at monotonic time `at` (rhythm). Not note-tracked: the caller pairs every
+        note-on with a note-off, and Panic takes back what's still queued."""
+        with self._lock:
+            output = self._output(destination)
+            if output is not None:
+                output.send_at(message, at, tag)
+
+    def cancel(self, tag: int | None = None) -> None:
+        """Take back queued events with `tag`, or all tagged ones."""
+        with self._lock:
+            for output in self._outputs.values():
+                output.cancel(tag)
+
     def panic(self) -> None:
+        self.cancel()  # nothing queued may play after Panic
         with self._lock:
             self._send(panic_messages(self.notes, list(self._outputs)))
 
@@ -177,3 +184,5 @@ class MidiRouter:
         with self._lock:
             for output in self._outputs.values():
                 output.close_port()
+        if self.sequencer is not None:
+            self.sequencer.close()
