@@ -29,8 +29,9 @@ MODES = ("Repeat", "Arp")
 REPEAT_GATE = 50  # percent of a step
 FIRST_STEP_GAP = 0.3  # grid steps this soon after a press (in steps) are skipped
 # Tags for queued events, so each can be taken back: held rhythm sources cycle through
-# 1-199, each rolling chord gets one of ROLL_TAGS, and MIDI clock has its own.
-RHYTHM_TAGS = 199
+# 1-198, Life has one, each rolling chord gets one of ROLL_TAGS, and MIDI clock has its own.
+RHYTHM_TAGS = 198
+LIFE_TAG = 199
 ROLL_TAGS = range(200, 255)
 CLOCK_TAG = 255
 

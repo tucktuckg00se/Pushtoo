@@ -51,6 +51,7 @@ OPEN_COLOR: dict[str, str] = {
     "mute": "ff6b6b",
     "solo": "4dabf7",
     "rate": "22b8cf",  # the chosen rate on the side buttons
+    "life": "cc5de8",  # Life's cells and the Session button
     # Colors a profile can give a knob
     "red": "ff6b6b",
     "orange": "ff922b",

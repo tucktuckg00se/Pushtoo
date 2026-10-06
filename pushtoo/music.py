@@ -150,9 +150,7 @@ DRUM_STEP = 32  # what the Octave buttons move: two banks, half the pads
 DRUM_DEFAULT_START = 36
 DRUM_LOWEST_START = DRUM_DEFAULT_START % BANK_SIZE
 _TOP_START = 128 - 2 * BANK_SIZE  # the last start whose bottom two banks are real notes
-DRUM_HIGHEST_START = (
-    DRUM_LOWEST_START + (_TOP_START - DRUM_LOWEST_START) // BANK_SIZE * BANK_SIZE
-)
+DRUM_HIGHEST_START = DRUM_LOWEST_START + (_TOP_START - DRUM_LOWEST_START) // BANK_SIZE * BANK_SIZE
 
 
 def drum_name(midi_note: int) -> str:

@@ -57,6 +57,9 @@ class SoundingNotes:
     def held_by(self, source: Hashable) -> NoteKey | None:
         return self._by_source.get(source)
 
+    def sounding(self) -> bool:
+        return bool(self._counts)
+
     def notes_on(self, destination: str, channel: int) -> set[int]:
         return {n for d, c, n in self._counts if d == destination and c == channel}
 

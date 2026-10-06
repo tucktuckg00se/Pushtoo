@@ -10,6 +10,7 @@ from pushtoo.midi.router import MidiRouter
 from pushtoo.modes.base import Mode
 from pushtoo.modes.play import PlayMode
 from pushtoo.setup import AFTERTOUCH_MODES, LIMITS, RESPONSES, DeviceSettings, velocity_table
+from pushtoo.standby import SCENES
 from pushtoo.ui.controls import Control, Option, Page
 
 
@@ -54,7 +55,10 @@ class SetupMode(Mode):
                 controls=[
                     self._number("Pads", "pad_brightness", percent=True),
                     self._number("Screen", "screen_brightness", percent=True),
+                    self._number("Standby", "standby_minutes", minutes=True),
                 ],
+                # The standby scene; Shift+Session starts it at once.
+                options=[self._choice("standby_scene", scene) for scene in SCENES],
             ),
             Page(
                 "Clock",
@@ -83,10 +87,14 @@ class SetupMode(Mode):
             s.aftertouch_start = min(s.aftertouch_start, value - 1)
         self._on_change()
 
-    def _number(self, name: str, field: str, bipolar=False, signed=False, percent=False):
+    def _number(
+        self, name: str, field: str, bipolar=False, signed=False, percent=False, minutes=False
+    ):
         low, high = LIMITS[field]
 
         def fmt(value: int) -> str:
+            if minutes:
+                return f"{value} min" if value else "Off"
             if percent:
                 return f"{value}%"
             return f"{value:+d}" if signed and value else str(value)

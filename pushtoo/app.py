@@ -30,6 +30,7 @@ from pushtoo.render.process import Renderer
 from pushtoo.rhythm.clock import MAX_SWING, MAX_TEMPO, MIN_SWING, MIN_TEMPO
 from pushtoo.rhythm.repeat import CLOCK_TAG
 from pushtoo.setup import CURVE_DYNAMICS, DeviceSettings, hardware
+from pushtoo.standby import Standby
 from pushtoo.theme import DEFAULT_THEME, Theme
 from pushtoo.themes.loader import ThemeFileError, ThemeStore
 from pushtoo.ui.controls import Control
@@ -64,6 +65,7 @@ PLAY_BUTTONS = {
     c.BUTTON_OCTAVE_UP,
     c.BUTTON_OCTAVE_DOWN,
     c.BUTTON_REPEAT,
+    c.BUTTON_SESSION,  # Life
     *SCENE_BUTTONS,  # voicings in the Chord layout, rates while rhythm picks them
 }
 
@@ -102,6 +104,8 @@ class App:
         self.peek: int | str | None = None
         self._toast = ("", 0.0)
         self._lost_push = False
+        self.standby: Standby | None = None
+        self._last_input = time.monotonic()
 
         self.profile = self._initial_profile()
         # Themes live next to the profiles folder.
@@ -281,11 +285,13 @@ class App:
 
     @locked
     def pad_pressed(self, row: int, col: int, velocity: int) -> None:
+        self._input()  # out of standby, and the pad still plays
         self.mode.pad_pressed(row, col, velocity)
         self.refresh()
 
     @locked
     def pad_released(self, row: int, col: int) -> None:
+        self._input(wake=False)
         self.mode.pad_released(row, col)
         self.refresh()
 
@@ -302,17 +308,23 @@ class App:
 
     @locked
     def touchstrip(self, value: int) -> None:
+        if self._input():
+            self.refresh()
         self.play.touchstrip(value)
 
     @locked
     def button_pressed(self, name: str) -> None:
+        self._input()
         if name == c.BUTTON_SHIFT:
             self.shift, self.shift_used = True, False
         elif name == c.BUTTON_DELETE:
             self.delete, self.delete_used = True, False
         elif name == c.BUTTON_STOP and self.shift:
-            self.router.panic()
+            self.panic()
             self.toast("Panic: all notes off")
+        elif name == c.BUTTON_SESSION and self.shift:
+            self.shift_used = True
+            self.start_standby()
         elif name == c.BUTTON_PLAY:
             self._toggle_transport()
         elif name == c.BUTTON_TAP_TEMPO:
@@ -341,8 +353,11 @@ class App:
         elif self.play.layout_held and (index := row_index(name, "Upper")) is not None:
             self.play.pick_layout(index)
         elif name in PLAY_BUTTONS:
+            life_was = self.play.life.on
             self.play.button_pressed(name)
             self._describe_side_button(name)
+            if name == c.BUTTON_SESSION and not life_was:
+                self.toast("Life: pads you play come alive")
         elif self.shift and isinstance(self.mode, KnobsMode) and name.startswith("Upper Row "):
             self.shift_used = True
             if sent := self.mode.learn(int(name.removeprefix("Upper Row ")) - 1):
@@ -353,7 +368,10 @@ class App:
 
     @locked
     def button_released(self, name: str) -> None:
-        if name in (c.BUTTON_LAYOUT, c.BUTTON_REPEAT):
+        self._input(wake=False)
+        if name == c.BUTTON_SESSION and self.standby is not None:
+            return  # the release of Shift+Session, which started standby
+        if name in (c.BUTTON_LAYOUT, c.BUTTON_REPEAT, c.BUTTON_SESSION):
             self.play.button_released(name)
             self.refresh()
         elif name in SCENE_BUTTONS:
@@ -419,7 +437,7 @@ class App:
 
     def rhythm_interval(self) -> float:
         play = self.play
-        if play.rhythm.on or play.clock.running:
+        if play.rhythm.on or play.life.on or play.clock.running:
             return RHYTHM_TICK
         if self._sending_clock():
             return CLOCK_TICK  # clock alone: ticks are 20 ms apart even at 120 BPM
@@ -437,6 +455,13 @@ class App:
         start = max(self._steps_until or now, now)
         if play.rhythm.on:
             play.send_scheduled(play.rhythm.events(clock, start, end))
+        if play.life.on:
+            generation = play.life.generation
+            play.send_scheduled(play.life_events(start, end))
+            if play.life.generation != generation:
+                # The board lights as it plays, and the screen counts its cells.
+                self.renderer.update(self.view())
+                self.refresh_pads()
         self._steps_until = end
         start = max(self._ticks_until or now, now)
         if self._sending_clock():
@@ -444,9 +469,48 @@ class App:
                 self.router.schedule(OUT_PORT, [MIDI_CLOCK], at, CLOCK_TAG)
         self._ticks_until = end
         self._pulse(now)
+        self._standby_tick(now)
         shown = play.tempo_text()
         if shown != self._shown_tempo:  # a followed tempo drifting, say
             self._shown_tempo = shown
+            self.refresh()
+
+    # Standby
+
+    def _input(self, wake: bool = True) -> bool:
+        """Someone is playing: the standby timer starts again, and a press ends standby.
+        Returns True if it did; the press itself still does its usual job."""
+        self._last_input = self.play.time()
+        if wake and self.standby is not None:
+            self.standby = None
+            return True
+        return False
+
+    def start_standby(self) -> None:
+        self.standby = Standby(self.device.standby_scene, self.play.time())
+        self.peek = None
+
+    def _quiet(self) -> bool:
+        """Nothing sounding or running that standby would hide."""
+        play = self.play
+        return not (
+            self.router.sounding()
+            or play.rhythm.held
+            or play.life.on
+            or play.clock.running
+            or play.clock.following
+            or play.chord.current is not None
+        )
+
+    def _standby_tick(self, now: float) -> None:
+        if self.standby is None:
+            minutes = self.device.standby_minutes
+            if minutes and now - self._last_input >= minutes * 60 and self._quiet():
+                self.start_standby()
+                self.refresh()
+            return
+        if self.standby.due(now):
+            self.standby.step(now)
             self.refresh()
 
     def _sending_clock(self) -> bool:
@@ -498,6 +562,8 @@ class App:
 
     @locked
     def encoder_rotated(self, name: str, increment: int) -> None:
+        if self._input():
+            self.refresh()
         if self.shift:
             self.shift_used = True
         if name in SIDE_ENCODERS:
@@ -511,6 +577,8 @@ class App:
 
     @locked
     def encoder_touched(self, name: str) -> None:
+        if self._input():
+            self.refresh()
         if name in SIDE_ENCODERS:
             self.peek = SIDE_ENCODERS[name]
         elif (index := ENCODERS.get(name)) is not None and self.mode.control_at(index):
@@ -542,7 +610,7 @@ class App:
     def push_disconnected(self) -> None:
         log.warning("Push disconnected; releasing held notes")
         self._lost_push = True
-        self.router.panic()
+        self.panic()
         self.toast("Reconnecting to Push…", UNTIL_CLEARED)
         self.refresh()
 
@@ -552,12 +620,19 @@ class App:
         self._toast = (text, time.monotonic() + seconds)
 
     def _shift_actions(self) -> list[str]:
-        actions = ["Stop: Panic (all notes off)", "Undo: Redo", "Turn an encoder: fine adjust"]
+        actions = [
+            "Stop: Panic (all notes off)",
+            "Session: Standby",
+            "Undo: Redo",
+            "Turn an encoder: fine adjust",
+        ]
         if isinstance(self.mode, KnobsMode):
             actions.insert(0, "Upper button: Learn Assist (sends that CC alone)")
         return actions
 
     def view(self) -> dict:
+        if self.standby is not None:
+            return {"standby": self.standby.view(), "theme": dict(self.theme)}
         view = self.mode.view()
         if isinstance(self.peek, str):
             # Tempo and Swing sit left of the display, Master right: shown at that edge.
@@ -594,7 +669,8 @@ class App:
         for button in (PLAY_BUTTONS - set(SCENE_BUTTONS)) | {c.BUTTON_SCALE}:
             colors.setdefault(button, "dark_gray")
         colors |= self.play.scene_colors()  # the voicing stays visible from any mode
-        colors[c.BUTTON_SESSION] = "black"  # unassigned: Pushtoo has no clip launching
+        # Session is Life; with Shift, standby. (Its LED is white only.)
+        colors[c.BUTTON_SESSION] = "white" if self.play.life.on or self.shift else "dark_gray"
         colors[c.BUTTON_SHIFT] = "white" if self.shift else "dark_gray"
         colors[c.BUTTON_STOP] = "white" if self.shift else "black"
         colors[c.BUTTON_UNDO] = "dark_gray"
@@ -609,13 +685,33 @@ class App:
                 colors[f"Upper Row {i + 1}"] = Mode.row_color(item)
         return colors
 
+    def panic(self) -> None:
+        self.play.stop_generators()
+        self.router.panic()
+
+    def pad_colors(self) -> list[list[str]]:
+        if self.standby is not None:
+            return self.standby.pad_colors(self.play.time())
+        return self.mode.pad_colors()
+
+    def refresh_pads(self) -> None:
+        """Only the pads, for changes that come with time (Life's generations)."""
+        if self.push is not None:
+            self.push.set_pad_colors(self.pad_colors())
+
     def refresh(self) -> None:
         self._rhythm_wake.set()  # something changed: the scheduler looks again at once
         self.renderer.update(self.view())
-        self.saver.mark_dirty()
+        if self.standby is None:  # a standby step changes nothing worth saving
+            self.saver.mark_dirty()
         if self.push is not None:
-            self.push.set_pad_colors(self.mode.pad_colors())
-            self.push.set_button_colors(self.button_colors())
+            self.push.set_pad_colors(self.pad_colors())
+            if self.standby is None:
+                self.push.set_button_colors(self.button_colors())
+            else:  # buttons go dark, all but Session, which wakes like any other
+                self.push.set_button_colors(
+                    dict.fromkeys(self.button_colors(), "black") | {c.BUTTON_SESSION: "white"}
+                )
             self.push.apply_settings(self.play.hardware_settings() | hardware(self.device))
 
     def close(self) -> None:

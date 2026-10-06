@@ -19,7 +19,9 @@ Try these, in any order. There's no wrong way; we want to know where you got stu
 3. **The chord grid.** Press **Layout** until you reach Chord. Play I–vi–IV–V (columns 1, 6, 4, 5 on the second row). Try a few chord sets with the buttons above the screen.
 4. **Rhythm.** Hold a chord and tap **Repeat**, then try the Arp on the Rhythm page.
 5. **Feel.** Press **Setup** and change Sensitivity until the pads feel right to you.
-6. **Unplug and replug** the Push while playing. Did it come back by itself?
+6. **Life.** Tap **Session**, play a few pads close together, and let them evolve. Try it in each layout.
+7. **Standby.** Hold Shift and press **Session**, then play any pad to wake it.
+8. **Unplug and replug** the Push while playing. Did it come back by itself?
 
 ## 3. Tell us
 

@@ -21,6 +21,7 @@ MAX_FPS = 60
 DISPLAY_RETRY_SECONDS = 2.0  # how often to look for the display when it isn't there
 # Push 2 blanks the display if no frame arrives for about 2 s.
 KEEPALIVE_SECONDS = 0.5
+STANDBY_FPS = 24  # standby animates every frame, gently
 
 
 class _DisplayOnlyPush:
@@ -46,6 +47,9 @@ def _run(states: "mp.Queue", fps: int = MAX_FPS) -> None:
     while True:
         dirty = False
         timeout = KEEPALIVE_SECONDS
+        animating = bool(state and state.get("standby"))
+        if animating:
+            timeout = 1 / min(fps, STANDBY_FPS)
         toast_until = state.get("toast_until", 0) if state else 0
         if toast_until > time.monotonic():
             timeout = min(timeout, toast_until - time.monotonic() + 0.01)
@@ -62,6 +66,8 @@ def _run(states: "mp.Queue", fps: int = MAX_FPS) -> None:
             return
         now = time.monotonic()
         toast_expired = 0 < toast_until <= now and last_frame < toast_until
+        if animating:
+            dirty = True
         if not dirty and not toast_expired and now - last_frame < KEEPALIVE_SECONDS:
             continue
         if display.usb_endpoint is None:
@@ -70,7 +76,7 @@ def _run(states: "mp.Queue", fps: int = MAX_FPS) -> None:
             if now - last_probe < DISPLAY_RETRY_SECONDS:
                 continue
             last_probe = now
-        wait = 1 / fps - (now - last_frame)
+        wait = 1 / (min(fps, STANDBY_FPS) if animating else fps) - (now - last_frame)
         if wait > 0:
             time.sleep(wait)
         draw_view(ctx, state)

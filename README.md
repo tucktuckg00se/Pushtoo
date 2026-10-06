@@ -67,6 +67,8 @@ Pushtoo has two main modes, each on its own button: **Note** (Play) and **Device
 | Accent                          | Every note at full velocity                                          |
 | Repeat                          | Rhythm on or off: held pads repeat in time, or arpeggiate. Hold it for rhythm only while held |
 | Side buttons (with rhythm on)   | The rate, as printed on them: 1/32t to 1/4. In the Chord layout, hold Repeat to pick one |
+| Session                         | Life on or off (see below). Hold it for Life only while held         |
+| Shift + Session                 | Standby now: the pads and screen animate until you play              |
 | Play                            | Start and stop: sends MIDI Start and Stop; the button flashes on each beat |
 | Tap Tempo                       | Set the tempo from your last four taps                               |
 | Tempo and Swing encoders (left) | Tempo (Shift for 0.1 BPM steps) and swing. Touch one to see it at the screen's left edge |
@@ -108,6 +110,8 @@ Row kinds: `triad`, `seventh`, `add9`, `sus`, `sus2`, `sus4`, `ninth`, `sixth`, 
 
 **Rhythm.** Tap **Repeat** and held pads repeat at the rate lit on the side buttons; press harder on a pad and its repeats get louder. The **Rhythm** page (Keyboard and Chord) switches between **Repeat** and **Arp**, the arpeggiator, with its Pattern (Up, Down, Up-down, As played, Random), Octaves and Gate. In the Chord layout, Repeat retriggers the chord with its bass, and Arp plays chord and bass note by note (Up starts from the bass, which stays on the bass channel); Latch keeps it going. Pushtoo keeps its own tempo and sends MIDI clock on Pushtoo Out, so a synth or DAW can follow it. If your DAW sends clock to **Pushtoo In**, Pushtoo follows instead and says "Following clock" on screen. Steps are scheduled ahead on the ALSA sequencer, so timing holds steady (under 1 ms) however busy Pushtoo is.
 
+**Life.** Tap **Session** and every pad you play also comes alive as a cell in a Game of Life, lit purple. On each step (1/8 by default) the board moves on a generation, and the pads it lands on play, in whatever layout you're in: a melody in key on the Keyboard, a beat on Drums, changes on the chord grid. Switch layouts and the same board plays the new one. The **Life** page sets the **Rate**, the **Rule** (Conway, HighLife, Seeds, Day & Night), whether it **Plays** only cells just born (the default) or every live cell, how many pads may sound at once (**Voices**) and their **Velocity**. Above the display: **Hold** freezes the board so it plays as a loop, **Wrap** joins its edges, **Random** seeds a whole board and **Clear** empties it. Turning Life off, Panic and unplugging the Push all clear it.
+
 **Knobs mode** gives you up to 8 pages of 8 named controls, defined in your profile. Each column's top button glows in that control's color. To map a control in your DAW, start the DAW's MIDI learn, hold **Shift** and tap the button above the knob: Pushtoo sends just that control's CC, three times, so the DAW catches the right one. Hold **Delete** and touch a knob to reset it to its default.
 
 **Mix mode** (an extra, on the Mix button) turns the 8 encoders into fader CCs, with mute and solo toggles on the top two pad rows. Each fader shows M and S chips that light red and blue, the same as their pads. Press Mix again, or the `‹` button at the bottom right of the display, to go back to where you were.
@@ -122,7 +126,7 @@ Press **Setup** to tune the Push to your hands. Pads keep playing while you're t
 
 - **Pads:** **Sensitivity** (how little force reaches full velocity), **Dynamics** (below 0, light touches play louder; above 0, you have to dig in), and **Min** and **Max velocity**. The screen draws the curve and puts a dot where your last hit landed. Above the display, **Regular**, **Reduced** or **Low** sets the Push's own pad sensitivity; lower settings stop neighbouring pads from triggering and stop double hits.
 - **Aftertouch:** **Poly** (each pad's own pressure), **Channel** (one pressure for all the pads, for synths that only read channel pressure) or **Off**, with where pressure starts and where it reaches full.
-- **Display:** pad and button brightness, and screen brightness. On USB power alone, Push dims itself whatever these say.
+- **Display:** pad and button brightness, and screen brightness. On USB power alone, Push dims itself whatever these say. **Standby** is how long the Push waits with nothing played before the pads and screen start to animate (10 minutes by default, or Off), and the buttons above pick the scene: **Life** (a silent Game of Life) or **Drift** (slow waves of color). It never starts while anything is sounding or the transport runs. Shift + Session starts it at once, and any pad wakes it and plays as usual.
 - **Clock:** whether Pushtoo sends MIDI clock, and whether it follows clock arriving on Pushtoo In.
 
 Setup belongs to your Push, not to a profile, so it's the same whichever profile is loaded, and it's saved in `~/.local/state/pushtoo/state.yaml`. A profile's `play: {velocity_curve: ...}` only sets the starting feel before Setup has been used.

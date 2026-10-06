@@ -102,13 +102,14 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 | Scene buttons (right of pads)                                | Chord layout: voicing (rates while Repeat is held). Keyboard and Drums: rates while rhythm is on |
 | Accent                                                       | Fixed full velocity                                          |
 | Repeat                                                       | Rhythm on and off (note repeat or arpeggiator); hold for momentary |
+| Session, Shift + Session                                     | Life on and off (hold for momentary); standby now            |
 | Undo, Shift + Undo                                           | Undo and redo keystrokes or MIDI, per profile                |
 | Shift + Stop Clip                                            | Panic                                                        |
 | Delete + touch an encoder                                    | Reset that control to its default                            |
 | Play                                                         | Start and stop the transport (MIDI Start and Stop); pulses on beats |
 | Tap Tempo                                                    | Set the tempo from the last four taps                        |
 | Record, Metronome                                            | Looper (Loops milestone)                                     |
-| Session, arrows, Mute, Solo, and the remaining buttons       | Unassigned                                                   |
+| Arrows, Mute, Solo, and the remaining buttons                | Unassigned                                                   |
 
 **Scale selector**
 
@@ -285,7 +286,7 @@ Push 2's LED palette is reprogrammed on every connect and theme change so on-scr
 
 **First run:** no setup. The screen says "Play any pad" and "Select Pushtoo Out in your DAW", and the pads glow in C minor.
 
-**Delight (roadmap):** note repeat and arpeggiator, a drum step sequencer, a MIDI looper, living pads that ripple on press, Life mode (an idle Game of Life that can play notes in key), Dice for Knobs pages, snapshot morph on the touch strip.
+**Delight (roadmap):** note repeat and arpeggiator, a drum step sequencer, a MIDI looper, living pads that ripple on press, Life (a Game of Life on the pads that plays in the current layout; built) and standby (built), Dice for Knobs pages, snapshot morph on the touch strip.
 
 ## Technical architecture
 
@@ -348,7 +349,8 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F25  | Clock: internal tempo and swing on the left encoders; MIDI clock out on Pushtoo Out; follow incoming clock on Pushtoo In | P0 | Built |
 | F26  | Drum step sequencer                                          | P1 | Loops |
 | F27  | MIDI looper for standalone jams (Record, Play)               | P1 | Loops |
-| F9   | Living pads and Life mode, each toggleable                   | P1 | Delight |
+| F9   | Life on the Session button: a Game of Life seeded from the pads, stepping on the clock and playing in every layout | P1 | Built |
+| F37  | Standby: after a set time with nothing played (or Shift + Session), the pads and screen animate (Life or Drift); any pad wakes it and plays | P1 | Built |
 | F8   | Dice and snapshot morph for Knobs                            | P1 | Delight |
 | F21  | Rename controls from the hardware; high-contrast and large-text settings | P2 | |
 | F4   | Mix mode (extra): fader CCs, mute and solo pads              | P2 | Built, frozen |
@@ -371,7 +373,7 @@ Removed in this revision: DAW feedback (F7), Launch mode (F20), and auto-switchi
 | M3 Chords       | Chord grid with voicing and Strum                                     | Built; hardware check pending |
 | M4 Rhythm       | Clock, note repeat, arpeggiator                                       | Built; hardware check pending |
 | M5 Loops        | Drum step sequencer, MIDI looper                                      | Next   |
-| M6 Delight      | Living pads, Life mode, Dice, snapshot morph                          |        |
+| M6 Delight      | Life and standby; living pads, Dice and snapshot morph wait            | Life and standby built; hardware check pending |
 | M7 Beta         | One-command installer, 5-tester study, Raspberry Pi check             | In progress: installer and service built; tester study and Pi check next |
 
 The latency gate (`tools/latency/latency.py`) runs at every milestone and must pass before the next starts.
@@ -403,7 +405,7 @@ The latency gate (`tools/latency/latency.py`) runs at every milestone and must p
 
 - [x] Pysha's license allows this fork: yes, MIT for Pysha and push2-python. Pushtoo itself is GPL-3.0-or-later; MIT code may be included in it as long as its notice is kept (LICENSES/MIT-Pysha.txt).
 - [ ] Which audio stacks are in the v1 test matrix: PipeWire only, or also plain ALSA and JACK?
-- [ ] Should Life mode play notes by default, or stay silent until switched on?
+- [x] Should Life play notes? In a layout, yes: that's what Session turns on. In standby it's silent.
 - [x] Does the Smooth voicing need a "brightness" control? Yes: Brightness on the Style page, −6…+6 semitones.
 - [x] Clock: lead or follow by default? Both, automatically: lead with Pushtoo's tempo, follow when clock arrives on Pushtoo In.
 - [x] What should the spare eighth side button do in the Chord layout? Latch.

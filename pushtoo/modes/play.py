@@ -14,7 +14,7 @@ from push2_python import constants as c
 from pushtoo.chords import FAVORITE_SLOTS, VOICINGS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
-from pushtoo.modes.chord import HOLD_SECONDS, SCENE_BUTTONS, ChordPlayer
+from pushtoo.modes.chord import BASS_ROW, HOLD_SECONDS, SCENE_BUTTONS, ChordPlayer
 from pushtoo.modes.chord import MAX_BRIGHTNESS as CHORD_MAX_BRIGHTNESS
 from pushtoo.modes.chord import MAX_OCTAVE as CHORD_MAX_OCTAVE
 from pushtoo.modes.chord import MIN_BRIGHTNESS as CHORD_MIN_BRIGHTNESS
@@ -38,7 +38,8 @@ from pushtoo.profiles.schema import Play as PlaySettings
 from pushtoo.profiles.schema import Rhythm as RhythmSettings
 from pushtoo.rhythm.arp import MAX_OCTAVES, PATTERNS
 from pushtoo.rhythm.clock import Clock
-from pushtoo.rhythm.repeat import MODES, RATE_NAMES, Rhythm, Scheduled
+from pushtoo.rhythm.life import MAX_VOICES, PLAYS, RULE_NAMES, Life
+from pushtoo.rhythm.repeat import LIFE_TAG, MODES, RATE_NAMES, Rhythm, Scheduled
 from pushtoo.rhythm.timing import DIRECTIONS, MAX_LOOSE, MAX_ROLL
 from pushtoo.rhythm.velocity import MAX_SPREAD, MAX_TOP, VelocitySpread
 from pushtoo.theme import OFF, PAD_ROLE_COLORS, led
@@ -104,6 +105,10 @@ class PlayMode(Mode):
         self._repeat_pressed_at = 0.0
         self._repeat_was_on = False
         self._repeat_used = False  # a rate was picked while Repeat was held
+        # Life (Session): tap toggles it, held it's momentary, like Repeat.
+        self.life = Life()
+        self._session_pressed_at = 0.0
+        self._session_was_on = False
 
         self.layouts = [
             Layout("Keyboard", channel=0),
@@ -219,6 +224,7 @@ class PlayMode(Mode):
             self._velocity_page(layout),
             self._timing_page(),
             self._rhythm_page(),
+            self._life_page(),
             Page("Output", controls=output, options=mute_options),
         ]
 
@@ -358,6 +364,56 @@ class PlayMode(Mode):
 
         return choose
 
+    def _life_page(self) -> Page:
+        """Life's step and sound on the encoders; on, hold and the board above."""
+        life = self.life
+        controls: list[Control | None] = [
+            Control(
+                "Rate",
+                lambda: RATE_NAMES.index(life.rate),
+                lambda v: setattr(life, "rate", RATE_NAMES[v]),
+                choices=RATE_NAMES,
+            ),
+            Control(
+                "Rule",
+                lambda: RULE_NAMES.index(life.rule),
+                lambda v: setattr(life, "rule", RULE_NAMES[v]),
+                choices=RULE_NAMES,
+            ),
+            Control(
+                "Plays",
+                lambda: PLAYS.index(life.plays),
+                lambda v: setattr(life, "plays", PLAYS[v]),
+                choices=PLAYS,
+            ),
+            Control(
+                "Voices",
+                lambda: life.voices,
+                lambda v: setattr(life, "voices", v),
+                minimum=1,
+                maximum=MAX_VOICES,
+            ),
+            Control(
+                "Velocity",
+                lambda: life.velocity,
+                lambda v: setattr(life, "velocity", v),
+                minimum=1,
+                maximum=127,
+            ),
+        ]
+        options: list[Option | None] = [
+            Option("Life", lambda: self.set_life(not life.on), lambda: life.on),
+            Option("Hold", lambda: setattr(life, "hold", not life.hold), lambda: life.hold),
+            Option("Wrap", lambda: setattr(life, "wrap", not life.wrap), lambda: life.wrap),
+            Option("Random", self._life_random),
+            Option("Clear", self.clear_life),
+        ]
+        return Page("Life", controls, options)
+
+    def _life_random(self) -> None:
+        self.life.randomize()
+        self.set_life(True)  # a fresh board means you want to hear it
+
     def _set_chord_flag(self, flag: str, value: bool) -> None:
         setattr(self.chord, flag, value)
         self.chord.revoice()  # held chords re-trigger in the new style or mix
@@ -402,6 +458,7 @@ class PlayMode(Mode):
         ]
         if layout.name == "Keyboard":  # Drums only repeat, with rates on the side buttons
             pages.append(self._rhythm_page())
+        pages.append(self._life_page())
         pages.append(Page("Output", controls=output))
         return pages
 
@@ -454,6 +511,8 @@ class PlayMode(Mode):
     # Pads
 
     def pad_pressed(self, row: int, col: int, velocity: int) -> None:
+        if self.life.on:
+            self.life.seed(row, col)  # the pad plays now, and its cell lives on
         if self.in_chord:  # the chord grid applies Accent itself, with its Velocity page
             self.chord.pad_pressed(row, col, velocity)
             self.played_once = True
@@ -553,6 +612,61 @@ class PlayMode(Mode):
         if self.in_chord and self.chord.current is not None:
             self.chord.revoice()  # a sounding chord switches between held and rhythmic
 
+    # Life
+
+    def set_life(self, on: bool) -> None:
+        if on == self.life.on:
+            return
+        self.life.on = on
+        if not on:
+            self.clear_life()
+
+    def clear_life(self) -> None:
+        self.life.clear()
+        self.router.cancel(LIFE_TAG)  # take back its queued notes; note-offs stay
+
+    def life_notes(self, row: int, col: int) -> tuple[str, int, list[int]]:
+        """What a live cell plays: its pad's note, or in the Chord layout its chord (or
+        bass note), as the pad would play it now."""
+        layout = self.layout
+        if self.in_chord:
+            chord = self.chord
+            if row == BASS_ROW:
+                notes = [] if chord.mute_bass else chord.notes_for((row, col))
+                return layout.destination, chord.bass_channel, notes
+            notes = [] if chord.mute_chords else chord.notes_for((row, col))
+            return layout.destination, layout.channel, notes
+        note = self._grid().note_at(row, col)
+        return layout.destination, layout.channel, [] if note is None else [note]
+
+    def life_events(self, start: float, end: float) -> list[Scheduled]:
+        return self.life.events(self.clock, start, end, self.life_notes)
+
+    def stop_generators(self) -> None:
+        """Panic or a lost Push: nothing held may keep repeating, and Life's board empties
+        (both stay on, ready for the next pads)."""
+        self._stop_rhythm_notes()
+        self.clear_life()
+
+    def _session_pressed(self) -> None:
+        self._session_pressed_at = self.time()
+        self._session_was_on = self.life.on
+        self.set_life(True)
+
+    def _session_released(self) -> None:
+        held = self.time() - self._session_pressed_at >= HOLD_SECONDS
+        if held:
+            self.set_life(self._session_was_on)  # momentary
+        elif self._session_was_on:
+            self.set_life(False)  # a tap turns it off again
+
+    def life_text(self) -> str | None:
+        if not self.life.on:
+            return None
+        cells = len(self.life.cells)
+        board = f"{cells} cell{'s' if cells != 1 else ''}" if cells else "press pads"
+        return f"Life {self.life.rate} · {board}" + (" · Hold" if self.life.hold else "")
+
     @property
     def rates_on_side(self) -> bool:
         """Side buttons pick rates: in Keyboard and Drums while rhythm is on, and in
@@ -623,6 +737,9 @@ class PlayMode(Mode):
         if name == c.BUTTON_REPEAT:
             self._repeat_released()
             return True
+        if name == c.BUTTON_SESSION:
+            self._session_released()
+            return True
         if name in SCENE_BUTTONS and self.in_chord:
             self.chord.voicing_released(SCENE_BUTTONS.index(name))
             return True
@@ -683,6 +800,9 @@ class PlayMode(Mode):
         if name == c.BUTTON_REPEAT:
             self._repeat_pressed()
             return True
+        if name == c.BUTTON_SESSION:
+            self._session_pressed()
+            return True
         if name in SCENE_BUTTONS and self.rates_on_side:
             self.rhythm.rate = name  # the side buttons are labelled with their rates
             self._repeat_used = self.repeat_held
@@ -724,8 +844,15 @@ class PlayMode(Mode):
         return {"strip_mode": strip}
 
     def pad_colors(self) -> list[list[str]]:
-        if self.in_chord:
-            return self.chord.pad_colors()
+        colors = self.chord.pad_colors() if self.in_chord else self._layout_pad_colors()
+        if self.life.on:  # live cells over the layout; a pad you hold stays white
+            life = led("life")
+            for row, col in self.life.cells:
+                if colors[row][col] != "pt_held":
+                    colors[row][col] = life
+        return colors
+
+    def _layout_pad_colors(self) -> list[list[str]]:
         layout, grid = self.layout, self._grid()
         held = self.router.notes_on(layout.destination, layout.channel)
         # Over a latched chord, the Keyboard lights that chord's notes.
@@ -868,15 +995,17 @@ class PlayMode(Mode):
         if not self.scale_open:
             panel["rail"] = self.rail()
             panel["rhythm"] = self.rhythm_text()
+            panel["life"] = self.life_text()
             panel["tempo"] = self.tempo_text()
         return panel
 
     def tempo_text(self) -> str | None:
-        """The tempo, while it matters: rhythm on, the transport running, or following."""
+        """The tempo, while it matters: rhythm or Life on, the transport running, or
+        following."""
         clock = self.clock
         if clock.following:
             return f"Following clock · {clock.tempo:.0f}"
-        if self.rhythm.on or clock.running:
+        if self.rhythm.on or self.life.on or clock.running:
             return f"{clock.tempo:.0f} BPM"
         return None
 
@@ -951,6 +1080,14 @@ class PlayMode(Mode):
                 for lo in self.layouts
             ],
             "chord": self.chord.snapshot(),
+            "life": {
+                "rule": self.life.rule,
+                "rate": self.life.rate,
+                "plays": self.life.plays,
+                "voices": self.life.voices,
+                "velocity": self.life.velocity,
+                "wrap": self.life.wrap,
+            },
             "rhythm": {
                 "tempo": round(self.clock.tempo, 1),
                 "swing": self.clock.swing,
@@ -987,6 +1124,7 @@ class PlayMode(Mode):
         if isinstance(state.get("chord"), dict):
             self.chord.restore(state["chord"])
         self._restore_rhythm(state.get("rhythm"))
+        self._restore_life(state.get("life"))
         if state.get("layout") in range(len(self.layouts)):
             self.current = state["layout"]
             self.rhythm.allow_arp = self.layout.name != "Drums"
@@ -1008,3 +1146,20 @@ class PlayMode(Mode):
             self.rhythm.octaves = saved["octaves"]
         if saved.get("gate") in range(10, 101):
             self.rhythm.gate = saved["gate"]
+
+    def _restore_life(self, saved) -> None:
+        if not isinstance(saved, dict):
+            return
+        life = self.life
+        if saved.get("rule") in RULE_NAMES:
+            life.rule = saved["rule"]
+        if saved.get("rate") in RATE_NAMES:
+            life.rate = saved["rate"]
+        if saved.get("plays") in PLAYS:
+            life.plays = saved["plays"]
+        if saved.get("voices") in range(1, MAX_VOICES + 1):
+            life.voices = saved["voices"]
+        if saved.get("velocity") in range(1, 128):
+            life.velocity = saved["velocity"]
+        if isinstance(saved.get("wrap"), bool):
+            life.wrap = saved["wrap"]

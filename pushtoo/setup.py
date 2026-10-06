@@ -7,6 +7,8 @@ the hardware parts and the App applies the rest.
 
 from dataclasses import asdict, dataclass, fields
 
+from pushtoo.standby import SCENES
+
 RESPONSES = ("Regular", "Reduced", "Low")  # Push's own pad sensitivity (sysex 0x28)
 AFTERTOUCH_MODES = ("Poly", "Channel", "Off")
 # The old profile curves, as Dynamics values, for a first run before Setup is used.
@@ -25,6 +27,8 @@ LIMITS: dict[str, tuple[int, int] | tuple[str, ...]] = {
     "aftertouch_full": (1, 100),
     "pad_brightness": (0, 100),
     "screen_brightness": (0, 100),
+    "standby_minutes": (0, 60),
+    "standby_scene": SCENES,
 }
 
 
@@ -40,6 +44,8 @@ class DeviceSettings:
     aftertouch_full: int = 100  # percent where it reaches 127
     pad_brightness: int = 100  # percent
     screen_brightness: int = 100  # percent
+    standby_minutes: int = 10  # minutes without input before standby; 0 is never
+    standby_scene: str = SCENES[0]
     send_clock: bool = True  # MIDI clock on Pushtoo Out while leading
     follow_clock: bool = True  # follow clock arriving on Pushtoo In
 

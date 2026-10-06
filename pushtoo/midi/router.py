@@ -213,6 +213,11 @@ class MidiRouter:
         with self._lock:
             return self.notes.notes_on(destination, channel)
 
+    def sounding(self) -> bool:
+        """Is any note Pushtoo played still held on?"""
+        with self._lock:
+            return self.notes.sounding()
+
     def close(self) -> None:
         self.panic()
         with self._lock:

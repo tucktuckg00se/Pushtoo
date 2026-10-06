@@ -172,7 +172,7 @@ def test_mode_buttons_light_the_active_mode(env):
     colors = app.button_colors()
     assert colors[c.BUTTON_MIX] == "white"
     assert colors[c.BUTTON_NOTE] == "dark_gray"
-    assert colors[c.BUTTON_SESSION] == "black"
+    assert colors[c.BUTTON_SESSION] == "dark_gray"  # Life, off
 
 
 def test_holding_delete_explains_reset_until_a_knob_is_touched(env):

@@ -17,6 +17,7 @@ import time
 import cairo
 
 from pushtoo.fonts import FAMILY
+from pushtoo.standby import DRIFT_TOKENS, drift_phase
 from pushtoo.theme import (
     BODY,
     DEFAULT_THEME,
@@ -198,6 +199,24 @@ def status_parts(panel: dict) -> list[str]:
     return parts
 
 
+def _status(ctx: cairo.Context, panel: dict, x: float, y: float, width: float) -> None:
+    """The details line, with Life last in its own color, as its cells are on the pads."""
+    text = " · ".join(status_parts(panel))
+    life = panel.get("life")
+    if not life:
+        _text(ctx, _fit(ctx, text, width, BODY), x, y, BODY, _c["text"])
+        return
+    _font(ctx, BODY, False)
+    life_width = ctx.text_extents(life).x_advance
+    used = 0.0
+    if text:
+        text = _fit(ctx, text + " · ", max(width - life_width, 40), BODY)
+        _text(ctx, text, x, y, BODY, _c["text"])
+        _font(ctx, BODY, False)
+        used = ctx.text_extents(text).x_advance
+    _text(ctx, _fit(ctx, life, width - used, BODY), x + used, y, BODY, _c["life"])
+
+
 def _panel_keyboard(ctx, panel, x0, width, accent) -> None:
     _layout_title(ctx, panel, x0 + 16)
     key = _fit(ctx, panel["key_name"], width / 2 - 24, TITLE, True)
@@ -245,7 +264,7 @@ def _panel_drums(ctx, panel, x0, width, accent) -> None:
         if label in moves:
             line = _fit(ctx, f"Octave {label}: {moves[label]}", span, BODY - 1)
             _text(ctx, line, right, 88 + i * 18, BODY - 1, _c["text_dim"])
-    _text(ctx, _fit(ctx, " · ".join(status_parts(panel)), width, BODY), x, 128, BODY, _c["text"])
+    _status(ctx, panel, x, 128, width)
 
 
 def _drum_map(ctx, panel, x, accent) -> None:
@@ -299,8 +318,7 @@ def _drum_map(ctx, panel, x, accent) -> None:
 
 
 def _details(ctx, panel, x0, width) -> None:
-    parts = status_parts(panel)
-    _text(ctx, _fit(ctx, " · ".join(parts), width - 32, BODY), x0 + 16, 116, BODY, _c["text"])
+    _status(ctx, panel, x0 + 16, 116, width - 32)
 
 
 def _notes_or_hint(ctx, panel, x0, width) -> None:
@@ -435,8 +453,6 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
                 _text(ctx, latched, right, 44, LABEL, _c["latch"], True)
                 break
 
-    details = _fit(ctx, " · ".join(status_parts(panel)), width, BODY)
-
     name, role_line, notes = panel["chord_name"], None, panel["notes"]
     if panel["bass_note"] and not panel["sounding"]:
         bass_line = f"Bass note · Ch {panel['bass_channel'] + 1}"
@@ -446,14 +462,14 @@ def _panel_chord(ctx, panel, x0, width, accent) -> None:
     if name is None:
         _text(ctx, "Tap any pad", x, 78, HEADING, accent, True)
         _legend(ctx, x, 101, x + width)
-        _text(ctx, details, x, 126, BODY, _c["text"])
+        _status(ctx, panel, x, 126, width)
         return
     color = accent if panel["sounding"] or panel["bass_note"] else _c["text_dim"]
     _text(ctx, _fit(ctx, name, width * 0.4, TITLE, True), x, 84, TITLE, color, True)
     right = x + width * 0.42
     _text(ctx, _fit(ctx, role_line, width * 0.58, BODY), right, 64, BODY, _c["text"])
     _notes_with_velocity(ctx, notes, panel.get("velocities") or [], right, width * 0.58, accent)
-    _text(ctx, details, x, 116, BODY, _c["text"])
+    _status(ctx, panel, x, 116, width)
 
 
 def _notes_with_velocity(ctx, notes, velocities, x, width, accent) -> None:
@@ -596,6 +612,54 @@ def _toast(ctx: cairo.Context, text: str) -> None:
         _text(ctx, line, 16, top + i * 26, VALUE, _c["text"])
 
 
+def _standby(ctx: cairo.Context, standby: dict, now: float) -> None:
+    """The standby scene across the whole screen, in eight columns over the pads'."""
+    if standby["scene"] == "Life":
+        _standby_life(ctx, standby, now)
+    else:
+        _standby_drift(ctx, standby, now)
+    if now - standby["started"] < 4:  # a moment to say what this is
+        _centered(ctx, "Standby · play any pad", WIDTH / 2, HEIGHT - 8, SMALL, _c["text_dim"])
+
+
+def _standby_life(ctx: cairo.Context, standby: dict, now: float) -> None:
+    """Cells fade in as they're born and out as they die, between the App's steps."""
+    board = {tuple(cell) for cell in standby["board"]}
+    previous = {tuple(cell) for cell in standby["previous"]}
+    fade = min(1.0, (now - standby["stepped_at"]) / (standby["step"] / 2))
+    rows = HEIGHT / 8
+    r, g, b = _c["life"]
+    for row, col in board | previous:
+        level = 1.0 if (row, col) in board and (row, col) in previous else 0.0
+        if level < 1:
+            level = fade if (row, col) in board else 1 - fade
+        if level <= 0:
+            continue
+        cx, cy = col * COLUMN + COLUMN / 2, HEIGHT - (row + 0.5) * rows
+        ctx.set_source_rgb(r * level * 0.25, g * level * 0.25, b * level * 0.25)
+        ctx.arc(cx, cy, rows * 0.55, 0, 2 * math.pi)  # a soft glow
+        ctx.fill()
+        ctx.set_source_rgb(r * level, g * level, b * level)
+        ctx.arc(cx, cy, rows * 0.32, 0, 2 * math.pi)
+        ctx.fill()
+
+
+def _standby_drift(ctx: cairo.Context, standby: dict, now: float) -> None:
+    """The pads' color waves, flowing smoothly here and dimmed."""
+    t = now - standby["started"]
+    colors = [_c[token] for token in DRIFT_TOKENS]
+    split = 4  # strips per column
+    rows, width = HEIGHT / 8, COLUMN / split
+    for row in range(8):
+        for strip in range(8 * split):
+            phase = drift_phase(row, (strip + 0.5) / split - 0.5, t)
+            low, mix = int(phase), phase % 1
+            a, b = colors[low], colors[(low + 1) % len(colors)]
+            ctx.set_source_rgb(*((x + (y - x) * mix) * 0.5 for x, y in zip(a, b, strict=True)))
+            ctx.rectangle(strip * width, HEIGHT - (row + 1) * rows, width + 0.5, rows + 0.5)
+            ctx.fill()
+
+
 def _use_theme(theme: Theme) -> None:
     _c.clear()
     _c.update({token: (r / 255, g / 255, b / 255) for token, (r, g, b) in theme.items()})
@@ -605,8 +669,12 @@ def draw_view(ctx: cairo.Context, view: dict, now: float | None = None) -> None:
     now = time.monotonic() if now is None else now
     _use_theme(view.get("theme") or DEFAULT_THEME)
     accent = _c[accent_name(view.get("accent", "play"))]
+    ctx.new_path()
     ctx.set_source_rgb(*_c["background"])
     ctx.paint()
+    if view.get("standby"):
+        _standby(ctx, view["standby"], now)
+        return
 
     for col in range(COLUMNS):
         _band_label(ctx, col, view["upper"][col], top=True, accent=accent)

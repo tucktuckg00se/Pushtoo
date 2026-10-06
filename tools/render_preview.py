@@ -189,6 +189,36 @@ def _play() -> PlayMode:
     return PlayMode(_router())
 
 
+def _life_views(views: dict[str, dict]) -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        app = _app(Path(tmp) / "a")
+        app.button_pressed(c.BUTTON_SESSION)
+        app.button_released(c.BUTTON_SESSION)  # a tap: Life on
+        for pad in ((3, 2), (3, 3), (3, 4), (4, 4), (5, 3)):  # a glider
+            app.pad_pressed(*pad, 100)
+            app.pad_released(*pad)
+        app.toast("", 0)
+        views["keyboard_life"] = app.view()
+        _page(app, "Life")
+        views["keyboard_life_page"] = app.view()
+        app.button_pressed(c.BUTTON_SHIFT)
+        views["shift_overlay_standby"] = app.view()
+        app.button_pressed(c.BUTTON_SESSION)
+        standby = app.view()
+        standby["standby"]["started"] -= 10  # past the hint
+        standby["standby"]["stepped_at"] -= 1  # fully faded in
+        views["standby_life"] = standby
+        hint = app.view()
+        hint["standby"]["stepped_at"] -= 1
+        views["standby_life_hint"] = hint
+        app.button_released(c.BUTTON_SHIFT)
+        app.device.standby_scene = "Drift"
+        app.start_standby()
+        drift = app.view()
+        drift["standby"]["started"] -= 20
+        views["standby_drift"] = drift
+
+
 def sample_views() -> dict[str, dict]:
     views: dict[str, dict] = {}
 
@@ -240,6 +270,7 @@ def sample_views() -> dict[str, dict]:
 
     _chord_views(views)
     _m2_views(views)
+    _life_views(views)
     return views
 
 
