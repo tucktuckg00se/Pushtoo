@@ -15,7 +15,9 @@ from pushtoo.chords import VOICINGS
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
 from pushtoo.modes.chord import HOLD_SECONDS, SCENE_BUTTONS, ChordPlayer
+from pushtoo.modes.chord import MAX_BRIGHTNESS as CHORD_MAX_BRIGHTNESS
 from pushtoo.modes.chord import MAX_OCTAVE as CHORD_MAX_OCTAVE
+from pushtoo.modes.chord import MIN_BRIGHTNESS as CHORD_MIN_BRIGHTNESS
 from pushtoo.modes.chord import MIN_OCTAVE as CHORD_MIN_OCTAVE
 from pushtoo.music import (
     BANK_SIZE,
@@ -124,6 +126,12 @@ class PlayMode(Mode):
             Control(
                 "Root", lambda: self.keyboard.root, self._set_root, choices=NOTE_NAMES, wrap=True
             ),
+            Control(
+                "Chords",
+                lambda: list(self.chord.sets).index(self.chord.chord_set),
+                lambda v: self.chord.set_chord_set(list(self.chord.sets)[v]),
+                choices=lambda: list(self.chord.sets),
+            ),
         ]
 
     # Pages
@@ -175,8 +183,15 @@ class PlayMode(Mode):
                 lambda: chord.mute_bass,
             ),
         ]
+        # The buttons above pick a chord set; the scale menu's third encoder reaches
+        # every set, a profile's own included.
+        set_options: list[Option | None] = [
+            Option(name, lambda n=name: chord.set_chord_set(n), lambda n=name: chord.chord_set == n)
+            for name in list(chord.sets)[:COLUMNS]
+        ]
         main = Page(
             "Chord",
+            options=set_options,
             controls=[
                 Control(
                     "Octave",
@@ -196,12 +211,33 @@ class PlayMode(Mode):
         # The main page first, where you play; then the settings that shape it.
         return [
             main,
-            Page("Style", controls=[strum_range], options=style_options),
+            Page(
+                "Style", controls=[strum_range, self._brightness_control()], options=style_options
+            ),
             self._velocity_page(layout),
             self._timing_page(),
             self._rhythm_page(),
             Page("Output", controls=output, options=mute_options),
         ]
+
+    def _brightness_control(self) -> Control:
+        """Smooth's register, nudged up (brighter) or down (darker)."""
+        chord = self.chord
+
+        def set_brightness(value: int) -> None:
+            chord.brightness = value
+            chord.notes = []  # Smooth starts afresh around the new register
+            chord.revoice()
+
+        return Control(
+            "Brightness",
+            lambda: chord.brightness,
+            set_brightness,
+            minimum=CHORD_MIN_BRIGHTNESS,
+            maximum=CHORD_MAX_BRIGHTNESS,
+            format=lambda v: f"{v:+d}" if v else "0",
+            bipolar=True,
+        )
 
     def _set_voicing(self, voicing: str) -> None:
         self.chord.voicing = voicing
@@ -491,9 +527,11 @@ class PlayMode(Mode):
         if tag is not None:
             self.router.cancel(tag)  # take back its queued notes; note-offs stay
 
-    def _stop_rhythm_notes(self) -> None:
-        for tag in self.rhythm.release_all():
-            self.router.cancel(tag)
+    def _stop_rhythm_notes(self, keep=None) -> None:
+        """Release every pad held in the rhythm engine (but `keep`, a latched chord
+        that plays on), taking back what each had queued."""
+        for source in [s for s in self.rhythm.held if s != keep]:
+            self._rhythm_release(source)
 
     def set_rhythm(self, on: bool) -> None:
         if on == self.rhythm.on:
@@ -587,8 +625,8 @@ class PlayMode(Mode):
         if index == self.current or not 0 <= index < len(self.layouts):
             return False
         if self.in_chord:
-            self.chord.release_all()
-        self._stop_rhythm_notes()
+            self.chord.release_all(keep_latched=True)  # a latched chord plays on
+        self._stop_rhythm_notes(keep=CHORD_SOURCE if self.chord.latched else None)
         self.current = index
         self.rhythm.allow_arp = self.layout.name != "Drums"
         return True
@@ -603,7 +641,8 @@ class PlayMode(Mode):
 
     def _revoice_if_key_changed(self, before: tuple) -> None:
         # The PRD: changing key while holding a chord transposes or reharmonizes it live.
-        if self.in_chord and self._key_state() != before:
+        # A latched chord playing on under the Keyboard follows the key too.
+        if self.chord.current is not None and self._key_state() != before:
             self.chord.revoice()
 
     def _button_pressed(self, name: str) -> bool:
@@ -676,6 +715,12 @@ class PlayMode(Mode):
             return self.chord.pad_colors()
         layout, grid = self.layout, self._grid()
         held = self.router.notes_on(layout.destination, layout.channel)
+        # Over a latched chord, the Keyboard lights that chord's notes.
+        chord_tones = (
+            {n % 12 for n in self.chord.notes}
+            if isinstance(grid, KeyboardLayout) and self.chord.current is not None
+            else set()
+        )
         colors = []
         for row in range(ROWS):
             line = []
@@ -689,6 +734,8 @@ class PlayMode(Mode):
                     # Checkerboard the four banks so their edges are visible.
                     bank = grid.bank_of(row, col)
                     line.append("pt_root" if bank in (0, 3) else "pt_in_scale")
+                elif note % 12 in chord_tones:
+                    line.append(led("chord_tone"))  # a note of the chord playing on
                 else:
                     line.append(PAD_ROLE_COLORS[grid.role_of(note)])
             colors.append(line)
@@ -784,6 +831,8 @@ class PlayMode(Mode):
                 "scale_names": list(SCALE_NAMES),
                 "root_name": NOTE_NAMES[self.keyboard.root],
                 "in_key": self.keyboard.in_key,
+                "chord_set": self.chord.chord_set,
+                "chord_sets": list(self.chord.sets),
             }
         else:
             held = sorted(self.router.notes_on(destination, layout.channel))
@@ -800,6 +849,7 @@ class PlayMode(Mode):
                     "in_key": self.keyboard.in_key,
                     "held": [note_name(n, names) for n in held],
                     "first_run": not self.played_once,
+                    "over": self.chord.sounding_name(),  # a latched chord playing on
                 }
             else:
                 panel |= {
@@ -840,6 +890,10 @@ class PlayMode(Mode):
             layout.destination = layout_settings.output
         self.chord.bass_channel = settings.chord.bass_channel - 1
         self.strip_mode = STRIP_MODES.index(settings.strip)
+        self.chord.apply_sets({name: tuple(rows) for name, rows in settings.chord.sets.items()})
+        self.chord.voicing_buttons = tuple(settings.chord.voicing_buttons)
+        chord_layout = self.layouts[2]
+        chord_layout.pages = self._build_chord_pages(chord_layout)  # set buttons follow
 
     def snapshot(self) -> dict:
         return {

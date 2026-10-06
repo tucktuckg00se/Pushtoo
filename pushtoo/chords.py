@@ -10,17 +10,97 @@ from dataclasses import dataclass
 
 from pushtoo.music import NOTE_NAMES, SCALES, KeyboardLayout, spelling
 
-# Rows, bottom to top. Row 0 is single bass notes rather than chords.
-ROW_KINDS = ("bass", "triad", "seventh", "add9", "sus", "ninth", "borrowed", "secondary")
-# Scale steps stacked in thirds for each diatonic kind (0 = the column's step). The
-# add9 and ninth rows take their color tone from color_step(): the 9th, or the 11th
-# where the scale's 9th is a harsh flat 9th.
+# Every kind of chord a row can hold, with its pad-map label. Rows are built on each
+# column's step of the key; all but the borrowed and leading kinds stay in key.
+KIND_LABELS = {
+    "bass": "Bass",
+    "triad": "Triad",
+    "seventh": "7th",
+    "add9": "add9",
+    "sus": "sus",
+    "ninth": "9th",
+    "sus2": "sus2",
+    "sus4": "sus4",
+    "sixth": "6th",
+    "six_nine": "6/9",
+    "eleventh": "11th",
+    "thirteenth": "13th",
+    "add11": "add11",
+    "power": "Power",
+    "quartal": "Quartal",
+    "borrowed": "Borrowed",
+    "borrowed_dorian": "Dorian",
+    "borrowed_mixolydian": "Mixolyd.",
+    "borrowed_phrygian": "Phrygian",
+    "secondary": "V7 of",
+    "secondary_ii": "ii of",
+    "tritone_sub": "Tri sub",
+}
+ROW_CHORD_KINDS = tuple(k for k in KIND_LABELS if k != "bass")
+# The same step of another scale on the same root: "borrowed" means the parallel
+# major or minor; the others name their mode.
+BORROWED_KINDS = {
+    "borrowed": None,
+    "borrowed_dorian": "Dorian",
+    "borrowed_mixolydian": "Mixolydian",
+    "borrowed_phrygian": "Phrygian",
+}
+LEADING_KINDS = ("secondary", "secondary_ii", "tritone_sub")  # chords that pull to a column
+
+# Chord sets: the seven rows above the bass row, bottom to top. Scales choose the
+# notes you have; a set chooses which flavors fill the grid.
+CHORD_SETS: dict[str, tuple[str, ...]] = {
+    "Classic": ("triad", "seventh", "add9", "sus", "ninth", "borrowed", "secondary"),
+    "Pop": ("triad", "sus2", "sus4", "add9", "sixth", "borrowed", "secondary"),
+    "Jazz": ("seventh", "six_nine", "ninth", "eleventh", "thirteenth", "secondary_ii",
+             "tritone_sub"),
+    "Neo-soul": ("seventh", "ninth", "eleventh", "add9", "quartal", "borrowed", "secondary"),
+    "Rock": ("power", "triad", "sus4", "add9", "seventh", "borrowed", "secondary"),
+    "Cinematic": ("triad", "power", "sus2", "add9", "quartal", "borrowed",
+                  "borrowed_phrygian"),
+    "Modal": ("triad", "quartal", "sus2", "sus4", "borrowed_dorian", "borrowed_mixolydian",
+              "borrowed_phrygian"),
+}  # fmt: skip
+SET_ROWS = 7
+# Rows, bottom to top, of the default set. Row 0 is single bass notes, not chords.
+ROW_KINDS = ("bass", *CHORD_SETS["Classic"])
+# Scale steps stacked above the column's step (0) for the stacked kinds: thirds for
+# triads and sevenths, the 6th for sixths, upper extensions without the notes that
+# crowd them, and fourths for quartal chords. add9 and ninth take their color tone
+# from color_step(): the 9th, or the 11th where the scale's 9th is a harsh flat 9th.
 STEPS = {
     "triad": (0, 2, 4),
     "seventh": (0, 2, 4, 6),
+    "sixth": (0, 2, 4, 5),
+    "six_nine": (0, 2, 4, 5, 8),
+    "eleventh": (0, 2, 4, 6, 10),
+    "thirteenth": (0, 2, 4, 6, 12),
+    "add11": (0, 2, 4, 10),
+    "quartal": (0, 3, 6, 9),
 }
-# Harmony needs a 7-note scale; these borrow their parent's.
-PARENT_SCALES = {"Major Pentatonic": "Major", "Minor Pentatonic": "Minor", "Blues": "Minor"}
+# Harmony needs a 7-note scale; the others borrow the 7-note scale that contains them.
+PARENT_SCALES = {
+    "Major Pentatonic": "Major",
+    "Minor Pentatonic": "Minor",
+    "Egyptian": "Minor",
+    "Hirajoshi": "Minor",
+    "In-Sen": "Phrygian",
+    "Iwato": "Locrian",
+    "Pelog": "Phrygian",
+    # These hold a passing or blue note no 7-note scale shares, or are symmetric;
+    # their chords come from the nearest one, and the screen says which.
+    "Blues": "Minor",
+    "Major Blues": "Major",
+    "Bebop Dominant": "Mixolydian",
+    "Bebop Major": "Major",
+    "Whole Tone": "Lydian Dominant",
+    "Diminished HW": "Altered",
+    "Diminished WH": "Harmonic Minor",
+}
+APPROXIMATE_PARENTS = {
+    "Blues", "Major Blues", "Bebop Dominant", "Bebop Major",
+    "Whole Tone", "Diminished HW", "Diminished WH",
+}  # fmt: skip
 ROMAN = ("I", "II", "III", "IV", "V", "VI", "VII")
 
 # Chord names by pitch-class set above the root. Anything else is shown as its notes.
@@ -61,6 +141,19 @@ SUFFIXES: dict[tuple[int, ...], str] = {
     (0, 3, 5, 6, 9): "dim7(add11)",
     (0, 4, 5, 7, 10): "7(add11)",
     (0, 5, 6): "sus4b5",
+    (0, 4, 7, 9): "6",
+    (0, 3, 7, 9): "m6",
+    (0, 2, 4, 7, 9): "6/9",
+    (0, 2, 3, 7, 9): "m6/9",
+    (0, 7): "5",
+    (0, 4, 5, 7, 11): "maj7(add11)",
+    (0, 4, 7, 9, 10): "13",
+    (0, 3, 7, 9, 10): "m13",
+    (0, 4, 7, 9, 11): "maj13",
+    (0, 2, 5, 7, 10): "9sus4",
+    (0, 2, 5, 7, 11): "maj9sus4",
+    (0, 4, 6, 7): "add#11",
+    (0, 4, 6, 7, 11): "maj7#11",
 }
 
 
@@ -108,34 +201,78 @@ class Chord:
         return (key.root + self.root) % 12
 
 
+def _sus(scale: tuple[int, ...], degree: int, prefer: tuple[int, ...]) -> tuple[int, ...]:
+    """A sus chord that stays in key: the preferred shape (sus4 (0, 5, 7) or sus2
+    (0, 2, 7)), else the other, else the scale's own 2nd or 4th and 5th."""
+    pcs = {s % 12 for s in scale}
+    rel = scale[degree % len(scale)]
+    other = (0, 2, 7) if prefer == (0, 5, 7) else (0, 5, 7)
+    for shape in (prefer, other):
+        if all((rel + i) % 12 in pcs for i in shape):
+            return shape
+    return _stack(scale, degree, (0, 3, 4))  # the scale's own 4th and 5th
+
+
+def _extended_steps(scale: tuple[int, ...], degree: int, kind: str) -> tuple[int, ...]:
+    """Sixths and upper extensions, swapping a tone that would rub for the one players
+    use instead: a minor 6th becomes the 7th (Em7, not E G B C), a natural 11 over a
+    major third becomes the pop 11 (9sus4: G C D F A), a minor 13th becomes the 11th."""
+
+    def interval(step: int) -> int:
+        return _stack(scale, degree, (0, step))[1] % 12
+
+    major_third = interval(2) == 4
+    if kind in ("sixth", "six_nine"):
+        sixth = 5 if interval(5) == 9 else 6
+        return (0, 2, 4, sixth) if kind == "sixth" else (0, 2, 4, sixth, color_step(scale, degree))
+    if kind == "eleventh":
+        return (0, 3, 4, 6, 8) if major_third and interval(10) == 5 else STEPS["eleventh"]
+    return STEPS["eleventh"] if interval(12) == 8 else STEPS["thirteenth"]  # thirteenth
+
+
 def chord_at(key: KeyboardLayout, kind: str, degree: int) -> Chord:
     scale = parent_scale(key)
     root = degree_root(key, degree)
+    if kind in ("sixth", "six_nine", "eleventh", "thirteenth"):
+        return Chord(
+            root, _stack(scale, degree, _extended_steps(scale, degree, kind)), kind, degree
+        )
     if kind in STEPS:
         return Chord(root, _stack(scale, degree, STEPS[kind]), kind, degree)
     if kind in ("add9", "ninth"):
         base = (0, 2, 4) if kind == "add9" else (0, 2, 4, 6)
         return Chord(root, _stack(scale, degree, (*base, color_step(scale, degree))), kind, degree)
-    if kind == "sus":
+    if kind in ("sus", "sus4"):
         # sus4 where the 4th and 5th are in key, else sus2; on steps without a perfect
         # 5th, the scale's own 4th and 5th, so the pad stays in key.
-        pcs = {s % 12 for s in scale}
-        rel = scale[degree % len(scale)]
-        if (rel + 5) % 12 in pcs and (rel + 7) % 12 in pcs:
-            intervals: tuple[int, ...] = (0, 5, 7)
-        elif (rel + 2) % 12 in pcs and (rel + 7) % 12 in pcs:
-            intervals = (0, 2, 7)
+        return Chord(root, _sus(scale, degree, (0, 5, 7)), kind, degree)
+    if kind == "sus2":
+        return Chord(root, _sus(scale, degree, (0, 2, 7)), kind, degree)
+    if kind == "power":
+        fifth = _stack(scale, degree, (0, 4))[1]  # the key's own fifth on this step
+        return Chord(root, (0, fifth, 12), kind, degree)
+    if kind in BORROWED_KINDS:
+        # The same step of another scale on the key's root: the parallel minor in a
+        # major key (major in minor), or the named mode.
+        mode = BORROWED_KINDS[kind]
+        if mode is None:
+            other = SCALES["Minor"] if 4 in scale else SCALES["Major"]
         else:
-            intervals = _stack(scale, degree, (0, 3, 4))
-        return Chord(root, intervals, kind, degree)
-    if kind == "borrowed":
-        # The same step of the parallel scale: minor's in a major key, major's in minor.
-        parallel = SCALES["Minor"] if 4 in scale else SCALES["Major"]
-        prel = parallel[degree % 7] + 12 * (degree // 7)
-        return Chord(prel, _stack(parallel, degree, STEPS["triad"]), kind, degree)
+            other = SCALES[mode]
+        prel = other[degree % 7] + 12 * (degree // 7)
+        return Chord(prel, _stack(other, degree, STEPS["triad"]), kind, degree)
     if kind == "secondary":
         # V7 of this column's chord: a dominant 7th a fifth above it.
         return Chord(root + 7, (0, 4, 7, 10), kind, degree, target=degree)
+    if kind == "secondary_ii":
+        # The ii7 that leads into that V7: minor 7th a step above the column, or
+        # half-diminished when the column's chord is minor (ii-V-i).
+        minor = _stack(scale, degree, STEPS["triad"])[1] == 3
+        shape = (0, 3, 6, 10) if minor else (0, 3, 7, 10)
+        return Chord(root + 2, shape, kind, degree, target=degree)
+    if kind == "tritone_sub":
+        # The V7 a tritone away from V7/x: a dominant 7th a half step above the column.
+        return Chord(root + 1, (0, 4, 7, 10), kind, degree, target=degree)
     raise ValueError(f"no chord kind {kind!r}")
 
 
@@ -162,32 +299,54 @@ def _quality_numeral(base: str, intervals: tuple[int, ...]) -> str:
 
 def numeral_label(chord: Chord, key: KeyboardLayout) -> str:
     """Roman numeral for the screen: "V7", "ii", "bVII", "V7/vi"."""
-    if chord.kind == "secondary":
+    if chord.kind in LEADING_KINDS:
         target = chord.target or 0
-        return "V7" if target % 7 == 0 else f"V7/{numeral(key, target)}"
-    if chord.kind == "borrowed":
+        prefix = {"secondary": "V7", "secondary_ii": _ii_label(chord), "tritone_sub": "subV7"}
+        label = prefix[chord.kind]
+        return label if target % 7 == 0 else f"{label}/{numeral(key, target)}"
+    if chord.kind in BORROWED_KINDS:
         own_root = degree_root(key, chord.degree)
         accidental = {-1: "b", 1: "#"}.get(chord.root - own_root, "")
-        triad = _stack(
-            SCALES["Minor"] if 4 in parent_scale(key) else SCALES["Major"],
-            chord.degree,
-            STEPS["triad"],
-        )
-        return accidental + _quality_numeral(ROMAN[chord.degree % 7], triad)
+        return accidental + _quality_numeral(ROMAN[chord.degree % 7], chord.intervals)
     return _diatonic_label(numeral(key, chord.degree), chord)
+
+
+def _ii_label(chord: Chord) -> str:
+    return "iiø7" if 6 in chord.intervals else "ii7"
 
 
 def _diatonic_label(base: str, chord: Chord) -> str:
     """Numeral plus the suffix theory books use: Imaj7, ii7, V7, viiø7, IVadd9, Vsus4."""
     pcs = {i % 12 for i in chord.intervals}
+    plain = ROMAN[chord.degree % 7]  # for chords with no third: no major/minor case
     if chord.kind == "triad":
         return base
-    if chord.kind == "sus":
-        plain = ROMAN[chord.degree % 7]  # no third, so no major/minor case
+    if chord.kind in ("sus", "sus2", "sus4"):
         return plain + ("sus4" if 5 in pcs else "sus2" if 2 in pcs else "sus")
     if chord.kind == "add9":
         return base + ("add9" if 2 in pcs else "add11")
-    top = "7" if chord.kind == "seventh" else "9" if 2 in pcs else "11"
+    if chord.kind == "add11":
+        return base + ("add#11" if 6 in pcs and 5 not in pcs else "add11")
+    if chord.kind == "power":
+        return plain + "5"
+    if chord.kind == "quartal":
+        return plain + " quartal"
+    if chord.kind in ("sixth", "six_nine") and 9 in pcs:
+        return base.rstrip("°+") + ("6/9" if chord.kind == "six_nine" else "6")
+    if chord.kind == "eleventh" and 4 not in pcs and 3 not in pcs:
+        return plain + "11"  # the pop 11, 9sus4: no third to give it a case
+    # The top of the stack, read from the notes the chord actually has, since rows
+    # swap tones that would rub (a sixth row's iii is a iii7).
+    if 9 in pcs and chord.kind == "thirteenth":
+        top = "13"
+    elif 6 in pcs and 4 in pcs and chord.kind in ("eleventh", "thirteenth"):
+        top = "7#11"
+    elif 5 in pcs and chord.kind in ("ninth", "eleventh", "thirteenth", "six_nine"):
+        top = "11"
+    elif 2 in pcs and chord.kind != "seventh":
+        top = "9"
+    else:
+        top = "7"
     if 11 in pcs:
         return base.rstrip("°") + "maj" + top
     if base.endswith("°") and 10 in pcs:
@@ -198,9 +357,9 @@ def _diatonic_label(base: str, chord: Chord) -> str:
 def role(chord: Chord, key: KeyboardLayout) -> str:
     """What a chord does, for colors and the screen: home, away, tension, borrowed, or
     the step a secondary dominant pulls toward."""
-    if chord.kind == "borrowed":
+    if chord.kind in BORROWED_KINDS:
         return "borrowed"
-    if chord.kind == "secondary":
+    if chord.kind in LEADING_KINDS:
         return f"→ {numeral(key, chord.target)}"
     return {0: "home", 2: "home", 5: "home", 1: "away", 3: "away"}.get(chord.degree % 7, "tension")
 
@@ -255,6 +414,27 @@ def wide(notes: list[int]) -> list[int]:
     return sorted([notes[0] - 12, *notes[2:], notes[1] + 12])
 
 
+def drop3(notes: list[int]) -> list[int]:
+    """The third-highest note drops an octave; triads, with no third-highest worth
+    dropping, take drop 2 instead."""
+    notes = sorted(notes)
+    if len(notes) < 4:
+        return drop2(notes)
+    return sorted([*notes[:-3], notes[-3] - 12, *notes[-2:]])
+
+
+def shell(notes: list[int], root: int) -> list[int]:
+    """Root, 3rd and 7th (or 6th): the jazz-piano left hand. Chords without a third or
+    a 7th or 6th (triads, sus, power, quartal) stay as they are."""
+    notes = sorted(notes)
+    degree = {n: (n - root) % 12 for n in notes}
+    third = next((n for n in notes if degree[n] in (3, 4)), None)
+    top = next((n for n in notes if degree[n] in (10, 11, 9)), None)
+    if third is None or top is None:
+        return notes
+    return sorted({min(notes), third, top})
+
+
 def _movement(previous: list[int], candidate: list[int]) -> int:
     """How far the hand moves: each note to its nearest neighbor in the other chord."""
     there = sum(min(abs(n - p) for p in previous) for n in candidate)
@@ -266,8 +446,6 @@ def smooth(previous: list[int] | None, notes: list[int], register: int) -> list[
     """The inversion and octave of `notes` that moves least from `previous`, with its
     lowest note kept near `register` so progressions don't drift up or down."""
     notes = sorted(notes)
-    if not previous:
-        return notes
     candidates = []
     for times in range(len(notes)):
         voiced = invert(notes, times)
@@ -277,10 +455,15 @@ def smooth(previous: list[int] | None, notes: list[int], register: int) -> list[
                 candidates.append(candidate)
     if not candidates:
         return notes
+    if not previous:  # the first chord: the shape sitting nearest the register
+        return min(candidates, key=lambda c: (abs(c[0] - register), c[0]))
     return min(candidates, key=lambda c: (_movement(previous, c), abs(c[0] - register)))
 
 
-VOICINGS = ("Smooth", "Root", "1st", "2nd", "3rd", "Open", "Wide")
+VOICINGS = ("Smooth", "Root", "1st", "2nd", "3rd", "Open", "Drop 3", "Wide", "Shell")
+# The seven side buttons are shortcuts to these unless a profile picks its own; the
+# Voicing encoder on the Chord page reaches every voicing.
+DEFAULT_VOICING_BUTTONS = ("Smooth", "Root", "1st", "2nd", "Open", "Drop 3", "Shell")
 VOICING_NAMES = {
     "Smooth": "Smooth",
     "Root": "Root position",
@@ -288,7 +471,9 @@ VOICING_NAMES = {
     "2nd": "2nd inversion",
     "3rd": "3rd inversion",
     "Open": "Open (drop 2)",
+    "Drop 3": "Drop 3",
     "Wide": "Wide",
+    "Shell": "Shell (root, 3rd, 7th)",
 }
 
 
@@ -299,6 +484,10 @@ def apply_voicing(
         voiced = smooth(previous, notes, register)
     elif voicing == "Open":
         voiced = drop2(notes)
+    elif voicing == "Drop 3":
+        voiced = drop3(notes)
+    elif voicing == "Shell":
+        voiced = shell(notes, register)
     elif voicing == "Wide":
         voiced = wide(notes)
     else:

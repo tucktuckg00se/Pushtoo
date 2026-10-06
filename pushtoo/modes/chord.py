@@ -14,7 +14,11 @@ import time
 from collections.abc import Callable
 
 from pushtoo.chords import (
-    ROW_KINDS,
+    BORROWED_KINDS,
+    CHORD_SETS,
+    DEFAULT_VOICING_BUTTONS,
+    KIND_LABELS,
+    LEADING_KINDS,
     VOICING_NAMES,
     VOICINGS,
     Chord,
@@ -47,11 +51,10 @@ DEFAULT_OCTAVE = 3
 # Side buttons, top to bottom: the voicings, then Latch. push2-python's map puts
 # "1/32t" on CC 43, the top button, and "1/4" on CC 36, the bottom.
 SCENE_BUTTONS = ("1/32t", "1/32", "1/16t", "1/16", "1/8t", "1/8", "1/4t", "1/4")
-LATCH_BUTTON = len(VOICINGS)
+LATCH_BUTTON = 7  # the bottom side button; the seven above are voicing shortcuts
+MIN_BRIGHTNESS, MAX_BRIGHTNESS = -6, 6  # semitones Smooth's register moves
 OCTAVE_COLUMN = 7
 ROLE_COLORS = {"home": led("home"), "away": led("away"), "tension": led("tension")}
-# Row names for the screen's pad map, bottom to top, matching ROW_KINDS.
-ROW_LABELS = ("Bass", "Triad", "7th", "add9", "sus", "9th", "Borrowed", "V7 of")
 # Side button states, shared by the screen's voicing rail and the button LEDs.
 RAIL_LEDS = {
     "kept": led(accent_name("play")),
@@ -77,6 +80,10 @@ class ChordPlayer:
         self.take_from_rhythm: Callable[[], None] = lambda: None
         self.accent: Callable[[], bool] = lambda: False  # PlayMode's Accent button
         self.spread = VelocitySpread()  # the Velocity page
+        self.sets: dict[str, tuple[str, ...]] = dict(CHORD_SETS)
+        self.chord_set = "Classic"  # which flavors fill the rows
+        self.voicing_buttons: tuple[str, ...] = DEFAULT_VOICING_BUTTONS
+        self.brightness = 0  # semitones up or down for Smooth's register
         self.timing = TimingSpread()  # the Timing page
         self.last_velocities: list[int] = []  # what the sounding chord's notes got
         self._output = output  # (destination, chord channel) of the Chord layout
@@ -113,9 +120,26 @@ class ChordPlayer:
 
     def chord_for(self, pad: Pad) -> Chord | None:
         row, col = pad
-        if row == BASS_ROW or not 0 <= row < len(ROW_KINDS):
+        if row == BASS_ROW or not 0 <= row < len(self.rows):
             return None
-        return chord_at(self.key, ROW_KINDS[row], col)
+        return chord_at(self.key, self.rows[row], col)
+
+    @property
+    def rows(self) -> tuple[str, ...]:
+        """Bottom to top: the bass row, then the chord set's seven rows."""
+        return ("bass", *self.sets[self.chord_set])
+
+    def set_chord_set(self, name: str) -> None:
+        """Choose a chord set; a sounding chord re-voices into it, like a key change."""
+        if name in self.sets and name != self.chord_set:
+            self.chord_set = name
+            self.revoice()
+
+    def apply_sets(self, custom: dict[str, tuple[str, ...]]) -> None:
+        """The built-in sets, then a profile's own (which may reuse a built-in name)."""
+        self.sets = dict(CHORD_SETS) | custom
+        if self.chord_set not in self.sets:
+            self.chord_set = "Classic"
 
     def _voiced(self, chord: Chord) -> list[int]:
         previous = self.notes or None
@@ -124,11 +148,16 @@ class ChordPlayer:
             # voice it now, an octave higher, so it never duplicates the left column.
             base = chord_at(self.key, chord.kind, 0)
             root_note = self.register() + base.root
-            notes = apply_voicing("Smooth", close(root_note, base.intervals), previous, root_note)
+            notes = apply_voicing(
+                "Smooth", close(root_note, base.intervals), previous, root_note + self.brightness
+            )
             return [n + 12 for n in notes if n + 12 <= 127]
         root_note = self.register() + chord.root
+        # Brightness moves the register Smooth keeps to; the other voicings are fixed
+        # shapes around the chord's root.
+        register = root_note + (self.brightness if self.active_voicing == "Smooth" else 0)
         return apply_voicing(
-            self.active_voicing, close(root_note, chord.intervals), previous, root_note
+            self.active_voicing, close(root_note, chord.intervals), previous, register
         )
 
     def notes_for(self, pad: Pad) -> list[int]:
@@ -174,6 +203,13 @@ class ChordPlayer:
                 self.router.note_on(("bass",), destination, self.bass_channel, bass, center)
         self.current, self.velocity = pad, velocity
         self.notes, self.last_chord = notes, chord
+
+    def sounding_name(self) -> str | None:
+        """The name of the chord sounding now, for the Keyboard playing over it."""
+        if self.current is None or self.last_chord is None:
+            return None
+        chord = self.last_chord
+        return chord_name(chord.pitch_class(self.key), chord.intervals, key_spelling(self.key))
 
     def timing_text(self) -> str | None:
         """The status line's word for how chords roll in, while they do."""
@@ -265,28 +301,35 @@ class ChordPlayer:
         if index == LATCH_BUTTON:
             self.toggle_latch()
             return
-        if index >= len(VOICINGS):
+        if index >= len(self.voicing_buttons):
             return
-        name = VOICINGS[index]
+        name = self.voicing_buttons[index]
         self._voicing_pressed[name] = self._clock()
         self.momentary = name
         self._retrigger()  # hear the new voicing on the chord you're holding
 
     def voicing_released(self, index: int) -> None:
-        if index >= len(VOICINGS):
+        if index >= len(self.voicing_buttons):
             return
-        name = VOICINGS[index]
+        name = self.voicing_buttons[index]
         pressed = self._voicing_pressed.pop(name, None)
         if pressed is not None and self._clock() - pressed < HOLD_SECONDS:
             self.voicing = name  # a tap keeps the voicing
         if self.momentary == name:
             self.momentary = None
 
-    def release_all(self) -> None:
-        """Leaving the layout: nothing played here may keep sounding."""
-        self._silence()
-        self.current = None
-        self.current_held = False
+    @property
+    def latched(self) -> bool:
+        """A chord Latch is holding, with no finger on its pad."""
+        return self.latch and self.current is not None and not self.current_held
+
+    def release_all(self, keep_latched: bool = False) -> None:
+        """Leaving the layout: nothing played here keeps sounding, except a latched
+        chord when asked, so a melody can be played over it on the Keyboard."""
+        if not (keep_latched and self.latched):
+            self._silence()
+            self.current = None
+            self.current_held = False
         for _, col in list(self.bass_pads):
             self.router.note_off(("bass row", col))
         self.bass_pads.clear()
@@ -350,16 +393,17 @@ class ChordPlayer:
         return colors
 
     def _role_color(self, chord: Chord) -> str:
-        if chord.kind == "borrowed":
+        if chord.kind in BORROWED_KINDS:
             return led("borrowed")
-        if chord.kind == "secondary":
+        if chord.kind in LEADING_KINDS:
             return led("secondary")
         return ROLE_COLORS[role(chord, self.key)]
 
     def rail(self) -> list[dict]:
-        """The side buttons, top to bottom, as the screen's voicing rail shows them."""
+        """The side buttons, top to bottom, as the screen's voicing rail shows them. A
+        voicing chosen on the encoder that has no button lights none."""
         entries = []
-        for voicing in VOICINGS:
+        for voicing in self.voicing_buttons:
             if voicing == self.momentary:
                 state = "held"
             elif voicing == self.voicing and self.momentary is None:
@@ -404,7 +448,8 @@ class ChordPlayer:
             "rail": self.rail(),
             "grid": self.pad_colors(),
             "row": self.current[0] if self.current else (BASS_ROW if held_bass else None),
-            "row_names": list(ROW_LABELS),
+            "row_names": [KIND_LABELS[kind] for kind in self.rows],
+            "chord_set": self.chord_set,
             "bass_note": None,
             "bass_channel": self.bass_channel,
         }
@@ -435,7 +480,7 @@ class ChordPlayer:
     def _role_line(self, chord: Chord) -> str:
         """Plain role first, numeral for those who want theory: "V7 · tension"."""
         label = numeral_label(chord, self.key)
-        if chord.kind == "secondary":
+        if chord.kind in LEADING_KINDS:
             line = f"{label} · leads to {numeral(self.key, chord.target or 0)}"
         else:
             line = f"{label} · {role(chord, self.key)}"
@@ -453,9 +498,11 @@ class ChordPlayer:
             "mute_bass": self.mute_bass,
             "bass_channel": self.bass_channel + 1,
             "voicing": self.voicing,
+            "brightness": self.brightness,
             "latch": self.latch,
             "velocity": self.spread.snapshot(),
             "timing": self.timing.snapshot(),
+            "set": self.chord_set,
         }
 
     def restore(self, state: dict) -> None:
@@ -467,8 +514,12 @@ class ChordPlayer:
             self.bass_channel = state["bass_channel"] - 1
         if state.get("voicing") in VOICINGS:
             self.voicing = state["voicing"]
+        if state.get("brightness") in range(MIN_BRIGHTNESS, MAX_BRIGHTNESS + 1):
+            self.brightness = state["brightness"]
         for flag in ("strum", "mute_chords", "mute_bass", "latch"):
             if isinstance(state.get(flag), bool):
                 setattr(self, flag, state[flag])
         self.spread.restore(state.get("velocity"))
         self.timing.restore(state.get("timing"))
+        if state.get("set") in self.sets:
+            self.chord_set = state["set"]

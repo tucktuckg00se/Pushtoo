@@ -48,6 +48,27 @@ def line_of(root: yaml.Node | None, loc: tuple) -> int | None:
     return node.start_mark.line + 1 if node is not None else None
 
 
+def _yaml_loc(root: yaml.Node | None, loc: tuple) -> tuple:
+    """The parts of a pydantic error location that are in the YAML: keys and indexes,
+    without the type names pydantic adds for unions (but keeping a user's own key,
+    such as a chord set called "Bad")."""
+    kept: list = []
+    node = root
+    for key in loc:
+        if isinstance(node, yaml.MappingNode):
+            child = next((v for k, v in node.value if k.value == key), None)
+        elif isinstance(node, yaml.SequenceNode) and isinstance(key, int):
+            child = node.value[key] if key < len(node.value) else None
+        else:
+            child = None
+        if child is not None:
+            kept.append(key)
+            node = child
+        elif not (isinstance(key, str) and key[:1].isupper()):
+            kept.append(key)  # not in the YAML (say, a missing field): still worth naming
+    return tuple(kept)
+
+
 def _format_loc(loc: tuple) -> str:
     out = ""
     for key in loc:
@@ -69,7 +90,7 @@ def parse(text: str, source: str = "profile") -> Profile:
         return Profile.model_validate(data)
     except ValidationError as error:
         first = error.errors()[0]
-        loc = tuple(k for k in first["loc"] if not isinstance(k, str) or not k[0].isupper())
+        loc = _yaml_loc(root, first["loc"])
         line = line_of(root, loc)
         where = f" line {line}" if line else ""
         count = error.error_count()

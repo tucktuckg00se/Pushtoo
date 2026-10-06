@@ -64,6 +64,11 @@ knobs:
 """
 
 
+def _tap_layout(target) -> None:
+    target.button_pressed(c.BUTTON_LAYOUT)
+    target.button_released(c.BUTTON_LAYOUT)
+
+
 def _page(target, name: str) -> None:
     """Press the button below the page called `name` (on a mode, or an App's mode)."""
     mode = getattr(target, "mode", target)
@@ -249,12 +254,12 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.pad_released(7, 5)
     clock = [0.0]
     play.chord._clock = lambda: clock[0]  # so the hold below counts as a hold
-    play.button_pressed("1/8")  # hold Open (sixth side button from the top)
+    play.button_pressed("1/8t")  # hold Open (fifth side button from the top)
     play.pad_pressed(2, 3, 100)  # Fm7
     views["chord_momentary_voicing"] = play.view()
     play.pad_released(2, 3)
     clock[0] += 1.0
-    play.button_released("1/8")
+    play.button_released("1/8t")
     play.button_pressed("1/4")  # Latch (bottom side button)
     _page(play, "Style")
     play.button_pressed("Upper Row 2")  # Strum
@@ -272,6 +277,21 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.button_released(c.BUTTON_LAYOUT)
     play.pad_pressed(4, 2, 100)  # sus on III
     views["chord_pentatonic"] = play.view()
+
+    play = _play()
+    _tap_layout(play)
+    _tap_layout(play)
+    play.button_pressed("Upper Row 3")  # the Jazz chord set
+    play.chord.voicing = "Shell"
+    play.pad_pressed(4, 4, 100)  # 11th row, V
+    views["chord_jazz_shell"] = play.view()
+    play.pad_released(4, 4)
+    play.chord.voicing = "Smooth"
+    play.button_pressed("1/4")  # Latch
+    play.pad_pressed(2, 3, 100)  # a latched chord
+    play.pad_released(2, 3)
+    _tap_layout(play)  # to Keyboard: the chord plays on, its notes lit
+    views["keyboard_over_chord"] = play.view()
 
     play = _play()
     play.button_pressed(c.BUTTON_LAYOUT)

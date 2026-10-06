@@ -39,6 +39,7 @@ OPEN_COLOR: dict[str, str] = {
     "in_scale": "868e96",
     "out_of_scale": "212529",
     "held": "ffffff",
+    "chord_tone": "38d9a9",  # Keyboard pads in the chord playing on under them
     # What each chord does on the chord grid
     "home": "root",
     "away": "4dabf7",

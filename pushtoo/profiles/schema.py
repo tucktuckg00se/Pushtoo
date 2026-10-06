@@ -7,6 +7,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from pushtoo.chords import DEFAULT_VOICING_BUTTONS, ROW_CHORD_KINDS, SET_ROWS, VOICINGS
 from pushtoo.midi.router import OUT_PORT
 from pushtoo.music import VELOCITY_CURVES
 from pushtoo.rhythm.repeat import RATE_NAMES
@@ -101,8 +102,23 @@ class PlayLayout(Strict):
     output: str = OUT_PORT
 
 
+ChordKind = Literal[ROW_CHORD_KINDS]  # type: ignore[valid-type]
+ChordRows = Annotated[list[ChordKind], Field(min_length=SET_ROWS, max_length=SET_ROWS)]
+
+
+VoicingName = Literal[VOICINGS]  # type: ignore[valid-type]
+
+
 class ChordLayoutSettings(PlayLayout):
     bass_channel: Channel = 3
+    # The seven voicings on the side buttons, top to bottom (Latch is the eighth).
+    voicing_buttons: Annotated[list[VoicingName], Field(min_length=7, max_length=7)] = Field(
+        default_factory=lambda: list(DEFAULT_VOICING_BUTTONS)
+    )
+    # Your own chord sets: seven row kinds each, bottom to top, above the bass row.
+    sets: dict[Annotated[str, Field(min_length=1, max_length=24)], ChordRows] = Field(
+        default_factory=dict
+    )
 
 
 class Play(Strict):

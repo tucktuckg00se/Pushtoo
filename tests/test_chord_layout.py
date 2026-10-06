@@ -11,9 +11,9 @@ from tests.test_router import make_router
 CHORDS, BASS = 0x91, 0x92  # note-on, channels 2 and 3
 CHORDS_OFF, BASS_OFF = 0x81, 0x82
 TRIAD, SEVENTH, SECONDARY = 1, 2, 7
-# Side buttons from the top: Smooth, Root, 1st, 2nd, 3rd, Open, Wide, Latch.
+# Side buttons from the top: Smooth, Root, 1st, 2nd, Open, Drop 3, Shell, Latch.
 SIDE_BUTTONS = ("1/32t", "1/32", "1/16t", "1/16", "1/8t", "1/8", "1/4t", "1/4")
-VOICING = {"Smooth": "1/32t", "Root": "1/32", "1st": "1/16t", "Open": "1/8"}
+VOICING = {"Smooth": "1/32t", "Root": "1/32", "1st": "1/16t", "Open": "1/8t"}
 LATCH = "1/4"
 KEPT = "pt_play"  # the kept voicing lights in the Play accent
 
@@ -305,7 +305,7 @@ def test_rail_names_the_side_buttons_in_hardware_order():
     play, _, clock = make_chord_play()
     rail = play.view()["panel"]["rail"]
     labels = [entry["label"] for entry in rail]
-    assert labels == ["Smooth", "Root", "1st", "2nd", "3rd", "Open", "Wide", "Latch"]
+    assert labels == ["Smooth", "Root", "1st", "2nd", "Open", "Drop 3", "Shell", "Latch"]
     assert rail_states(play)["Smooth"] == "kept"
     play.button_pressed(VOICING["Open"])  # held
     states = rail_states(play)

@@ -27,6 +27,7 @@ root: ff922b        # the key's root notes, in orange
 in_scale: 868e96
 out_of_scale: 212529
 held: ffffff        # pads you're holding
+chord_tone: 38d9a9  # Keyboard pads in a latched chord playing on under them
 
 # The chord grid: what each chord does
 home: root

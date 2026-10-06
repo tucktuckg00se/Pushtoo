@@ -173,10 +173,14 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 - The right-hand column (I') is the first column's chord lifted an octave: under Smooth, exactly the voicing the left column would get right now, plus 12. It is a deliberate "go higher" move, never a duplicate.
 - Octave moves the chord register. Accent forces full velocity.
 
+**Chord sets**
+
+A scale chooses the notes; a chord set chooses the flavors in the seven rows above the bass row. Built-in sets: Classic (the grid above), Pop, Jazz, Neo-soul, Rock, Cinematic and Modal. The Chord page's upper buttons pick a set, as does the scale menu's third encoder; profiles add their own from a library of row kinds (triad, seventh, add9, sus, sus2, sus4, ninth, sixth, six_nine, eleventh, thirteenth, add11, power, quartal, borrowed and borrowed Dorian/Mixolydian/Phrygian, secondary, secondary_ii, tritone_sub). Everyday kinds stay in key; where a tone would rub they swap in the one players use (a minor 6th becomes the 7th, a natural 11 over a major third becomes 9sus4, a minor 13th becomes the 11th). Borrowed kinds are violet; the leading kinds (V7 of, ii of, tritone sub) are pink and say which column they lead to. Numerals follow the notes actually played (iii7, IVmaj7#11, subV7/vi, iiø7/vi). Chords with no common name, like quartal stacks, show their notes.
+
 **Voicing and Latch (side buttons, top to bottom)**
 
 - **Smooth** (default) voices each chord with the least movement from the previous one, kept near that chord's root, so progressions glide instead of jumping. The same pad can therefore play different inversions depending on what came before, which is what makes it sound good. Measured over 5,000 random changes: about 5.5 semitones of total movement per change (a fixed voicing per pad would be about 17), and the register stays within roughly two octaves; it cannot drift away.
-- **Root, 1st, 2nd, 3rd** force an inversion, so every pad plays the same notes every time; **Open** is drop-2; **Wide** puts the root an octave down and spreads the rest.
+- **Root, 1st, 2nd, 3rd** force an inversion, so every pad plays the same notes every time; **Open** is drop 2 and **Drop 3** drops the third-highest note; **Wide** puts the root an octave down and spreads the rest; **Shell** keeps root, 3rd and 7th. The seven voicing buttons are shortcuts (by default Smooth, Root, 1st, 2nd, Open, Drop 3, Shell; a profile can choose), and the Voicing encoder on the Chord page reaches all nine. **Brightness** (Style page) moves Smooth's register up or down.
 - Tap a voicing button to keep it; hold one to use it only while held. Pressing a voicing while a chord sounds re-voices it so you hear the difference. The current voicing stays lit.
 - **Latch** (bottom) keeps a chord sounding after you let go, until you press another chord, tap the same pad again, or turn Latch off. One hand taps chords while the other strums or plays the bass row.
 
@@ -322,6 +326,10 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F12  | Chord grid: one-press chords by scale step and flavor, bass row, auto bass, function colors | P0 | Built |
 | F28  | Chord voicing on the side buttons: Smooth voice leading, inversions, Open, Wide; tap to keep, hold for momentary | P0 | Built |
 | F14  | Strum on the touch strip in the Chord layout                 | P0 | Built |
+| F33  | Scales: modes and relatives, exotic and pentatonic, bebop and symmetric; non-7-note scales borrow a 7-note parent for chords | P0 | Built |
+| F34  | Chord sets: built-in and profile-defined sets of row kinds, picked on the Chord page or in the scale menu | P0 | Built |
+| F35  | Voicings: Drop 3 and Shell; seven side-button shortcuts, all nine on the Voicing encoder; Brightness for Smooth | P0 | Built |
+| F36  | Melody over a latched chord: it plays on across a layout switch, and the Keyboard lights its notes | P0 | Built |
 | F32  | Keyboard and Drums velocity: Min, Max, Random with Spread, per layout; Accent plays at Max | P0 | Built |
 | F31  | Chord timing: Together or Spread out with Roll, Direction (Up, Down, Alternate, Random) and Loose; never early; releasing mid-roll takes back the rest | P0 | Built |
 | F30  | Chord velocity: As played or Random with Min, Max, Spread and Top note; Accent centers at Max | P0 | Built |
@@ -394,6 +402,6 @@ The latency gate (`tools/latency/latency.py`) runs at every milestone and must p
 - [x] Pysha's license allows this fork: yes, MIT for Pysha and push2-python.
 - [ ] Which audio stacks are in the v1 test matrix: PipeWire only, or also plain ALSA and JACK?
 - [ ] Should Life mode play notes by default, or stay silent until switched on?
-- [ ] Does the Smooth voicing need a "brightness" control (register drift up or down) once people play it?
+- [x] Does the Smooth voicing need a "brightness" control? Yes: Brightness on the Style page, −6…+6 semitones.
 - [x] Clock: lead or follow by default? Both, automatically: lead with Pushtoo's tempo, follow when clock arrives on Pushtoo In.
 - [x] What should the spare eighth side button do in the Chord layout? Latch.

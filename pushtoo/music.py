@@ -8,6 +8,8 @@ FLAT_NAMES = ("C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B")
 SHARP_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 # Ordered as shown in the scale list; intervals are semitones above the root.
+# In the order the scale selector lists them: the modes, then the other 7-note scales,
+# the 5- and 6-note scales, the 8-note bebop scales, and the symmetric scales.
 SCALES: dict[str, tuple[int, ...]] = {
     "Major": (0, 2, 4, 5, 7, 9, 11),
     "Minor": (0, 2, 3, 5, 7, 8, 10),
@@ -18,10 +20,26 @@ SCALES: dict[str, tuple[int, ...]] = {
     "Locrian": (0, 1, 3, 5, 6, 8, 10),
     "Harmonic Minor": (0, 2, 3, 5, 7, 8, 11),
     "Melodic Minor": (0, 2, 3, 5, 7, 9, 11),
+    "Harmonic Major": (0, 2, 4, 5, 7, 8, 11),
+    "Phrygian Dominant": (0, 1, 4, 5, 7, 8, 10),
+    "Lydian Dominant": (0, 2, 4, 6, 7, 9, 10),
+    "Altered": (0, 1, 3, 4, 6, 8, 10),
+    "Hungarian Minor": (0, 2, 3, 6, 7, 8, 11),
+    "Double Harmonic": (0, 1, 4, 5, 7, 8, 11),
     "Major Pentatonic": (0, 2, 4, 7, 9),
     "Minor Pentatonic": (0, 3, 5, 7, 10),
     "Blues": (0, 3, 5, 6, 7, 10),
+    "Major Blues": (0, 2, 3, 4, 7, 9),
+    "Egyptian": (0, 2, 5, 7, 10),
+    "Hirajoshi": (0, 2, 3, 7, 8),
+    "In-Sen": (0, 1, 5, 7, 10),
+    "Iwato": (0, 1, 5, 6, 10),
+    "Pelog": (0, 1, 3, 7, 8),
+    "Bebop Dominant": (0, 2, 4, 5, 7, 9, 10, 11),
+    "Bebop Major": (0, 2, 4, 5, 7, 8, 9, 11),
     "Whole Tone": (0, 2, 4, 6, 8, 10),
+    "Diminished HW": (0, 1, 3, 4, 6, 7, 9, 10),  # half step, then whole
+    "Diminished WH": (0, 2, 3, 5, 6, 8, 9, 11),  # whole step, then half
 }
 SCALE_NAMES = tuple(SCALES)
 

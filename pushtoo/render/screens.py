@@ -182,8 +182,11 @@ def status_parts(panel: dict) -> list[str]:
             parts.append("Strum the strip")
         if panel["timing"]:
             parts.append(panel["timing"])
-    elif panel["kind"] == "keyboard" and not panel["in_key"]:
-        parts.append("Chromatic")
+    elif panel["kind"] == "keyboard":
+        if panel.get("over"):
+            parts.append(f"over {panel['over']}")
+        if not panel["in_key"]:
+            parts.append("Chromatic")
     if panel.get("random_velocity"):
         parts.append("Random velocity")
     if panel["accent"]:
@@ -227,21 +230,30 @@ def _notes_or_hint(ctx, panel, x0, width) -> None:
 
 
 def _panel_scale_selector(ctx, panel, x0, width, accent) -> None:
-    # Scale names get two columns ("Major Pentatonic" is wider than one).
-    scales = panel["scale_names"]
-    index = scales.index(panel["scale"])
-    _text(ctx, "Scale", 16, 44, LABEL, _c["text_dim"])
-    for offset in (-1, 0, 1):
-        i = index + offset
-        if 0 <= i < len(scales):
-            selected = offset == 0
-            color = accent if selected else _c["text_dim"]
-            _text(ctx, scales[i], 16, 92 + offset * 24, VALUE, color, bold=selected)
-    _text(ctx, "Root", 2 * COLUMN + 16, 44, LABEL, _c["text_dim"])
-    _text(ctx, panel["root_name"], 2 * COLUMN + 16, 100, TITLE, accent, bold=True)
-    hint = "Buttons or encoder 2: root · Encoder 1: scale · Scale: close"
-    hint = _fit(ctx, hint, WIDTH - 3 * COLUMN - 32, BODY - 1)
+    """Each value above its encoder: Scale, Root, Chords (the chord grid's set)."""
+    _choice_list(ctx, "Scale", panel["scale_names"], panel["scale"], 0, accent)
+    _text(ctx, "Root", COLUMN + 8, 44, LABEL, _c["text_dim"])
+    _text(ctx, panel["root_name"], COLUMN + 8, 100, TITLE, accent, bold=True)
+    _choice_list(ctx, "Chords", panel["chord_sets"], panel["chord_set"], 2, accent)
+    hint = "Buttons: root · Scale: close"
+    hint = _fit(ctx, hint, WIDTH - 3 * COLUMN - 24, BODY - 1)
     _text(ctx, hint, 3 * COLUMN + 16, 98, BODY - 1, _c["text_dim"])
+
+
+def _choice_list(ctx, title, names, current, col, accent) -> None:
+    """A column's list: the one before and after dim, the current one large; a long
+    name wraps onto two lines rather than spilling into the next encoder's column."""
+    x, width = col * COLUMN + 8, COLUMN - 12
+    index = names.index(current)
+    _text(ctx, title, x, 44, LABEL, _c["text_dim"])
+    if index > 0:
+        _text(ctx, _fit(ctx, names[index - 1], width, BODY), x, 64, BODY, _c["text_dim"])
+    lines = _wrap(ctx, current, width, BODY + 2, max_lines=2)
+    for i, line in enumerate(lines):
+        _text(ctx, _fit(ctx, line, width, BODY + 2, True), x, 88 + i * 19, BODY + 2, accent, True)
+    if index + 1 < len(names):
+        below = 88 + len(lines) * 19 + 4
+        _text(ctx, _fit(ctx, names[index + 1], width, BODY), x, below, BODY, _c["text_dim"])
 
 
 CHORD_LEGEND = (  # (label, theme token)
@@ -249,7 +261,7 @@ CHORD_LEGEND = (  # (label, theme token)
     ("away", "away"),
     ("tension", "tension"),
     ("borrowed", "borrowed"),
-    ("V7 of", "secondary"),
+    ("leads to", "secondary"),
 )
 CELL, PITCH = 12, 13  # pad map cell size and spacing
 MAP_LABELS = 64  # width of the row-name column beside the pad map
