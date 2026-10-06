@@ -31,7 +31,7 @@ from pushtoo.chords import (
 )
 from pushtoo.midi.router import MidiRouter
 from pushtoo.music import ROWS, SCALES, KeyboardLayout, note_name
-from pushtoo.theme import led
+from pushtoo.theme import accent_name, led
 from pushtoo.ui.controls import COLUMNS
 
 Pad = tuple[int, int]
@@ -40,12 +40,22 @@ MAX_TONES = 8
 NEW_TOUCH_GAP = 0.08  # seconds without strip messages that count as lifting the finger
 HOLD_SECONDS = 0.3  # a voicing button held this long acts only while held
 MIN_OCTAVE, MAX_OCTAVE = 1, 6
+DEFAULT_OCTAVE = 3
 # Side buttons, top to bottom: the voicings, then Latch. push2-python's map puts
 # "1/32t" on CC 43, the top button, and "1/4" on CC 36, the bottom.
 SCENE_BUTTONS = ("1/32t", "1/32", "1/16t", "1/16", "1/8t", "1/8", "1/4t", "1/4")
 LATCH_BUTTON = len(VOICINGS)
 OCTAVE_COLUMN = 7
-ROLE_COLORS = {"home": "pt_root", "away": led("blue"), "tension": led("amber")}
+ROLE_COLORS = {"home": led("home"), "away": led("away"), "tension": led("tension")}
+# Row names for the screen's pad map, bottom to top, matching ROW_KINDS.
+ROW_LABELS = ("Bass", "Triad", "7th", "add9", "sus", "9th", "Borrowed", "V7 of")
+# Side button states, shared by the screen's voicing rail and the button LEDs.
+RAIL_LEDS = {
+    "kept": led(accent_name("play")),
+    "held": "white",
+    "latch_on": led("latch"),
+    "off": "dark_gray",
+}
 
 
 class ChordPlayer:
@@ -61,7 +71,7 @@ class ChordPlayer:
         self._output = output  # (destination, chord channel) of the Chord layout
         self._clock = clock
         self.bass_channel = 2
-        self.octave = 3
+        self.octave = DEFAULT_OCTAVE
         self.strum = False
         self.strum_octaves = 2
         self.mute_chords = False
@@ -75,7 +85,7 @@ class ChordPlayer:
         self.velocity = 100
         self.notes: list[int] = []  # what the sounding (or last) chord played
         self.last_chord: Chord | None = None
-        self.bass_pads: set[Pad] = set()
+        self.bass_pads: dict[Pad, int] = {}  # bass-row pads held, and their notes
         self._strum_index: int | None = None
         self._strum_time = 0.0
         self._strumming: set[int] = set()
@@ -158,7 +168,7 @@ class ChordPlayer:
             destination, _ = self._output()
             note = self._bass_note(col)
             self.router.note_on(("bass row", col), destination, self.bass_channel, note, velocity)
-            self.bass_pads.add(pad)
+            self.bass_pads[pad] = note
             return
         if self.chord_for(pad) is None:
             return
@@ -174,7 +184,7 @@ class ChordPlayer:
         pad = (row, col)
         if row == BASS_ROW:
             self.router.note_off(("bass row", col))
-            self.bass_pads.discard(pad)
+            self.bass_pads.pop(pad, None)
         elif pad == self.current:
             if self.latch:
                 self.current_held = False  # keeps sounding until the next chord
@@ -287,36 +297,77 @@ class ChordPlayer:
 
     def _role_color(self, chord: Chord) -> str:
         if chord.kind == "borrowed":
-            return led("violet")
+            return led("borrowed")
         if chord.kind == "secondary":
-            return led("pink")
+            return led("secondary")
         return ROLE_COLORS[role(chord, self.key)]
+
+    def rail(self) -> list[dict]:
+        """The side buttons, top to bottom, as the screen's voicing rail shows them."""
+        entries = []
+        for voicing in VOICINGS:
+            if voicing == self.momentary:
+                state = "held"
+            elif voicing == self.voicing and self.momentary is None:
+                state = "kept"
+            else:
+                state = "off"
+            entries.append({"label": voicing, "state": state})
+        entries.append({"label": "Latch", "state": "latch_on" if self.latch else "off"})
+        return entries
 
     def scene_colors(self) -> dict[str, str]:
         colors = {name: "black" for name in SCENE_BUTTONS}
-        for i, voicing in enumerate(VOICINGS):
-            colors[SCENE_BUTTONS[i]] = "white" if voicing == self.active_voicing else "dark_gray"
-        colors[SCENE_BUTTONS[LATCH_BUTTON]] = "white" if self.latch else "dark_gray"
+        for button, entry in zip(SCENE_BUTTONS, self.rail(), strict=False):
+            colors[button] = RAIL_LEDS[entry["state"]]
         return colors
+
+    def describe_side_button(self, index: int) -> str:
+        """What a side button just did, for when the rail isn't on screen."""
+        if index == LATCH_BUTTON:
+            return "Latch on" if self.latch else "Latch off"
+        if self.momentary is not None:
+            return f"Voicing: {self.momentary} (held)"
+        return f"Voicing: {self.voicing}"
 
     def panel(self) -> dict:
         chord = self.last_chord
+        # The lowest bass-row note held is the bass under the chord: G over B is "G/B".
+        bass = min(self.bass_pads.values(), default=None)
+        held_bass = bass is not None
         info: dict = {
             "strum": self.strum,
             "voicing": VOICING_NAMES[self.active_voicing],
             "sounding": self.current is not None,
             "latch": self.latch,
+            "latched": self.latch and self.current is not None and not self.current_held,
             "parent": None,
+            "octave": self.octave,
+            "octave_moved": self.octave != DEFAULT_OCTAVE,
+            "rail": self.rail(),
+            "grid": self.pad_colors(),
+            "row": self.current[0] if self.current else (BASS_ROW if held_bass else None),
+            "row_names": list(ROW_LABELS),
+            "bass_note": None,
+            "bass_channel": self.bass_channel,
         }
+        names = key_spelling(self.key)
+        if held_bass:
+            info["bass_note"] = note_name(bass, names)
         if uses_parent(self.key):
             parent = next(n for n, s in SCALES.items() if s == parent_scale(self.key))
             info["parent"] = f"Chords from {parent}"
         if chord is None:
             return info | {"chord_name": None, "notes": [], "role": None}
-        names = key_spelling(self.key)
+        name = chord_name(chord.pitch_class(self.key), chord.intervals, names)
+        notes = [note_name(n, names) for n in self.notes]
+        if held_bass and self.current is not None:
+            notes.insert(0, note_name(bass, names))
+            if bass % 12 != chord.pitch_class(self.key):
+                name = f"{name}/{names[bass % 12]}"
         return info | {
-            "chord_name": chord_name(chord.pitch_class(self.key), chord.intervals, names),
-            "notes": [note_name(n, names) for n in self.notes],
+            "chord_name": name,
+            "notes": notes,
             "role": role(chord, self.key),
             "role_line": self._role_line(chord),
         }
@@ -325,8 +376,11 @@ class ChordPlayer:
         """Plain role first, numeral for those who want theory: "V7 · tension"."""
         label = numeral_label(chord, self.key)
         if chord.kind == "secondary":
-            return f"{label} · leads to {numeral(self.key, chord.target or 0)}"
-        return f"{label} · {role(chord, self.key)}"
+            line = f"{label} · leads to {numeral(self.key, chord.target or 0)}"
+        else:
+            line = f"{label} · {role(chord, self.key)}"
+        # The right column repeats the first one higher; say so, or it looks like a copy.
+        return f"{line} · octave up" if chord.degree == OCTAVE_COLUMN else line
 
     # Session state
 

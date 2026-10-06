@@ -38,6 +38,9 @@ class Control:
     format: Callable[[int], str] = str
     bipolar: bool = False
     color: str | None = None  # a theme color name; the mode accent if None
+    # Small chips under the value, as (label, theme color when on or None when off),
+    # for state that lives on other hardware, like Mix's mute and solo pads.
+    badges: Callable[[], list[tuple[str, str | None]]] | None = None
     _accumulated: int = field(default=0, repr=False)
 
     def _choices(self) -> Sequence[str] | None:
@@ -82,13 +85,16 @@ class Control:
         return max(0.0, min(1.0, (self.get() - low) / (high - low)))
 
     def view(self) -> dict:
-        return {
+        view = {
             "name": self.name,
             "text": self.text(),
             "fraction": self.fraction(),
             "bipolar": self.bipolar,
             "color": self.color,
         }
+        if self.badges is not None:
+            view["badges"] = self.badges()
+        return view
 
 
 @dataclass

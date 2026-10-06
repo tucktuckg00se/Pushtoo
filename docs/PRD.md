@@ -86,7 +86,7 @@ Pushtoo's core is two modes, each on its own button. Play has three layouts, cyc
 | Push 2 control                                               | Pushtoo function                                             |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | Note                                                         | Play mode                                                    |
-| Layout                                                       | Cycle Play's layouts: Keyboard, Drums, Chord                 |
+| Layout                                                       | Tap: cycle Play's layouts (Keyboard, Drums, Chord). Hold: the buttons above the display name and pick them |
 | Scale                                                        | Open the scale selector                                      |
 | Device                                                       | Knobs mode                                                   |
 | Browse                                                       | Profile browser                                              |
@@ -125,6 +125,7 @@ In key / Chromatic applies to the Keyboard layout; the chord grid is always buil
 - Touching an encoder "peeks": its value goes full-size on screen without changing.
 - Each mode remembers its page and layout, and each profile remembers where you left off.
 - Key and scale are shared by every Play layout.
+- Extras (Mix, Browse) close with their own button or the `‹` button at the bottom right, which names the mode it returns to.
 - Pushtoo sends on "Pushtoo Out" by default. Each layout can instead send straight to a hardware MIDI port, so a USB-MIDI rig needs no DAW.
 
 **Default MIDI map**
@@ -161,10 +162,10 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 **Playing**
 
 - One press plays one chord. The last chord pressed sounds; releasing it stops it. Changes re-trigger the whole chord.
-- Each chord also sends its root to the bass channel (default 3). The bottom row plays single bass notes by hand, alongside chords.
+- Each chord also sends its root to the bass channel (default 3). The bottom row plays single bass notes by hand, alongside chords. While one is held under a chord, the screen names it as a slash chord (G/B; the lowest held bass note wins, and a bass on the chord's root adds no slash).
 - Rows 2–6 are always in key. Where a step's 9th would be a harsh flat 9th (iii and vii in major), the add9 and 9th rows use the 11th instead. Rows 7–8 are the deliberate spice.
 - Scales with fewer than 7 notes build their chords from a parent scale (pentatonic and blues from major or minor), and the screen says so.
-- Colors show what each chord does: home (I, iii, vi) in the Play accent, moving away (ii, IV) blue, tension (V, vii°) amber, borrowed violet, secondary dominants pink, bass soft white.
+- Colors show what each chord does: home (I, iii, vi) orange like root pads, moving away (ii, IV) blue, tension (V, vii°) yellow, borrowed violet, secondary dominants pink, bass soft white.
 - The right-hand column (I') is the first column's chord lifted an octave: under Smooth, exactly the voicing the left column would get right now, plus 12. It is a deliberate "go higher" move, never a duplicate.
 - Octave moves the chord register. Accent forces full velocity.
 
@@ -179,29 +180,34 @@ In C major, row 2 is C Dm Em F G Am Bdim C and row 3 is Cmaj7 Dm7 Em7 Fmaj7 G7 A
 
 A chord pad plays only its bass note, and the touch strip strums the voiced chord across 1–3 octaves, one note per tone crossed, like an Omnichord. Strummed notes ring until the chord changes or is released. In Strum style the strip runs in the Push's mod-wheel mode, because pitch-bend mode springs back to center and would strum again on release.
 
-**Pages:** Style (Off or Strum, strum range) and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
+**Pages:** Style (Press or Strum, strum range) and Output (destination, chords channel, bass channel, Mute chords, Mute bass).
 
-**Screen:** the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
+**Screen:** the side-button rail and the pad map (see Visual design system), then the chord name in plain words ("Fm7"; chords without a common name show their notes, never a wrong name), then a line with the Roman numeral and role ("V7 · tension", "bVII · borrowed", "V7/vi · leads to vi") and the voicing, then the notes, spelled with flats in flat keys and sharps in sharp keys. By ear first, theory one glance away.
 
 ## Visual design system
 
 The display is a strict 8-column grid that mirrors the hardware, and color ties the screen to the pads.
 
+**Form follows function.** Each physical control gets a screen element in the place nearest to it, in its LED's color. Screen space goes to state, not settings: the play screens show what's active and changes what your hands do (Accent, Chromatic, Strum, a moved octave, a hardware destination), while channels, the usual destination and the strip mode stay on their own pages. The bands name the buttons above and below the display, and the columns name the encoders. In the Chord layout, the last column is a rail naming the side buttons just to its right, top to bottom: the kept voicing is filled with the Play accent, a held one white, and Latch in the latch color; the button LEDs match. A miniature pad map in the pads' own colors labels the chord rows and lights the one you're playing. Mix's mute and solo pads show as chips under each fader. Held modifiers (Shift, Delete) list what they do. Octave buttons go dark at their limit. A side button pressed while its rail is off screen shows a toast.
+
 **Display layout (960 x 160 px):** 8 columns of 120 px, each centered over its encoder. Top band 24 px for upper-button labels, bottom band 24 px for lower-button labels, middle 112 px for content. A selected button's label inverts.
 
-**Typography:** IBM Plex Sans Condensed at 14 px labels, 20 px values and 48 px peek and toasts. Names shorten with a middle ellipsis. Long messages wrap at 20 px instead of being cut.
+**Typography:** IBM Plex Sans Condensed at 14 px labels, 20 px values and 48 px peek and toasts; 12 px only for legends beside a hardware miniature. Names shorten with a middle ellipsis. Long messages wrap at 20 px instead of being cut.
 
 **Color**
 
+Every color is a token in a theme file (`~/.config/pushtoo/themes/*.yaml`, chosen per profile and hot-reloaded). Tokens name meanings, not hues, and one value drives both the screen and that token's LED palette slot. The default theme follows INTERSECT's Open Color theme, using mid shades (4–6) because pastels wash out to white on LEDs.
+
 | Token          | Use                                    | Example                                                  |
 | -------------- | -------------------------------------- | -------------------------------------------------------- |
-| Background     | Display base                           | Near-black #0E0F12                                       |
-| Mode accent    | Selected labels, mode headers          | Play teal, Knobs amber, Mix coral                        |
+| Screen         | background, track, line, text, text_dim | Black #000000; Open Color #343A40, #191C1F, #CED4DA, #868E96 |
+| Mode accent    | Selected labels, mode headers          | Play lime #82C91E, Knobs yellow, Mix orange              |
 | Control color  | Per encoder column, chosen in the profile | Shown on the arc and the button above the encoder     |
-| Pad roles      | Root, in-scale, out-of-scale, held     | Accent, soft white, dim, full white                      |
-| Chord roles    | Home, away, tension, borrowed, secondary | Accent, blue, amber, violet, pink                      |
+| Pad roles      | Root, in-scale, out-of-scale, held     | Orange, gray, near-off, white; the Play accent stays off the pads |
+| Chord roles    | Home, away, tension, borrowed, secondary | Orange, blue, yellow, violet, pink                     |
+| States         | Latch, mute, solo                      | Yellow, red, blue                                        |
 
-Push 2's LED palette is reprogrammed on every connect so on-screen colors and pad colors match as closely as LEDs allow.
+Push 2's LED palette is reprogrammed on every connect and theme change so on-screen colors and pad colors match as closely as LEDs allow.
 
 **Controls:** encoders render as 270-degree arcs; bipolar controls fill from 12 o'clock.
 

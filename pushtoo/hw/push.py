@@ -13,7 +13,7 @@ import push2_python
 from push2_python.exceptions import Push2MIDIeviceNotFound
 
 from pushtoo.music import velocity_curve
-from pushtoo.theme import LED_COLORS
+from pushtoo.theme import DEFAULT_THEME, Theme, led_palette
 
 RECONNECT_INTERVAL = 1.0  # seconds between attempts to reopen Push's MIDI ports
 
@@ -49,6 +49,7 @@ class PushController:
         self.listener = listener
         self.connected = False
         self._button_colors: dict[str, str] = {}  # push2-python resends unchanged buttons
+        self.theme: Theme = DEFAULT_THEME
         self._settings: dict = {}
         self._applied: dict = {}
         self._stop = threading.Event()
@@ -148,17 +149,28 @@ class PushController:
     def setup_hardware(self) -> None:
         """Program palette, pad mode and settings; runs on every (re)connect because a
         replugged Push forgets everything."""
-        for name, (index, rgb) in LED_COLORS.items():
-            self.push.set_color_palette_entry(
-                index, name, rgb=list(rgb), bw=max(rgb), allow_overwrite=True
-            )
-        self.push.reapply_color_palette()
+        self._program_palette()
         self.push.pads.set_polyphonic_aftertouch()
         self.push.pads.reset_current_pads_state()
         self.push.buttons.set_all_buttons_color("black")
         self._button_colors.clear()
         self._applied = {}
         self.apply_settings(self._settings)
+
+    def _program_palette(self) -> None:
+        for name, (index, rgb) in led_palette(self.theme).items():
+            self.push.set_color_palette_entry(
+                index, name, rgb=list(rgb), bw=max(rgb), allow_overwrite=True
+            )
+        self.push.reapply_color_palette()
+
+    def set_theme(self, theme: Theme) -> None:
+        """New LED colors; the caller's next refresh re-sends every pad and button."""
+        self.theme = theme
+        if self.connected:
+            self._program_palette()
+            self.push.pads.reset_current_pads_state()
+            self._button_colors.clear()
 
     def apply_settings(self, settings: dict) -> None:
         """Send velocity curve and touch strip mode, skipping what is already applied."""

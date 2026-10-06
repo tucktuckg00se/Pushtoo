@@ -86,6 +86,12 @@ def _m2_views(views: dict[str, dict]) -> None:
         app.button_pressed(c.BUTTON_SHIFT)
         views["knobs_learn_assist"] = app.view()
         app.button_released(c.BUTTON_SHIFT)
+        app.button_pressed(c.BUTTON_DELETE)
+        views["knobs_delete_overlay"] = app.view()
+        app.button_released(c.BUTTON_DELETE)
+        app.button_pressed(c.BUTTON_LAYOUT)  # held: the upper buttons pick a layout
+        views["layout_picker"] = app.view()
+        app.button_released(c.BUTTON_LAYOUT)
 
         app.button_pressed(c.BUTTON_MIX)
         app.pad_pressed(7, 1, 100)
@@ -129,7 +135,10 @@ def sample_views() -> dict[str, dict]:
     peek["peek"] = play.control_at(1).view()
     views["peek_velocity"] = peek
     shift = play.view()
-    shift["shift"] = ["Stop: Panic (all notes off)", "Turn an encoder: fine adjust"]
+    shift["overlay"] = {
+        "title": "Shift",
+        "lines": ["Stop: Panic (all notes off)", "Turn an encoder: fine adjust"],
+    }
     views["shift_overlay"] = shift
     toast = play.view()
     toast |= {"toast": "Panic: all notes off", "toast_until": time.monotonic() + 60}
@@ -195,6 +204,19 @@ def _chord_views(views: dict[str, dict]) -> None:
     play.button_pressed(c.BUTTON_LAYOUT)
     play.pad_pressed(4, 2, 100)  # sus on III
     views["chord_pentatonic"] = play.view()
+
+    play = _play()
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.pad_pressed(1, 7, 100)  # the right column: the first chord an octave up
+    views["chord_lift"] = play.view()
+    play.pad_released(1, 7)
+    play.pad_pressed(0, 4, 100)  # a bass note
+    views["chord_bass_note"] = play.view()
+    play.pad_released(0, 4)
+    play.pad_pressed(1, 3, 100)  # Fm
+    play.pad_pressed(0, 5, 100)  # over Ab in the bass
+    views["chord_slash"] = play.view()
 
 
 def render(view: dict) -> cairo.ImageSurface:

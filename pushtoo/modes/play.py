@@ -12,6 +12,8 @@ from push2_python import constants as c
 
 from pushtoo.midi.router import OUT_PORT, MidiRouter, short_port_name
 from pushtoo.modes.base import Mode, Row
+from pushtoo.modes.chord import MAX_OCTAVE as CHORD_MAX_OCTAVE
+from pushtoo.modes.chord import MIN_OCTAVE as CHORD_MIN_OCTAVE
 from pushtoo.modes.chord import SCENE_BUTTONS, ChordPlayer
 from pushtoo.music import (
     BANK_SIZE,
@@ -67,6 +69,7 @@ class PlayMode(Mode):
         self.strip_mode = 0  # index into STRIP_MODES
         self.accent = False
         self.scale_open = False
+        self.layout_held = False  # while Layout is held, the upper buttons pick a layout
         self.played_once = False
         self.last_drum: int | None = None
 
@@ -114,7 +117,7 @@ class PlayMode(Mode):
             format=lambda v: f"{v} oct",
         )
         style_options: list[Option | None] = [
-            Option("Off", lambda: self._set_chord_flag("strum", False), lambda: not chord.strum),
+            Option("Press", lambda: self._set_chord_flag("strum", False), lambda: not chord.strum),
             Option("Strum", lambda: self._set_chord_flag("strum", True), lambda: chord.strum),
         ]
         output = [
@@ -291,11 +294,31 @@ class PlayMode(Mode):
         return changed
 
     def button_released(self, name: str) -> bool:
-        """Side buttons need releases: a held voicing button only lasts while held."""
+        """Side buttons need releases: a held voicing button only lasts while held.
+        So does Layout, whose layout picker shows only while it's held."""
+        if name == c.BUTTON_LAYOUT:
+            self.layout_held = False
+            return True
         if name in SCENE_BUTTONS and self.in_chord:
             self.chord.voicing_released(SCENE_BUTTONS.index(name))
             return True
         return False
+
+    def select_layout(self, index: int) -> bool:
+        if index == self.current or not 0 <= index < len(self.layouts):
+            return False
+        if self.in_chord:
+            self.chord.release_all()
+        self.current = index
+        return True
+
+    def layout_choices(self) -> Row:
+        """The upper-button labels while Layout is held."""
+        choices: Row = [
+            {"label": layout.name, "selected": i == self.current}
+            for i, layout in enumerate(self.layouts)
+        ]
+        return choices + [None] * (COLUMNS - len(choices))
 
     def _revoice_if_key_changed(self, before: tuple) -> None:
         # The PRD: changing key while holding a chord transposes or reharmonizes it live.
@@ -307,9 +330,9 @@ class PlayMode(Mode):
             self.scale_open = not self.scale_open
             return True
         if name == c.BUTTON_LAYOUT:
-            if self.in_chord:
-                self.chord.release_all()
-            self.current = (self.current + 1) % len(self.layouts)
+            # A tap moves to the next layout; held, the upper buttons also pick one.
+            self.layout_held = True
+            self.select_layout((self.current + 1) % len(self.layouts))
             return True
         if name == c.BUTTON_ACCENT:
             self.accent = not self.accent
@@ -382,16 +405,28 @@ class PlayMode(Mode):
             colors.append(line)
         return colors
 
+    def octave_room(self) -> tuple[bool, bool]:
+        """Can the Octave buttons still move (down, up)? They go dark at the limit."""
+        if self.in_chord:
+            octave = self.chord.octave
+            return octave > CHORD_MIN_OCTAVE, octave < CHORD_MAX_OCTAVE
+        if self.layout.name == "Keyboard":
+            octave = self.keyboard.octave
+            return octave > MIN_OCTAVE, octave < MAX_OCTAVE
+        start = self.drums.start
+        return start > DRUM_LOWEST_START, start < DRUM_HIGHEST_START
+
     def button_colors(self) -> dict[str, str]:
         lit = "white"
+        down, up = self.octave_room()
         return (
             super().button_colors()
             | {
                 c.BUTTON_LAYOUT: lit,
                 c.BUTTON_SCALE: lit if self.scale_open else "dark_gray",
                 c.BUTTON_ACCENT: lit if self.accent else "dark_gray",
-                c.BUTTON_OCTAVE_UP: lit,
-                c.BUTTON_OCTAVE_DOWN: lit,
+                c.BUTTON_OCTAVE_UP: lit if up else "dark_gray",
+                c.BUTTON_OCTAVE_DOWN: lit if down else "dark_gray",
             }
             | self.scene_colors()
         )
@@ -432,7 +467,8 @@ class PlayMode(Mode):
         panel: dict = {
             "destination": short_port_name(destination),
             "kind": "scale_selector" if self.scale_open else layout.name.lower(),
-            "title": f"Play · {layout.name}",
+            "layout": layout.name,
+            "default_destination": destination == OUT_PORT,
             "channel": layout.channel,
             "accent": self.accent,
         }

@@ -33,7 +33,7 @@ def default_config_dir() -> Path:
     return Path(base) / "pushtoo" / "profiles"
 
 
-def _line_of(root: yaml.Node | None, loc: tuple) -> int | None:
+def line_of(root: yaml.Node | None, loc: tuple) -> int | None:
     """1-based line of the YAML node at a pydantic error location, if it exists."""
     node = root
     for key in loc:
@@ -70,7 +70,7 @@ def parse(text: str, source: str = "profile") -> Profile:
     except ValidationError as error:
         first = error.errors()[0]
         loc = tuple(k for k in first["loc"] if not isinstance(k, str) or not k[0].isupper())
-        line = _line_of(root, loc)
+        line = line_of(root, loc)
         where = f" line {line}" if line else ""
         count = error.error_count()
         more = f" (+{count - 1} more)" if count > 1 else ""

@@ -9,6 +9,9 @@ name: Default
 # name as shown on Play mode's Output page.
 output: Pushtoo Out
 
+# Colors: a theme file in ~/.config/pushtoo/themes, without ".yaml".
+theme: oc
+
 play:
   keyboard: {channel: 1, output: Pushtoo Out}
   drums: {channel: 10, output: Pushtoo Out}

@@ -16,7 +16,7 @@ from push2_python import constants as c
 from pushtoo.hw.push import PushController
 from pushtoo.keys import KeySender, describe
 from pushtoo.midi.router import MidiRouter
-from pushtoo.modes.base import Mode
+from pushtoo.modes.base import Mode, row_index
 from pushtoo.modes.browse import BrowseMode
 from pushtoo.modes.chord import SCENE_BUTTONS
 from pushtoo.modes.knobs import KnobsMode
@@ -26,6 +26,8 @@ from pushtoo.profiles.loader import ProfileError, ProfileStore, default_config_d
 from pushtoo.profiles.schema import Action, Profile
 from pushtoo.profiles.state import StateSaver, StateStore, default_state_path
 from pushtoo.render.process import Renderer
+from pushtoo.theme import DEFAULT_THEME, Theme
+from pushtoo.themes.loader import ThemeFileError, ThemeStore
 
 TOAST_SECONDS = 1.5
 ERROR_TOAST_SECONDS = 6.0
@@ -37,6 +39,7 @@ MODE_BUTTONS = {
     c.BUTTON_DEVICE: "knobs",
     c.BUTTON_MIX: "mix",
 }
+BACK_BUTTON = "Lower Row 8"  # leaves Mix and Browse
 LATER_MODES = {c.BUTTON_SETUP: "Setup"}
 # Play's own buttons act on Play from any mode, since pads keep playing there.
 PLAY_BUTTONS = {
@@ -70,17 +73,25 @@ class App:
         connect: bool = True,
     ) -> None:
         self._lock = threading.RLock()
+        # Push events can arrive while PushController is still being constructed.
+        self.push: PushController | None = None
         self.router = router or MidiRouter()
         self.renderer = renderer or Renderer()
         self.profiles = ProfileStore(config_dir or default_config_dir())
         self.state = StateStore(state_path or default_state_path())
         self.shift = self.delete = False
         self.shift_used = False  # turning an encoder while Shift is held hides the overlay
+        self.delete_used = False  # likewise touching an encoder while Delete is held
         self.peek: int | str | None = None
         self._toast = ("", 0.0)
         self._lost_push = False
 
         self.profile = self._initial_profile()
+        # Themes live next to the profiles folder.
+        self.themes = ThemeStore(self.profiles.config_dir.parent / "themes")
+        self.theme: Theme = DEFAULT_THEME
+        self._theme_name: str | None = None
+        self._select_theme(self.profile.theme)
         self.play = PlayMode(self.router)
         self.play.apply_settings(self.profile.play)
         self.knobs = KnobsMode(self.router, self.play, self.profile.knobs, self.profile.output)
@@ -105,13 +116,13 @@ class App:
         self.keys = keys or KeySender(on_error=self._key_error)
         self.saver = StateSaver(self.state, self._snapshot)
         self.saver.start()
-        # Push events can arrive while PushController is still being constructed.
-        self.push: PushController | None = None
         if connect:
             self.renderer.start()
             self.push = PushController(self)
+            self.push.theme = self.theme
             self.push.setup_hardware()
         self.profiles.watch(self._profile_changed)
+        self.themes.watch(self._theme_changed)
         self.refresh()
 
     # Profiles and state
@@ -127,7 +138,32 @@ class App:
                 self.toast(f"Profile error: {error}", ERROR_TOAST_SECONDS)
         return Profile()
 
+    def _select_theme(self, name: str) -> None:
+        """Use a profile's theme; the built-in Open Color theme if it can't load."""
+        if name == self._theme_name:
+            return
+        self._theme_name = name
+        try:
+            self._use_theme(self.themes.select(name))
+        except ThemeFileError as error:
+            self._use_theme(DEFAULT_THEME)
+            self.toast(f"Theme error: {error}", ERROR_TOAST_SECONDS)
+
+    def _use_theme(self, theme: Theme) -> None:
+        self.theme = theme
+        if self.push is not None:
+            self.push.set_theme(theme)
+
+    @locked
+    def _theme_changed(self, result: Theme | ThemeFileError) -> None:
+        if isinstance(result, ThemeFileError):
+            self.toast(f"Theme error: {result}", ERROR_TOAST_SECONDS)
+        else:
+            self._use_theme(result)
+        self.refresh()
+
     def _apply_profile(self, profile: Profile) -> None:
+        self._select_theme(profile.theme)
         self.profile = profile
         self.play.apply_settings(profile.play)
         self.knobs.apply_settings(profile.knobs, profile.output)
@@ -201,14 +237,19 @@ class App:
         if name == c.BUTTON_SHIFT:
             self.shift, self.shift_used = True, False
         elif name == c.BUTTON_DELETE:
-            self.delete = True
+            self.delete, self.delete_used = True, False
         elif name == c.BUTTON_STOP and self.shift:
             self.router.panic()
             self.toast("Panic: all notes off")
         elif name == c.BUTTON_UNDO:
             self._undo(redo=self.shift)
+        elif name == BACK_BUTTON and self.mode in (self.mix, self.browse):
+            self._switch(self._previous_mode)
         elif name in MODE_BUTTONS:
-            self._switch(self.modes[MODE_BUTTONS[name]])
+            mode = self.modes[MODE_BUTTONS[name]]
+            if mode is self.mix and self.mode is self.mix:
+                mode = self._previous_mode  # Mix's own button closes it again, like Browse
+            self._switch(mode)
         elif name == c.BUTTON_BROWSE:
             if self.mode is self.browse:
                 self._switch(self._previous_mode)
@@ -220,8 +261,11 @@ class App:
         elif name == c.BUTTON_SCALE:
             self._switch(self.play)
             self.play.button_pressed(name)
+        elif self.play.layout_held and (index := row_index(name, "Upper")) is not None:
+            self.play.select_layout(index)
         elif name in PLAY_BUTTONS:
             self.play.button_pressed(name)
+            self._describe_side_button(name)
         elif self.shift and isinstance(self.mode, KnobsMode) and name.startswith("Upper Row "):
             self.shift_used = True
             if sent := self.mode.learn(int(name.removeprefix("Upper Row ")) - 1):
@@ -232,8 +276,12 @@ class App:
 
     @locked
     def button_released(self, name: str) -> None:
-        if name in SCENE_BUTTONS:
+        if name == c.BUTTON_LAYOUT:
+            self.play.button_released(name)
+            self.refresh()
+        elif name in SCENE_BUTTONS:
             if self.play.button_released(name):
+                self._describe_side_button(name)
                 self.refresh()
         elif name == c.BUTTON_SHIFT:
             self.shift = False
@@ -242,11 +290,17 @@ class App:
             self.delete = False
             self.refresh()
 
+    def _describe_side_button(self, name: str) -> None:
+        """The voicing rail is on the Chord screen only; elsewhere a toast says what a
+        side button did."""
+        if name in SCENE_BUTTONS and self.play.in_chord and self.mode is not self.play:
+            self.toast(self.play.chord.describe_side_button(SCENE_BUTTONS.index(name)))
+
     def _switch(self, mode: Mode) -> None:
         if mode is self.mode:
             return
-        if self.mode is not self.browse:
-            self._previous_mode = self.mode
+        if self.mode in (self.play, self.knobs):
+            self._previous_mode = self.mode  # extras return to the core mode below them
         self.mode = mode
         self.peek = None
 
@@ -285,6 +339,7 @@ class App:
             self.peek = MASTER
         elif (index := ENCODERS.get(name)) is not None and self.mode.control_at(index):
             if self.delete and hasattr(self.mode, "reset"):
+                self.delete_used = True
                 if self.mode.reset(index):
                     self.toast(f"Reset {self.mode.control_at(index).name}")
             self.peek = index
@@ -332,10 +387,23 @@ class App:
             view["peek"] = self.mix.master.view()
         elif self.peek is not None and (control := self.mode.control_at(self.peek)):
             view["peek"] = control.view()
+        elif self.play.layout_held:
+            lines = ["Button above a layout: switch to it", "Tap Layout: the next layout"]
+            view["overlay"] = {"title": "Layout", "lines": lines}
         elif self.shift and not self.shift_used:
-            view["shift"] = self._shift_actions()
+            view["overlay"] = {"title": "Shift", "lines": self._shift_actions()}
+        elif self.delete and not self.delete_used and hasattr(self.mode, "reset"):
+            lines = ["Touch a knob: reset it to its default"]
+            view["overlay"] = {"title": "Delete", "lines": lines}
         if self.shift and isinstance(self.mode, KnobsMode):
             view["upper"] = self.mode.learn_labels()
+        if self.play.layout_held:
+            view["upper"] = self.play.layout_choices()
+        if self.mode in (self.mix, self.browse):
+            # Extras sit on top of a core mode; say how to get back, next to the button.
+            label = f"‹ {self._previous_mode.name.capitalize()}"
+            view["lower"] = [*view["lower"][:7], {"label": label, "selected": False}]
+        view["theme"] = dict(self.theme)
         view["toast"], view["toast_until"] = self._toast
         return view
 
@@ -354,6 +422,11 @@ class App:
         colors[c.BUTTON_STOP] = "white" if self.shift else "black"
         colors[c.BUTTON_UNDO] = "dark_gray"
         colors[c.BUTTON_DELETE] = "white" if self.delete else "dark_gray"
+        if self.mode in (self.mix, self.browse):
+            colors[BACK_BUTTON] = "white"
+        if self.play.layout_held:
+            for i, item in enumerate(self.play.layout_choices()):
+                colors[f"Upper Row {i + 1}"] = Mode.row_color(item)
         return colors
 
     def refresh(self) -> None:
@@ -366,6 +439,7 @@ class App:
 
     def close(self) -> None:
         self.profiles.stop()
+        self.themes.stop()
         self.saver.stop()
         self.keys.close()
         self.router.close()

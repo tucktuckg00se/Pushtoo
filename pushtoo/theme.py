@@ -1,89 +1,143 @@
 """Pushtoo's design tokens (PRD: Visual design system).
 
-One color language for screen and LEDs: every named color has a screen RGB and its
-own slot in Push's LED palette, which is reprogrammed on every connect, so an arc on
-screen and the button or pad it belongs to show the same color.
+One color language for screen and LEDs. A theme gives every token one color; tokens
+name what a color means ("home", "latch", "knobs"), so a theme can't make two roles
+collide by accident. Every token except the screen-only ones has its own slot in
+Push's LED palette, which is reprogrammed on every connect and theme change, so an
+arc on screen and the button or pad it belongs to show the same color.
+
+The default theme follows INTERSECT's Open Color theme (https://yeun.github.io/
+open-color/), with mid shades on the pads, since pastels wash out to white on LEDs.
 """
+
+import re
+from collections.abc import Mapping
+from types import MappingProxyType
 
 from pushtoo.music import PadRole
 
 RGB = tuple[int, int, int]
+Theme = Mapping[str, RGB]
 
-# Colors a profile can give a control, plus a few reserved for modes.
-NAMED_COLORS: dict[str, RGB] = {
-    "red": (230, 60, 60),
-    "orange": (240, 130, 40),
-    "amber": (245, 180, 40),
-    "yellow": (235, 225, 60),
-    "green": (80, 200, 90),
-    "teal": (32, 200, 180),
-    "blue": (60, 130, 240),
-    "violet": (150, 100, 240),
-    "pink": (240, 100, 180),
-    "white": (230, 230, 230),
-    "coral": (250, 110, 90),
-    "gray": (150, 150, 155),
+# Every token and its Open Color default: a hex color, or another token's name.
+# The order fixes each token's LED palette slot.
+OPEN_COLOR: dict[str, str] = {
+    # Screen only
+    "background": "000000",
+    "track": "343a40",  # arc tracks, chips that are off
+    "line": "191c1f",  # dividers
+    "text": "ced4da",
+    "text_dim": "868e96",
+    # Mode accents
+    "play": "82c91e",
+    "knobs": "fcc419",
+    "mix": "ff922b",
+    "browse": "f1f3f5",
+    # Pads. The accent stays off them: root and home are a warm orange, held is white.
+    "root": "ff922b",
+    "in_scale": "868e96",
+    "out_of_scale": "212529",
+    "held": "ffffff",
+    # What each chord does on the chord grid
+    "home": "root",
+    "away": "4dabf7",
+    "tension": "ffd43b",  # lighter than root's orange, so the two differ on the pads
+    "borrowed": "9775fa",
+    "secondary": "f06595",
+    # States
+    "latch": "fcc419",
+    "mute": "ff6b6b",
+    "solo": "4dabf7",
+    # Colors a profile can give a knob
+    "red": "ff6b6b",
+    "orange": "ff922b",
+    "amber": "fab005",
+    "yellow": "ffe066",
+    "green": "51cf66",
+    "teal": "20c997",
+    "blue": "4dabf7",
+    "violet": "9775fa",
+    "pink": "f06595",
+    "white": "f1f3f5",
+    "coral": "ffa8a8",
+    "gray": "868e96",
 }
-CONTROL_COLOR_NAMES = tuple(n for n in NAMED_COLORS if n not in ("coral", "gray"))
+TOKENS = tuple(OPEN_COLOR)
+SCREEN_ONLY = ("background", "track", "line", "text", "text_dim")
+CONTROL_COLOR_NAMES = TOKENS[TOKENS.index("red") :]
+MODES = ("play", "knobs", "mix", "browse")
 
-MODE_ACCENTS = {
-    "play": "teal",
-    "knobs": "amber",
-    "mix": "coral",
-    "launch": "violet",
-    "setup": "gray",
-    "browse": "white",
-}
+_HEX = re.compile(r"#?([0-9a-fA-F]{6})")
 
-_PAD_ROLES: dict[str, RGB] = {
-    "pt_root": NAMED_COLORS["teal"],  # Play accent
-    "pt_in_scale": (150, 150, 150),  # soft white
-    "pt_out_of_scale": (18, 18, 22),  # dim
-    "pt_held": (255, 255, 255),  # full white
-}
-FIRST_NAMED_SLOT = 104
 
-# LED palette: name -> (palette index on Push, RGB). Named colors are "pt_<name>".
-# Off is push2-python's own "black" (slot 0): reprogramming a slot renames it, and
-# push2-python silently maps unknown names to green, so default slots stay untouched.
+class ThemeError(Exception):
+    """A theme value that can't be used; `key` lets the loader find its line."""
+
+    def __init__(self, key: str | None, message: str) -> None:
+        super().__init__(message)
+        self.key = key
+
+
+def resolve(raw: Mapping[str, str]) -> Theme:
+    """A theme from the given values, the defaults filling in whatever is missing."""
+    for key in raw:
+        if key not in OPEN_COLOR:
+            raise ThemeError(key, f"unknown color {key!r}")
+    values = {**OPEN_COLOR, **raw}
+    theme: dict[str, RGB] = {}
+    for token in TOKENS:
+        value, seen = values[token].strip(), [token]
+        while value in values:  # a reference to another token
+            if value in seen:
+                chain = " → ".join([*seen, value])
+                raise ThemeError(token, f"{chain} goes round in a circle")
+            seen.append(value)
+            value = values[value].strip()
+        match = _HEX.fullmatch(value)
+        if match is None:
+            raise ThemeError(seen[-1], f"{seen[-1]}: {value!r} is not RRGGBB or a color name")
+        hex_ = match.group(1)
+        theme[token] = (int(hex_[0:2], 16), int(hex_[2:4], 16), int(hex_[4:6], 16))
+    return MappingProxyType(theme)
+
+
+DEFAULT_THEME = resolve({})
+
+# LED palette: name -> (palette index on Push, RGB). Slots start at 64, clear of the
+# entries push2-python names by default. Off is push2-python's own "black" (slot 0):
+# reprogramming a slot renames it, and push2-python silently maps unknown names to
+# green, so default slots stay untouched.
 OFF = "black"
-LED_COLORS: dict[str, tuple[int, RGB]] = {
-    **{name: (100 + i, color) for i, (name, color) in enumerate(_PAD_ROLES.items())},
-    **{
-        f"pt_{name}": (FIRST_NAMED_SLOT + i, color)
-        for i, (name, color) in enumerate(NAMED_COLORS.items())
-    },
-}
+FIRST_SLOT = 64
+LED_TOKENS = tuple(t for t in TOKENS if t not in SCREEN_ONLY)
+
+
+def led(token: str) -> str:
+    """LED palette name for a token."""
+    return f"pt_{token}"
+
+
+def led_palette(theme: Theme) -> dict[str, tuple[int, RGB]]:
+    return {led(t): (FIRST_SLOT + i, theme[t]) for i, t in enumerate(LED_TOKENS)}
+
+
+LED_COLORS = led_palette(DEFAULT_THEME)  # the names and slots; any theme's are the same
 
 PAD_ROLE_COLORS = {
-    PadRole.ROOT: "pt_root",
-    PadRole.IN_SCALE: "pt_in_scale",
-    PadRole.OUT_OF_SCALE: "pt_out_of_scale",
+    PadRole.ROOT: led("root"),
+    PadRole.IN_SCALE: led("in_scale"),
+    PadRole.OUT_OF_SCALE: led("out_of_scale"),
 }
-
-
-def led(name: str) -> str:
-    """LED palette name for a named color."""
-    return f"pt_{name}"
-
-
-def rgb(name: str) -> tuple[float, float, float]:
-    """Cairo RGB for a named color."""
-    r, g, b = NAMED_COLORS[name]
-    return r / 255, g / 255, b / 255
 
 
 def accent_name(mode: str) -> str:
-    return MODE_ACCENTS.get(mode, "teal")
+    """The token of a mode's accent color."""
+    return mode if mode in MODES else "play"
 
 
-# Display colors as cairo RGB floats.
-BACKGROUND = (0x0E / 255, 0x0F / 255, 0x12 / 255)
-TEXT = (0.92, 0.92, 0.92)
-TEXT_DIM = (0.5, 0.5, 0.55)
-ARC_TRACK = (0.22, 0.22, 0.25)
-
-# Type scale (px). The PRD's three core sizes are LABEL, VALUE and PEEK.
+# Type scale (px). The PRD's three core sizes are LABEL, VALUE and PEEK. SMALL is only
+# for legends that sit beside a miniature of the hardware.
+SMALL = 12
 LABEL = 14
 BODY = 16
 VALUE = 20

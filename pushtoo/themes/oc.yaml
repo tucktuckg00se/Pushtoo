@@ -1,0 +1,54 @@
+# Pushtoo theme: Open Color, after INTERSECT's "oc" theme (https://yeun.github.io/open-color/).
+# Edit this file while Pushtoo runs: the screen and the LEDs change when you save.
+# To make your own, copy this file in the same folder, then set `theme: <file name>`
+# in your profile. Any color you leave out uses the Open Color value below.
+#
+# Values are 6-digit hex RRGGBB, or the name of another color in this file, as in
+# `home: play`. The pads use mid shades: pastels look almost white on Push's LEDs.
+
+name: Open Color
+
+# Screen
+background: 000000      # as black as the screen goes
+track: 343a40       # arc tracks, chips that are off
+line: 191c1f        # dividers
+text: ced4da
+text_dim: 868e96    # labels, hints, things that are off
+
+# Mode accents: selected labels, arcs and headings in each mode
+play: 82c91e        # lime
+knobs: fcc419
+mix: ff922b
+browse: f1f3f5
+
+# Pads
+root: ff922b        # the key's root notes, in orange
+in_scale: 868e96
+out_of_scale: 212529
+held: ffffff        # pads you're holding
+
+# The chord grid: what each chord does
+home: root
+away: 4dabf7
+tension: ffd43b     # lighter than root's orange, so the two differ on the pads
+borrowed: 9775fa
+secondary: f06595   # secondary dominants (V7 of)
+
+# States
+latch: fcc419       # Latch side button and the screen's "Latched" note
+mute: ff6b6b        # Mix mute pads
+solo: 4dabf7        # Mix solo pads
+
+# Colors a profile can give a knob (color: orange)
+red: ff6b6b
+orange: ff922b
+amber: fab005
+yellow: ffe066
+green: 51cf66
+teal: 20c997
+blue: 4dabf7
+violet: 9775fa
+pink: f06595
+white: f1f3f5
+coral: ffa8a8
+gray: 868e96

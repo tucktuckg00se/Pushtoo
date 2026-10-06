@@ -2,6 +2,7 @@ from push2_python import constants as c
 
 from pushtoo.midi.router import OUT_PORT
 from pushtoo.modes.play import PlayMode
+from pushtoo.render.screens import status_parts
 from pushtoo.ui.controls import INCREMENTS_PER_STEP
 from tests.test_router import make_router
 
@@ -147,3 +148,62 @@ def test_unknown_destination_still_renders():
     play.button_pressed("Lower Row 3")
     assert play.view()["controls"][0]["text"] == "—"
     assert OUT_PORT in play.router.destinations()
+
+
+def test_octave_buttons_go_dark_at_their_limits():
+    play, *_ = make_play()
+    for layout in ("Keyboard", "Drums", "Chord"):
+        assert play.layout.name == layout
+        for _ in range(12):
+            play.button_pressed(c.BUTTON_OCTAVE_UP)
+        colors = play.button_colors()
+        assert colors[c.BUTTON_OCTAVE_UP] == "dark_gray"
+        assert colors[c.BUTTON_OCTAVE_DOWN] == "white"
+        for _ in range(12):
+            play.button_pressed(c.BUTTON_OCTAVE_DOWN)
+        colors = play.button_colors()
+        assert colors[c.BUTTON_OCTAVE_UP] == "white"
+        assert colors[c.BUTTON_OCTAVE_DOWN] == "dark_gray"
+        play.button_pressed(c.BUTTON_LAYOUT)
+
+
+def test_details_show_state_not_settings():
+    play, *_ = make_play()
+    panel = play.view()["panel"]
+    assert panel["layout"] == "Keyboard"
+    assert status_parts(panel) == []  # in key, Pushtoo Out, no Accent: nothing to say
+    play.keyboard.in_key = False
+    play.button_pressed(c.BUTTON_ACCENT)
+    play.layout.destination = "USB MIDI:USB MIDI MIDI 1"
+    assert status_parts(play.view()["panel"]) == ["Chromatic", "Accent", "→ USB MIDI MIDI 1"]
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_LAYOUT)
+    play.button_pressed(c.BUTTON_ACCENT)
+    assert status_parts(play.view()["panel"]) == ["C Minor"]
+    play.button_pressed(c.BUTTON_OCTAVE_UP)
+    play.button_pressed("Upper Row 2")  # Style page: Strum
+    assert status_parts(play.view()["panel"]) == ["C Minor", "Oct 4", "Strum the strip"]
+
+
+def test_holding_layout_picks_a_layout_with_the_upper_buttons(env):
+    app, _ = env()
+    app.button_pressed(c.BUTTON_LAYOUT)  # a tap still moves to the next layout
+    assert app.play.layout.name == "Drums"
+    view = app.view()
+    assert view["overlay"]["title"] == "Layout"
+    assert [item["label"] for item in view["upper"][:3]] == ["Keyboard", "Drums", "Chord"]
+    assert view["upper"][1]["selected"]
+    app.button_pressed("Upper Row 3")
+    assert app.play.layout.name == "Chord"
+    app.button_released(c.BUTTON_LAYOUT)
+    assert "overlay" not in app.view()
+    assert app.play.layout.name == "Chord"
+
+
+def test_layout_picker_works_from_knobs_mode(env):
+    app, _ = env()
+    app.button_pressed(c.BUTTON_DEVICE)
+    app.button_pressed(c.BUTTON_LAYOUT)
+    app.button_pressed("Upper Row 1")
+    app.button_released(c.BUTTON_LAYOUT)
+    assert app.mode is app.knobs and app.play.layout.name == "Keyboard"

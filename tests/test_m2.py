@@ -114,15 +114,15 @@ def test_mix_pads_toggle_mute_and_solo_and_bottom_rows_play(env):
     app.pad_pressed(7, 0, 100)
     app.pad_released(7, 0)
     assert sent[-1] == [0xBD, 14, 127]
-    assert app.mix.pad_colors()[7][0] == "pt_coral"
+    assert app.mix.pad_colors()[7][0] == "pt_mute"
     app.pad_pressed(7, 0, 100)
     assert sent[-1] == [0xBD, 14, 0]
     app.pad_pressed(6, 3, 100)
     assert sent[-1] == [0xBD, 25, 127]
-    assert app.mix.pad_colors()[6][3] == "pt_blue"
+    assert app.mix.pad_colors()[6][3] == "pt_solo"
     app.pad_pressed(0, 0, 90)
     assert sent[-1] == [0x90, 48, 90]
-    assert app.mode.control_at(3).text() == "100 S"
+    assert app.mode.control_at(3).view()["badges"] == [("M", None), ("S", "solo")]
 
 
 # Undo
@@ -172,6 +172,19 @@ def test_mode_buttons_light_the_active_mode(env):
     assert colors[c.BUTTON_MIX] == "white"
     assert colors[c.BUTTON_NOTE] == "dark_gray"
     assert colors[c.BUTTON_SESSION] == "black"
+
+
+def test_holding_delete_explains_reset_until_a_knob_is_touched(env):
+    app, _ = env()
+    app.button_pressed(c.BUTTON_DELETE)
+    assert "overlay" not in app.view()  # nothing to reset in Play
+    app.button_released(c.BUTTON_DELETE)
+    app.button_pressed(c.BUTTON_DEVICE)
+    app.button_pressed(c.BUTTON_DELETE)
+    assert app.view()["overlay"]["title"] == "Delete"
+    app.encoder_touched("Track1 Encoder")
+    app.encoder_released("Track1 Encoder")
+    assert "overlay" not in app.view()
 
 
 def test_knob_upper_buttons_light_in_column_colors(env):

@@ -139,6 +139,7 @@ class Undo(Strict):
 class Profile(Strict):
     name: str = Field("Default", min_length=1, max_length=40)
     output: str = OUT_PORT  # where Knobs, Mix and Undo MIDI go
+    theme: str = Field("oc", min_length=1)  # a file name in the themes folder, without .yaml
     play: Play = Field(default_factory=Play)
     knobs: Knobs = Field(default_factory=Knobs)
     mix: Mix = Field(default_factory=Mix)

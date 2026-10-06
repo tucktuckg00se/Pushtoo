@@ -12,6 +12,7 @@ from pushtoo.ui.controls import COLUMNS, Control, Page
 
 MUTE_ROW, SOLO_ROW = 7, 6  # top row, second row (row 0 is the bottom)
 ON, OFF = 127, 0
+MUTE_COLOR, SOLO_COLOR = "mute", "solo"  # theme tokens
 
 
 class MixMode(Mode):
@@ -39,15 +40,18 @@ class MixMode(Mode):
         )
 
     def _fader(self, i: int) -> Control:
-        def fmt(value: int) -> str:
-            flags = ("M" if self.mute[i] else "") + ("S" if self.solo[i] else "")
-            return f"{value} {flags}" if flags else str(value)
+        # Chips mirror this column's mute and solo pads, in the same colors.
+        def badges() -> list[tuple[str, str | None]]:
+            return [
+                ("M", MUTE_COLOR if self.mute[i] else None),
+                ("S", SOLO_COLOR if self.solo[i] else None),
+            ]
 
         return Control(
             self.settings.names[i],
             lambda: self.faders[i],
             lambda v: self._set_fader(i, v),
-            format=fmt,
+            badges=badges,
         )
 
     def _set_fader(self, i: int, value: int) -> None:
@@ -84,8 +88,8 @@ class MixMode(Mode):
     def pad_colors(self) -> list[list[str]]:
         colors = self.play.pad_colors()
         dim = "pt_out_of_scale"
-        colors[MUTE_ROW] = [led("coral") if on else dim for on in self.mute]
-        colors[SOLO_ROW] = [led("blue") if on else dim for on in self.solo]
+        colors[MUTE_ROW] = [led(MUTE_COLOR) if on else dim for on in self.mute]
+        colors[SOLO_ROW] = [led(SOLO_COLOR) if on else dim for on in self.solo]
         return colors
 
     def panel(self) -> dict:
