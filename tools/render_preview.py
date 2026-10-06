@@ -14,6 +14,7 @@ import cairo
 from push2_python import constants as c
 
 from pushtoo.app import App
+from pushtoo.fonts import use_bundled_fonts
 from pushtoo.midi.router import MidiRouter
 from pushtoo.modes.play import PlayMode
 from pushtoo.render.screens import HEIGHT, WIDTH, draw_view
@@ -316,6 +317,7 @@ def render(view: dict) -> cairo.ImageSurface:
 
 
 def main() -> None:
+    use_bundled_fonts()  # the same font as on the Push
     out_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "render_preview")
     out_dir.mkdir(parents=True, exist_ok=True)
     views = sample_views()

@@ -16,6 +16,7 @@ import time
 
 import cairo
 
+from pushtoo.fonts import FAMILY
 from pushtoo.theme import (
     BODY,
     DEFAULT_THEME,
@@ -36,7 +37,7 @@ WIDTH, HEIGHT = 960, 160
 _c: dict[str, tuple[float, float, float]] = {}
 COLUMN = 120
 BAND = 24
-FONT = "IBM Plex Sans Condensed"  # cairo falls back to the default sans if missing
+FONT = FAMILY  # bundled (pushtoo/fonts); the renderer points fontconfig at it
 ARC_START = math.radians(135)  # 270-degree arc from 7:30 to 4:30
 ARC_SWEEP = math.radians(270)
 ARC_TOP = math.radians(270)  # 12 o'clock, where bipolar controls start filling

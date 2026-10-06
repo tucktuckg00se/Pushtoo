@@ -186,6 +186,7 @@ class Rhythm:
         else:
             note = notes[self._arp_index % len(notes)]
         self._arp_index += 1
+
         # The note belongs to the source that played it: the one whose note it is, or
         # the nearest octave below it for the arp's added octaves (a bass C2 stays on
         # the bass channel even with a C3 in the chord), the latest source on a tie.

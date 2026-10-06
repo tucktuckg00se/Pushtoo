@@ -14,6 +14,7 @@ from push2_python.constants import FRAME_FORMAT_RGB565
 from push2_python.display import Push2Display
 
 from pushtoo import logs
+from pushtoo.fonts import use_bundled_fonts
 from pushtoo.render.screens import HEIGHT, WIDTH, draw_view
 
 MAX_FPS = 60
@@ -32,6 +33,7 @@ class _DisplayOnlyPush:
 
 
 def _run(states: "mp.Queue") -> None:
+    use_bundled_fonts()  # before cairo first draws text
     logs.quiet_repeats()  # with no Push, push2-python reports the display on every retry
     owner = _DisplayOnlyPush()  # Push2Display keeps only a weak reference
     display = Push2Display(owner)

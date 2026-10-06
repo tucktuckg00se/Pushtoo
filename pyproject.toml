@@ -4,7 +4,7 @@ version = "0.1.0.dev0"
 description = "Turn an Ableton Push 2 on Linux into a DAW-agnostic MIDI controller"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE", "LICENSES/*"]
+license-files = ["LICENSE", "LICENSES/*"]  # GPL, Pysha MIT, IBM Plex OFL
 requires-python = ">=3.12"
 dependencies = [
     "push2-python @ git+https://github.com/tucktuckg00se/push2-python@d7403080f7a37dc9b4b30a029800615a84a93547",
