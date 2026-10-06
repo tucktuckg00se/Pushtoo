@@ -421,7 +421,7 @@ class App:
         play = self.play
         if play.rhythm.on or play.clock.running:
             return RHYTHM_TICK
-        if self.device.send_clock and not play.clock.following:
+        if self._sending_clock():
             return CLOCK_TICK  # clock alone: ticks are 20 ms apart even at 120 BPM
         return IDLE_TICK
 
@@ -439,7 +439,7 @@ class App:
             play.send_scheduled(play.rhythm.events(clock, start, end))
         self._steps_until = end
         start = max(self._ticks_until or now, now)
-        if self.device.send_clock:
+        if self._sending_clock():
             for at in clock.ticks(start, end):
                 self.router.schedule(OUT_PORT, [MIDI_CLOCK], at, CLOCK_TAG)
         self._ticks_until = end
@@ -448,6 +448,11 @@ class App:
         if shown != self._shown_tempo:  # a followed tempo drifting, say
             self._shown_tempo = shown
             self.refresh()
+
+    def _sending_clock(self) -> bool:
+        """MIDI clock goes out while leading, when Setup allows it. (Whether anything
+        listens can't be told: PipeWire subscribes to every port to bridge it.)"""
+        return self.device.send_clock and not self.play.clock.following
 
     def _pulse(self, now: float) -> None:
         """The Play button lights on each beat while the transport runs."""

@@ -62,7 +62,6 @@ class PushController:
         if not self.connected:
             # No Push at startup (a service started at login, say): keep looking, so
             # plugging it in later just works.
-            log.info("Waiting for Push 2")
             self._start_reconnecting()
 
     def _register_handlers(self) -> None:
@@ -132,7 +131,7 @@ class PushController:
         self._reconnect_thread.start()
 
     def _reconnect_loop(self) -> None:
-        log.info("Push MIDI lost; trying to reconnect")
+        log.info("Looking for Push 2")
         while not self._stop.wait(RECONNECT_INTERVAL):
             if self.push.last_active_sensing_received is not None:
                 return  # active sensing is back; push2-python fires the connected action

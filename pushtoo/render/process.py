@@ -32,7 +32,7 @@ class _DisplayOnlyPush:
         pass
 
 
-def _run(states: "mp.Queue") -> None:
+def _run(states: "mp.Queue", fps: int = MAX_FPS) -> None:
     use_bundled_fonts()  # before cairo first draws text
     logs.quiet_repeats()  # with no Push, push2-python reports the display on every retry
     owner = _DisplayOnlyPush()  # Push2Display keeps only a weak reference
@@ -42,6 +42,7 @@ def _run(states: "mp.Queue") -> None:
     ctx = cairo.Context(surface)
     state: dict | None = None
     last_frame = 0.0
+    last_probe = -DISPLAY_RETRY_SECONDS
     while True:
         dirty = False
         timeout = KEEPALIVE_SECONDS
@@ -63,7 +64,13 @@ def _run(states: "mp.Queue") -> None:
         toast_expired = 0 < toast_until <= now and last_frame < toast_until
         if not dirty and not toast_expired and now - last_frame < KEEPALIVE_SECONDS:
             continue
-        wait = 1 / MAX_FPS - (now - last_frame)
+        if display.usb_endpoint is None:
+            # No display connected: don't draw frames nobody sees; look for one now
+            # and then (send_to_display retries the USB connection).
+            if now - last_probe < DISPLAY_RETRY_SECONDS:
+                continue
+            last_probe = now
+        wait = 1 / fps - (now - last_frame)
         if wait > 0:
             time.sleep(wait)
         draw_view(ctx, state)
@@ -74,9 +81,11 @@ def _run(states: "mp.Queue") -> None:
 
 
 class Renderer:
-    def __init__(self) -> None:
+    def __init__(self, fps: int = MAX_FPS) -> None:
         self._states: mp.Queue = mp.Queue()
-        self._process = mp.Process(target=_run, args=(self._states,), name="pushtoo-render")
+        self._process = mp.Process(
+            target=_run, args=(self._states, max(1, fps)), name="pushtoo-render"
+        )
 
     def start(self) -> None:
         self._process.start()
