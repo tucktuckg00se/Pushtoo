@@ -203,3 +203,37 @@ def test_layout_picker_works_from_knobs_mode(env):
     app.button_pressed("Upper Row 1")
     app.button_released(c.BUTTON_LAYOUT)
     assert app.mode is app.knobs and app.play.layout.name == "Keyboard"
+
+
+def test_keyboard_and_drums_have_their_own_velocity_pages():
+    play, virtual, _ = make_play()
+    open_page(play, "Velocity")
+    names = [control["name"] if control else None for control in play.view()["controls"]]
+    assert names[:3] == ["Min", "Max", None]  # Spread only for Random; no Top note
+    play.button_pressed("Upper Row 2")  # Random
+    names = [control["name"] if control else None for control in play.view()["controls"]]
+    assert names[:4] == ["Min", "Max", "Spread", None]
+    play.layout.velocity.spread, play.layout.velocity.min = 40, 30
+    for _ in range(40):
+        play.pad_pressed(0, 0, 64)
+        play.pad_released(0, 0)
+    hits = {m[2] for m in virtual.sent if m[0] == 0x90}
+    assert len(hits) > 5 and min(hits) >= 30
+    play.button_pressed(c.BUTTON_LAYOUT)  # Drums keep their own settings
+    assert play.layout.velocity.random is False
+
+
+def test_accent_plays_at_the_velocity_pages_max():
+    play, virtual, _ = make_play()
+    play.layout.velocity.max = 100
+    play.button_pressed(c.BUTTON_ACCENT)
+    play.pad_pressed(0, 0, 20)
+    assert virtual.sent[-1] == [0x90, 48, 100]
+
+
+def test_layout_velocity_survives_a_restart():
+    play, *_ = make_play()
+    play.layout.velocity.random, play.layout.velocity.spread = True, 33
+    again, *_ = make_play()
+    again.restore(play.snapshot())
+    assert again.layout.velocity.random and again.layout.velocity.spread == 33

@@ -38,7 +38,7 @@ from pushtoo.rhythm.arp import MAX_OCTAVES, PATTERNS
 from pushtoo.rhythm.clock import Clock
 from pushtoo.rhythm.repeat import MODES, RATE_NAMES, Rhythm, Scheduled
 from pushtoo.rhythm.timing import DIRECTIONS, MAX_LOOSE, MAX_ROLL
-from pushtoo.rhythm.velocity import MAX_SPREAD, MAX_TOP
+from pushtoo.rhythm.velocity import MAX_SPREAD, MAX_TOP, VelocitySpread
 from pushtoo.theme import OFF, PAD_ROLE_COLORS, led
 from pushtoo.ui.controls import COLUMNS, Control, Option, Page
 
@@ -51,7 +51,6 @@ LOWER_ROOT_LABELS = ("F", "Bb", "Eb", "Ab", "Db", "Gb")
 
 STRIP_MODES = ("Pitch bend", "Mod wheel")
 MOD_WHEEL_CC = 1
-ACCENT_VELOCITY = 127
 CHORD_SOURCE = ("chord",)  # the sounding chord, as one source for repeat and arp
 
 
@@ -64,6 +63,7 @@ class Layout:
     destination: str = OUT_PORT
     page: int = 0
     pages: list[Page] = field(default_factory=list)
+    velocity: VelocitySpread = field(default_factory=VelocitySpread)  # its Velocity page
 
 
 @dataclass
@@ -114,6 +114,7 @@ class PlayMode(Mode):
         self.chord.hand_to_rhythm = self._chord_to_rhythm
         self.chord.take_from_rhythm = lambda: self._rhythm_release(CHORD_SOURCE)
         self.chord.accent = lambda: self.accent
+        chord_layout.velocity = self.chord.spread  # one set of chord velocity settings
         self.current = 0
         for layout in self.layouts:
             layout.pages = self._build_pages(layout)
@@ -195,7 +196,7 @@ class PlayMode(Mode):
         return [
             main,
             Page("Style", controls=[strum_range], options=style_options),
-            self._velocity_page(),
+            self._velocity_page(layout),
             self._timing_page(),
             self._rhythm_page(),
             Page("Output", controls=output, options=mute_options),
@@ -237,10 +238,10 @@ class PlayMode(Mode):
         ]
         return ChoicePage("Timing", controls, options, always=0, more=lambda: timing.spread)
 
-    def _velocity_page(self) -> Page:
-        """The chord grid's velocities: As played or Random above the display; the
-        range always, and the spread and top-note lift only for Random."""
-        spread = self.chord.spread
+    def _velocity_page(self, layout: Layout) -> Page:
+        """A layout's velocities: As played or Random above the display; the range
+        always, and the spread (and, for chords, the top-note lift) only for Random."""
+        spread = layout.velocity
         controls: list[Control | None] = [
             Control("Min", lambda: spread.min, spread.set_min, minimum=1, maximum=127),
             Control("Max", lambda: spread.max, spread.set_max, minimum=1, maximum=127),
@@ -251,16 +252,19 @@ class PlayMode(Mode):
                 maximum=MAX_SPREAD,
                 format=lambda v: f"±{v}",
             ),
-            Control(
-                "Top note",
-                lambda: spread.top,
-                lambda v: setattr(spread, "top", v),
-                minimum=-MAX_TOP,
-                maximum=MAX_TOP,
-                format=lambda v: f"{v:+d}",
-                bipolar=True,
-            ),
         ]
+        if layout.name == "Chord":  # single-note pads have no top note to lift
+            controls.append(
+                Control(
+                    "Top note",
+                    lambda: spread.top,
+                    lambda v: setattr(spread, "top", v),
+                    minimum=-MAX_TOP,
+                    maximum=MAX_TOP,
+                    format=lambda v: f"{v:+d}",
+                    bipolar=True,
+                )
+            )
         options: list[Option | None] = [
             Option(
                 "As played", lambda: setattr(spread, "random", False), lambda: not spread.random
@@ -352,7 +356,11 @@ class PlayMode(Mode):
         ]
         # The main page, named for the layout, first; then its settings, Output last.
         # (Pad feel is in Setup.)
-        pages = [Page(layout.name, controls=[first]), Page("Strip", options=strip_options)]
+        pages = [
+            Page(layout.name, controls=[first]),
+            self._velocity_page(layout),
+            Page("Strip", options=strip_options),
+        ]
         if layout.name == "Keyboard":  # Drums only repeat, with rates on the side buttons
             pages.append(self._rhythm_page())
         pages.append(Page("Output", controls=output))
@@ -411,8 +419,6 @@ class PlayMode(Mode):
             self.chord.pad_pressed(row, col, velocity)
             self.played_once = True
             return
-        if self.accent:
-            velocity = ACCENT_VELOCITY
         note = self._grid().note_at(row, col)
         if note is None:
             return
@@ -420,7 +426,8 @@ class PlayMode(Mode):
         self.played_once = True
         if layout.name == "Drums":
             self.last_drum = note
-        if self.rhythm.on:
+        spread = layout.velocity
+        if self.rhythm.on:  # each repeat rolls its own velocity, around the pad's
             hits = self.rhythm.press(
                 (row, col),
                 layout.destination,
@@ -429,9 +436,12 @@ class PlayMode(Mode):
                 velocity,
                 self.clock,
                 self.time(),
+                vary=lambda notes, v: [spread.one(False, v, self.accent) for _ in notes],
             )
             self.send_scheduled(hits)
             return
+        # Accent plays at the Velocity page's Max (127 unless you lower it).
+        velocity = spread.one(False, velocity, self.accent)
         self.router.note_on((row, col), layout.destination, layout.channel, note, velocity)
 
     def pad_released(self, row: int, col: int) -> None:
@@ -752,6 +762,7 @@ class PlayMode(Mode):
             "kind": "scale_selector" if self.scale_open else layout.name.lower(),
             "layout": layout.name,
             "main": self.page_index == 0,  # the playing page; the rest are settings
+            "random_velocity": layout.velocity.random,
             "default_destination": destination == OUT_PORT,
             "channel": layout.channel,
             "accent": self.accent,
@@ -829,7 +840,12 @@ class PlayMode(Mode):
             "drums_start": self.drums.start,
             "strip": STRIP_MODES[self.strip_mode],
             "layouts": [
-                {"channel": lo.channel + 1, "output": lo.destination, "page": lo.page}
+                {
+                    "channel": lo.channel + 1,
+                    "output": lo.destination,
+                    "page": lo.page,
+                    "velocity": lo.velocity.snapshot(),
+                }
                 for lo in self.layouts
             ],
             "chord": self.chord.snapshot(),
@@ -865,6 +881,7 @@ class PlayMode(Mode):
                 layout.destination = saved["output"]
             if saved.get("page") in range(len(layout.pages)):
                 layout.page = saved["page"]
+            layout.velocity.restore(saved.get("velocity"))
         if isinstance(state.get("chord"), dict):
             self.chord.restore(state["chord"])
         self._restore_rhythm(state.get("rhythm"))

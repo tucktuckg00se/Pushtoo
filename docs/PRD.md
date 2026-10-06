@@ -191,7 +191,8 @@ A chord pad plays only its bass note, and the touch strip strums the voiced chor
 - **As played** or **Random**, above the display. **Min** and **Max** always apply: the pad's velocity sets a center scaled into that range, so hitting harder still plays louder.
 - **Random** gives each note of each chord trigger its own velocity within **Spread** of the center, clamped to Min–Max. Spread 0 is an even chord; full Spread is anywhere in the range. **Top note** (−32…+32) offsets the highest note so a melody can stand out or sit back. The bass note plays at the center, unrandomized.
 - **Accent** means as loud as the range allows: the center moves to Max, so Random spreads accented chords downward from Max. With As played, accented chords play at Max.
-- Every trigger rolls fresh: a press, a retrigger, each strummed note, and each Repeat or Arp step. The screen draws each note's velocity as a bar under its name; on pages with many encoders the pad map steps aside to make room.
+- Every trigger rolls fresh: a press, a retrigger, each strummed note, and each Repeat or Arp step.
+- Keyboard and Drums have the same Velocity page (Min, Max, Random with Spread; no Top note, since each pad is one note), each layout with its own settings. Accent plays at Max everywhere. The screen draws each note's velocity as a bar under its name; on pages with many encoders the pad map steps aside to make room.
 
 **Timing** (Timing page)
 
@@ -321,6 +322,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F12  | Chord grid: one-press chords by scale step and flavor, bass row, auto bass, function colors | P0 | Built |
 | F28  | Chord voicing on the side buttons: Smooth voice leading, inversions, Open, Wide; tap to keep, hold for momentary | P0 | Built |
 | F14  | Strum on the touch strip in the Chord layout                 | P0 | Built |
+| F32  | Keyboard and Drums velocity: Min, Max, Random with Spread, per layout; Accent plays at Max | P0 | Built |
 | F31  | Chord timing: Together or Spread out with Roll, Direction (Up, Down, Alternate, Random) and Loose; never early; releasing mid-roll takes back the rest | P0 | Built |
 | F30  | Chord velocity: As played or Random with Min, Max, Spread and Top note; Accent centers at Max | P0 | Built |
 | F22  | Touch strip as pitch bend or mod wheel                       | P0 | Built |

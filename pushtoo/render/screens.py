@@ -180,12 +180,12 @@ def status_parts(panel: dict) -> list[str]:
             parts.append(f"Oct {panel['octave']}")
         if panel["strum"]:
             parts.append("Strum the strip")
-        if panel["random_velocity"]:
-            parts.append("Random velocity")
         if panel["timing"]:
             parts.append(panel["timing"])
     elif panel["kind"] == "keyboard" and not panel["in_key"]:
         parts.append("Chromatic")
+    if panel.get("random_velocity"):
+        parts.append("Random velocity")
     if panel["accent"]:
         parts.append("Accent")
     if not panel["default_destination"]:
