@@ -151,6 +151,8 @@ undo:
 
 Leave out any section to use the defaults. Without a `knobs` section you get 8 pages of 8 knobs on channels 15 and 16, using MIDI CCs that no synth treats specially, so nothing changes until you map it.
 
+**Editing in a browser.** `pushtoo edit` opens a profile editor at a local address (only this machine can reach it): Knobs pages laid out like the eight encoders, with names, CCs, channels, ranges and colors, and every other section as a form. It checks each change the way Pushtoo will and won't save a mistake. It never touches your file: what you change goes in `<name>-user.yaml` next to it, which Pushtoo reads over your file (maps merge key by key; a list, like a knob page, is replaced whole), so your comments stay put. A running Pushtoo picks the change up within a second. **Back to the file** in the editor, or deleting the `-user.yaml` file, drops the edits. `pushtoo edit rig` opens `rig.yaml`; `--no-browser` only prints the address, for a Pi you reach from another machine through an SSH tunnel.
+
 Pushtoo never writes to your profiles. Where you left off (mode, page, key, knob and fader values) is saved separately in `~/.local/state/pushtoo/state.yaml` and restored per profile.
 
 **About Undo keystrokes.** Undo goes to whichever window has focus, through a virtual keyboard (`/dev/uinput`), which works under X11 and Wayland. Keys are physical positions: on a non-QWERTY layout, `ctrl+z` presses the key where Z sits on QWERTY. If your DAW maps actions to MIDI, use `undo: {midi: {cc: ..., channel: ...}}` instead, which reaches the DAW regardless of focus. On a headless system, install `packaging/udev/50-pushtoo.rules` for uinput access.
@@ -167,7 +169,7 @@ play: 20c997        # the Play accent: labels, arcs, the kept voicing
 tension: ff922b
 ```
 
-Colors are hex `RRGGBB` or the name of another color in the theme (`home: play`). Colors name what they mean: `play`, `knobs` and `mix` are the mode accents; `root`, `in_scale`, `out_of_scale` and `held` color the pads; `home`, `away`, `tension`, `borrowed` and `secondary` color the chord grid; `latch`, `mute` and `solo` are states; `background`, `track`, `line`, `text` and `text_dim` are the screen; and `red` to `gray` are the colors a profile can give its knobs. If a theme has a mistake, the Push screen shows the file, line and color, and Pushtoo keeps the last working version.
+Colors are hex `RRGGBB` or the name of another color in the theme (`home: play`). Colors name what they mean: `play`, `knobs` and `mix` are the mode accents; `root`, `in_scale`, `out_of_scale` and `held` color the pads; `home`, `away`, `tension`, `borrowed` and `secondary` color the chord grid; `latch`, `mute`, `solo`, `rate` and `life` are states; `background`, `track`, `line`, `text` and `text_dim` are the screen; and `red` to `gray` are the colors a profile can give its knobs. If a theme has a mistake, the Push screen shows the file, line and color, and Pushtoo keeps the last working version.
 
 ## Development
 

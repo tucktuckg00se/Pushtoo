@@ -336,7 +336,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F30  | Chord velocity: As played or Random with Min, Max, Spread and Top note; Accent centers at Max | P0 | Built |
 | F22  | Touch strip as pitch bend or mod wheel                       | P0 | Built |
 | F3   | Knobs mode: up to 8 pages x 8 named CC controls with ranges and colors | P0 | Built |
-| F5   | Profiles as YAML in ~/.config/pushtoo, hot-reloaded, never written by Pushtoo | P0 | Built |
+| F5   | Profiles as YAML in ~/.config/pushtoo, hot-reloaded, never written by Pushtoo (the editor writes only `<name>-user.yaml`, merged over the profile) | P0 | Built |
 | F6   | Learn Assist, peek, fine adjust, reset, Undo, Panic          | P0 | Built |
 | F13  | Page navigation on the buttons below the display             | P0 | Built |
 | F15  | Scale selector and Layout cycling                            | P0 | Built |
@@ -354,7 +354,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F8   | Dice and snapshot morph for Knobs                            | P1 | Delight |
 | F21  | Rename controls from the hardware; high-contrast and large-text settings | P2 | |
 | F4   | Mix mode (extra): fader CCs, mute and solo pads              | P2 | Built, frozen |
-| F10  | Optional browser-based profile editor                        | P2 | |
+| F10  | Optional browser-based profile editor: `pushtoo edit`, a separate process on 127.0.0.1 | P2 | Built |
 | N1   | Pad-to-MIDI latency under 3 ms at p99; rendering never blocks MIDI | P0 | Passing |
 | N2   | Display at 30 fps minimum, 60 fps target                     | P0 | Passing |
 | N3   | Survives Push unplug and replug without restart; held notes released on unplug | P0 | Built, hands-on check pending |

@@ -17,13 +17,25 @@ def main() -> int:
         "--fps", type=int, help="screen frames per second (default: 30 on a Raspberry Pi, else 60)"
     )
     parser.add_argument(
-        "command", nargs="?", choices=["doctor"], help="doctor: check this machine is ready"
+        "command",
+        nargs="?",
+        choices=["doctor", "edit"],
+        help="doctor: check this machine is ready; edit: edit profiles in your browser",
+    )
+    parser.add_argument("profile", nargs="?", help="edit: the profile to open (default.yaml)")
+    parser.add_argument("--port", type=int, default=0, help="edit: the port (default: any free)")
+    parser.add_argument(
+        "--no-browser", action="store_true", help="edit: print the address, don't open it"
     )
     args = parser.parse_args()
     if args.command == "doctor":
         from pushtoo import doctor
 
         return doctor.main()
+    if args.command == "edit":
+        from pushtoo import edit
+
+        return edit.main(args.profile, args.port, not args.no_browser)
     from pushtoo import instance, logs
 
     logs.setup(args.verbose)

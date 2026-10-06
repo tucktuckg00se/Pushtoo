@@ -3,6 +3,10 @@
 Profiles are the user's files: Pushtoo reads and hot-reloads them but never writes
 them. A broken edit produces one readable error and the last good profile stays in
 use.
+
+The profile editor (`pushtoo edit`) leaves your file alone too: what you change there
+goes in `<name>-user.yaml` beside it, which overrides it key by key. Maps merge; a
+list (knob pages, a page's controls) is replaced whole.
 """
 
 import logging
@@ -20,6 +24,7 @@ from pushtoo.profiles.schema import Profile
 
 POLL_SECONDS = 1.0
 SUFFIXES = (".yaml", ".yml")
+USER_SUFFIX = "-user"  # foo.yaml's edits from the profile editor: foo-user.yaml
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +36,40 @@ class ProfileError(Exception):
 def default_config_dir() -> Path:
     base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
     return Path(base) / "pushtoo" / "profiles"
+
+
+def override_path(path: Path) -> Path:
+    return path.with_name(f"{path.stem}{USER_SUFFIX}{path.suffix}")
+
+
+def is_override(path: Path) -> bool:
+    return path.stem.endswith(USER_SUFFIX)
+
+
+def merge(base: object, override: object) -> object:
+    """`override` over `base`: maps merge key by key, anything else is replaced."""
+    if isinstance(base, dict) and isinstance(override, dict):
+        merged = dict(base)
+        for key, value in override.items():
+            merged[key] = merge(base.get(key), value) if key in base else value
+        return merged
+    return override
+
+
+def _depth(root: yaml.Node | None, loc: tuple) -> int:
+    """How many keys of a location a YAML document has."""
+    node, depth = root, 0
+    for key in loc:
+        if isinstance(node, yaml.MappingNode):
+            node = next((v for k, v in node.value if k.value == key), None)
+        elif isinstance(node, yaml.SequenceNode) and isinstance(key, int):
+            node = node.value[key] if key < len(node.value) else None
+        else:
+            node = None
+        if node is None:
+            break
+        depth += 1
+    return depth
 
 
 def line_of(root: yaml.Node | None, loc: tuple) -> int | None:
@@ -76,7 +115,7 @@ def _format_loc(loc: tuple) -> str:
     return out
 
 
-def parse(text: str, source: str = "profile") -> Profile:
+def _read(text: str, source: str) -> tuple[dict, yaml.Node | None]:
     try:
         data = yaml.safe_load(text) or {}
         root = yaml.compose(text)
@@ -86,10 +125,30 @@ def parse(text: str, source: str = "profile") -> Profile:
         raise ProfileError(f"{source}{where}: not valid YAML") from error
     if not isinstance(data, dict):
         raise ProfileError(f"{source}: expected a mapping at the top level")
+    return data, root
+
+
+def parse(
+    text: str,
+    source: str = "profile",
+    override: str | None = None,
+    override_source: str = "edits",
+) -> Profile:
+    """A profile from YAML text, with the editor's override text over it if given.
+    Errors name the file and line the bad value came from."""
+    data, root = _read(text, source)
+    if override is not None:
+        edits, edits_root = _read(override, override_source)
+        data = merge(data, edits)  # type: ignore[assignment]
     try:
         return Profile.model_validate(data)
     except ValidationError as error:
         first = error.errors()[0]
+        if override is not None:
+            # The edits win where they reach as deep as the file does.
+            reach = _depth(edits_root, first["loc"])
+            if reach and reach >= _depth(root, first["loc"]):
+                source, root = override_source, edits_root
         loc = _yaml_loc(root, first["loc"])
         line = line_of(root, loc)
         where = f" line {line}" if line else ""
@@ -99,12 +158,19 @@ def parse(text: str, source: str = "profile") -> Profile:
         raise ProfileError(f"{source}{where}: {_format_loc(loc)}: {message}{more}") from error
 
 
-def load(path: Path) -> Profile:
+def _text(path: Path) -> str:
     try:
-        text = path.read_text()
+        return path.read_text()
     except OSError as error:
         raise ProfileError(f"{path.name}: {error.strerror}") from error
-    return parse(text, path.name)
+
+
+def load(path: Path) -> Profile:
+    """A profile file, with its editor overrides (`<name>-user.yaml`) if there are any."""
+    edits = override_path(path)
+    if not edits.exists():
+        return parse(_text(path), path.name)
+    return parse(_text(path), path.name, _text(edits), edits.name)
 
 
 def ensure_default(config_dir: Path) -> Path:
@@ -117,6 +183,11 @@ def ensure_default(config_dir: Path) -> Path:
     return target
 
 
+def profile_paths(config_dir: Path) -> list[Path]:
+    """The profiles in a folder: YAML files, not counting editor overrides."""
+    return sorted(p for p in config_dir.iterdir() if p.suffix in SUFFIXES and not is_override(p))
+
+
 class ProfileStore:
     """The profile folder, the active profile, and a watcher that reloads it on save."""
 
@@ -125,12 +196,12 @@ class ProfileStore:
         ensure_default(config_dir)
         self.path = config_dir / "default.yaml"
         self.profile = Profile()
-        self._mtime: float | None = None
+        self._mtime: tuple[float | None, float | None] | None = None
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
 
     def paths(self) -> list[Path]:
-        return sorted(p for p in self.config_dir.iterdir() if p.suffix in SUFFIXES)
+        return profile_paths(self.config_dir)
 
     def select(self, path: Path) -> Profile:
         """Load and activate a profile. Raises ProfileError and keeps the current one."""
@@ -140,14 +211,21 @@ class ProfileStore:
         return profile
 
     @staticmethod
-    def _stat(path: Path) -> float | None:
-        try:
-            return path.stat().st_mtime
-        except OSError:
-            return None
+    def _stat(path: Path) -> tuple[float | None, float | None] | None:
+        """The profile's modification time and its overrides'; None if it's gone."""
+
+        def mtime(p: Path) -> float | None:
+            try:
+                return p.stat().st_mtime
+            except OSError:
+                return None
+
+        base = mtime(path)
+        return None if base is None else (base, mtime(override_path(path)))
 
     def poll(self) -> Profile | ProfileError | None:
-        """Reload if the active file changed: the new profile, an error, or None."""
+        """Reload if the active file or its overrides changed: the new profile, an
+        error, or None."""
         mtime = self._stat(self.path)
         if mtime is None or mtime == self._mtime:
             return None
