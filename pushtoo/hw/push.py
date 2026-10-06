@@ -59,6 +59,11 @@ class PushController:
         self._reconnect_thread: threading.Thread | None = None
         self._register_handlers()
         self.push = push2_python.Push2()
+        if not self.connected:
+            # No Push at startup (a service started at login, say): keep looking, so
+            # plugging it in later just works.
+            log.info("Waiting for Push 2")
+            self._start_reconnecting()
 
     def _register_handlers(self) -> None:
         listener = self.listener

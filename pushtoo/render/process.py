@@ -13,9 +13,11 @@ import numpy
 from push2_python.constants import FRAME_FORMAT_RGB565
 from push2_python.display import Push2Display
 
+from pushtoo import logs
 from pushtoo.render.screens import HEIGHT, WIDTH, draw_view
 
 MAX_FPS = 60
+DISPLAY_RETRY_SECONDS = 2.0  # how often to look for the display when it isn't there
 # Push 2 blanks the display if no frame arrives for about 2 s.
 KEEPALIVE_SECONDS = 0.5
 
@@ -30,8 +32,10 @@ class _DisplayOnlyPush:
 
 
 def _run(states: "mp.Queue") -> None:
+    logs.quiet_repeats()  # with no Push, push2-python reports the display on every retry
     owner = _DisplayOnlyPush()  # Push2Display keeps only a weak reference
     display = Push2Display(owner)
+    display.function_call_interval_limit_overwrite = DISPLAY_RETRY_SECONDS
     surface = cairo.ImageSurface(cairo.FORMAT_RGB16_565, WIDTH, HEIGHT)
     ctx = cairo.Context(surface)
     state: dict | None = None

@@ -46,7 +46,9 @@ SIDE_ENCODERS = {
     c.ENCODER_SWING_ENCODER: "swing",
 }
 LOOKAHEAD = 0.02  # seconds of rhythm and clock queued ahead (tools/clock/jitter.py)
-RHYTHM_TICK = 0.005  # how often the scheduler tops the queue up
+RHYTHM_TICK = 0.005  # how often the scheduler tops the queue up while rhythm plays
+CLOCK_TICK = 0.01  # while only MIDI clock goes out
+IDLE_TICK = 0.05  # with nothing timed at all
 PULSE = 0.15  # the part of each beat the Play button lights
 MIDI_CLOCK, MIDI_START, MIDI_STOP = 0xF8, 0xFA, 0xFC
 MODE_BUTTONS = {
@@ -170,6 +172,7 @@ class App:
         if self.router.sequencer is not None:
             self.router.sequencer.read_input(IN_PORT, self._midi_in)
         self._rhythm_stop = threading.Event()
+        self._rhythm_wake = threading.Event()
         self._rhythm_thread: threading.Thread | None = None
         if connect:
             self._rhythm_thread = threading.Thread(
@@ -406,8 +409,21 @@ class App:
             self.refresh()
 
     def _run_rhythm(self) -> None:
-        while not self._rhythm_stop.wait(RHYTHM_TICK):
+        """Top the queue up often while anything is timed, and rest when nothing is,
+        so an idle background service costs next to nothing. Any input wakes it
+        (refresh()), so a pad pressed while it rests is never late."""
+        while not self._rhythm_stop.is_set():
             self.rhythm_tick(time.monotonic())
+            self._rhythm_wake.wait(self.rhythm_interval())
+            self._rhythm_wake.clear()
+
+    def rhythm_interval(self) -> float:
+        play = self.play
+        if play.rhythm.on or play.clock.running:
+            return RHYTHM_TICK
+        if self.device.send_clock and not play.clock.following:
+            return CLOCK_TICK  # clock alone: ticks are 20 ms apart even at 120 BPM
+        return IDLE_TICK
 
     @locked
     def rhythm_tick(self, now: float) -> None:
@@ -589,6 +605,7 @@ class App:
         return colors
 
     def refresh(self) -> None:
+        self._rhythm_wake.set()  # something changed: the scheduler looks again at once
         self.renderer.update(self.view())
         self.saver.mark_dirty()
         if self.push is not None:
@@ -598,6 +615,7 @@ class App:
 
     def close(self) -> None:
         self._rhythm_stop.set()
+        self._rhythm_wake.set()
         if self._rhythm_thread is not None:
             self._rhythm_thread.join()
         self.profiles.stop()

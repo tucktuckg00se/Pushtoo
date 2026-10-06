@@ -14,10 +14,16 @@ def main() -> int:
     parser.add_argument("--version", action="version", version=f"pushtoo {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args()
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
+    from pushtoo import instance, logs
+
+    logs.setup(args.verbose)
+    lock = instance.acquire()
+    if lock is None:
+        print(
+            "Pushtoo is already running. If it's the background service, stop it with:\n"
+            "  systemctl --user stop pushtoo"
+        )
+        return 0
 
     from pushtoo.app import App  # imported late so --version works without hardware libs
 
