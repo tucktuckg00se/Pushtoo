@@ -11,7 +11,7 @@ import threading
 from collections.abc import Callable
 from typing import Protocol
 
-from pushtoo.midi.notes import Message, Routed, SoundingNotes, panic_messages
+from pushtoo.midi.notes import NOTE_ON, Message, Routed, SoundingNotes, panic_messages
 from pushtoo.midi.virtual import NO_TAG, Sequencer
 
 CLIENT_NAME = "Pushtoo"
@@ -131,21 +131,39 @@ class MidiRouter:
 
     # Messages
 
-    def note_on(self, source, destination: str, channel: int, note: int, velocity: int) -> None:
+    def note_on(
+        self,
+        source,
+        destination: str,
+        channel: int,
+        note: int,
+        velocity: int,
+        retrigger: bool = True,
+    ) -> None:
         with self._lock:
-            self._send(self.notes.press(source, destination, channel, note, velocity))
+            self._send(self.notes.press(source, destination, channel, note, velocity, retrigger))
 
     def note_on_at(
-        self, source, destination: str, channel: int, note: int, velocity: int, at: float, tag: int
+        self,
+        source,
+        destination: str,
+        channel: int,
+        note: int,
+        velocity: int,
+        at: float,
+        tag: int,
+        retrigger: bool = True,
     ) -> None:
         """A tracked note that starts at `at`: released like any other, and if it's
         released before it starts, cancel(tag) takes the note-on back first."""
         with self._lock:
-            *now, (_, note_on) = self.notes.press(source, destination, channel, note, velocity)
-            self._send(now)  # a note this source was still holding ends at once
+            messages = self.notes.press(source, destination, channel, note, velocity, retrigger)
+            starts = [m for m in messages if m[1][0] & 0xF0 == NOTE_ON]
+            self._send([m for m in messages if m not in starts])  # endings go at once
             output = self._output(destination)
             if output is not None:
-                output.send_at(note_on, at, tag)
+                for _, note_on in starts:  # none if the note was already sounding
+                    output.send_at(note_on, at, tag)
 
     def note_off(self, source) -> None:
         with self._lock:

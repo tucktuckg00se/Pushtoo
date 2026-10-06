@@ -28,8 +28,11 @@ RATE_NAMES = tuple(RATES)
 MODES = ("Repeat", "Arp")
 REPEAT_GATE = 50  # percent of a step
 FIRST_STEP_GAP = 0.3  # grid steps this soon after a press (in steps) are skipped
-CLOCK_TAG = 255  # MIDI clock ticks
-CHORD_TAG = 254  # a chord's rolled-in notes still to come; pads use 1-253
+# Tags for queued events, so each can be taken back: held rhythm sources cycle through
+# 1-199, each rolling chord gets one of ROLL_TAGS, and MIDI clock has its own.
+RHYTHM_TAGS = 199
+ROLL_TAGS = range(200, 255)
+CLOCK_TAG = 255
 
 Scheduled = tuple[float, str, Message, int]  # (time, destination, message, tag)
 
@@ -69,7 +72,7 @@ class Rhythm:
         return self.mode == "Arp" and self.allow_arp
 
     def _next_tag(self) -> int:
-        self._tag = self._tag % (CHORD_TAG - 1) + 1  # 1..253; 0 means "never take back"
+        self._tag = self._tag % RHYTHM_TAGS + 1  # 0 means "never take back"
         return self._tag
 
     def _step_seconds(self, clock: Clock) -> float:
@@ -90,7 +93,8 @@ class Rhythm:
         timing: Callable[[list[int]], list[float]] | None = None,
     ) -> list[Scheduled]:
         """Hold a pad (or a chord); returns its first hit, to send at once."""
-        if not self.held:
+        first = not self.held
+        if first:
             self._arp_index = 0
         self._order += 1
         held = Held(
@@ -106,7 +110,9 @@ class Rhythm:
         )
         self.held[key] = held
         if self.arp:
-            return self._arp_step(now, clock)
+            # Only the first source sounds at once; a chord and its bass pressed together
+            # join one sequence rather than both firing on the press.
+            return self._arp_step(now, clock) if first else []
         return self._hit(held, now, self._step_seconds(clock) * REPEAT_GATE / 100)
 
     def release(self, key: Hashable) -> int | None:
@@ -139,9 +145,18 @@ class Rhythm:
                 if any(at - h.pressed_at >= FIRST_STEP_GAP * step for h in self.held.values()):
                     found += self._arp_step(at, clock)
                 continue
+            sounded: set[tuple[str, int, int]] = set()
             for held in self.held.values():
                 if at - held.pressed_at >= FIRST_STEP_GAP * step:
-                    found += self._hit(held, at, step * REPEAT_GATE / 100)
+                    for hit in self._hit(held, at, step * REPEAT_GATE / 100):
+                        _, destination, message, _ = hit
+                        if message[0] & 0xF0 == NOTE_ON:
+                            # A note two held chords share repeats once, not twice.
+                            key = (destination, message[0], message[1])
+                            if key in sounded:
+                                continue
+                            sounded.add(key)
+                        found.append(hit)
         return found
 
     @staticmethod

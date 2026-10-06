@@ -1,8 +1,11 @@
 """The chord grid's player (PRD: Chord layout).
 
-Every pad above the bottom row is one complete chord: press it and it plays. The last
-chord pressed is the one sounding, and every change re-triggers. The bottom row plays
-single bass notes. The side buttons choose the voicing (tap one to keep it, hold one
+Every pad above the bottom row is one complete chord: press it and it plays. Chords
+play together, like hands on a piano: a new chord adds its notes, a note another chord
+is already sounding keeps ringing rather than restriking, and letting go of a pad stops
+only the notes no other chord holds. So a bump on a neighbouring pad never cuts the
+chord you're holding, and changing chords legato keeps the common tones. The bottom row
+plays single bass notes. The side buttons choose the voicing (tap one to keep it, hold one
 to use it only while held); the bottom one is Latch, which keeps a chord sounding
 after you let go.
 
@@ -12,6 +15,7 @@ chord across a few octaves, one note per tone crossed, like an Omnichord.
 
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from pushtoo.chords import (
     BORROWED_KINDS,
@@ -36,7 +40,7 @@ from pushtoo.chords import (
 )
 from pushtoo.midi.router import MidiRouter
 from pushtoo.music import ROWS, SCALES, KeyboardLayout, note_name
-from pushtoo.rhythm.repeat import CHORD_TAG
+from pushtoo.rhythm.repeat import ROLL_TAGS
 from pushtoo.rhythm.timing import TimingSpread
 from pushtoo.rhythm.velocity import VelocitySpread
 from pushtoo.theme import accent_name, led
@@ -65,6 +69,18 @@ RAIL_LEDS = {
 }
 
 
+@dataclass
+class Sounding:
+    """A chord pad that's sounding: held by a finger, or by Latch."""
+
+    chord: Chord
+    notes: list[int]  # as voiced
+    velocity: int  # as pressed
+    velocities: list[int]  # per note, after the Velocity page
+    held: bool = True
+    tag: int = 0  # takes back its rolled-in notes still to come
+
+
 class ChordPlayer:
     def __init__(
         self,
@@ -75,10 +91,11 @@ class ChordPlayer:
     ) -> None:
         self.router = router
         self.key = key
-        # Set by PlayMode: while rhythm is on, a chord's notes go to the repeat or arp
-        # engine instead of sounding held. hand_to_rhythm returns True if it took them.
+        # Set by PlayMode: while rhythm is on, a chord's notes (and its bass) go to the
+        # repeat or arp engine instead of sounding held, each as its own source.
+        # hand_to_rhythm returns True if it took them.
         self.hand_to_rhythm: Callable[..., bool] = lambda *_: False
-        self.take_from_rhythm: Callable[[], None] = lambda: None
+        self.take_from_rhythm: Callable[[object], None] = lambda source: None
         self.accent: Callable[[], bool] = lambda: False  # PlayMode's Accent button
         self.spread = VelocitySpread()  # the Velocity page
         self.sets: dict[str, tuple[str, ...]] = dict(CHORD_SETS)
@@ -100,10 +117,10 @@ class ChordPlayer:
         self.momentary: str | None = None  # held voicing button, overriding the latch
         self._voicing_pressed: dict[str, float] = {}
         self.latch = False
-        self.current: Pad | None = None  # the chord pad sounding
-        self.current_held = False  # is that pad still pressed (vs latched)?
-        self.velocity = 100
-        self.notes: list[int] = []  # what the sounding (or last) chord played
+        self.chords: dict[Pad, Sounding] = {}  # sounding chords, oldest first
+        self._roll_tag = ROLL_TAGS.start
+        self.velocity = 100  # the latest chord's, for strumming
+        self.notes: list[int] = []  # the latest chord's voicing: Smooth voices from it
         self.last_chord: Chord | None = None
         self.bass_pads: dict[Pad, int] = {}  # bass-row pads held, and their notes
         self._strum_index: int | None = None
@@ -174,6 +191,25 @@ class ChordPlayer:
 
     # Sounding
 
+    @property
+    def current(self) -> Pad | None:
+        """The latest chord pressed: what the screen names and Strum strums."""
+        return next(reversed(self.chords), None)
+
+    @property
+    def current_held(self) -> bool:
+        return self.current is not None and self.chords[self.current].held
+
+    @property
+    def sounding_notes(self) -> set[int]:
+        """Every note the sounding chords play, for the Keyboard lighting them."""
+        return {n for sounding in self.chords.values() for n in sounding.notes}
+
+    def _next_roll_tag(self) -> int:
+        tag = self._roll_tag
+        self._roll_tag = tag + 1 if tag + 1 < ROLL_TAGS.stop else ROLL_TAGS.start
+        return tag
+
     def _sound(self, pad: Pad, velocity: int) -> None:
         chord = self.chord_for(pad)
         if chord is None:
@@ -182,29 +218,58 @@ class ChordPlayer:
         destination, channel = self._output()
         accent = self.accent()
         velocities = self.spread.velocities(notes, velocity, accent)
-        self.last_velocities = velocities
+        sounding = Sounding(chord, notes, velocity, velocities, tag=self._next_roll_tag())
+        if not self.mute_bass:  # first, so an arpeggio starts from the bass
+            bass = self.register() - 12 + chord.root
+            if bass >= 0:  # the bass stays steady at the center, never randomized
+                self._sound_bass(("bass", pad), bass, velocity)
         if not self.strum and not self.mute_chords:
             handed = self.hand_to_rhythm(
-                destination, channel, notes, velocity, self._vary(notes), self.timing.offsets
+                ("chord", pad),
+                destination,
+                channel,
+                notes,
+                velocity,
+                self._vary(notes),
+                self.timing.offsets,
             )
             if not handed:
                 now = self._clock()
                 offsets = self.timing.offsets(notes)
                 for i, (note, v, offset) in enumerate(zip(notes, velocities, offsets, strict=True)):
+                    source = ("chord", pad, i)
                     if offset > 0:  # rolled in: queued, and taken back if released first
-                        at = now + offset
                         self.router.note_on_at(
-                            ("chord", i), destination, channel, note, v, at, CHORD_TAG
+                            source,
+                            destination,
+                            channel,
+                            note,
+                            v,
+                            now + offset,
+                            sounding.tag,
+                            retrigger=False,
                         )
                     else:
-                        self.router.note_on(("chord", i), destination, channel, note, v)
-        if not self.mute_bass:
-            bass = self.register() - 12 + chord.root
-            if bass >= 0:  # the bass stays steady at the center, never randomized
-                center = self.spread.center(velocity, accent)
-                self.router.note_on(("bass",), destination, self.bass_channel, bass, center)
-        self.current, self.velocity = pad, velocity
-        self.notes, self.last_chord = notes, chord
+                        self.router.note_on(source, destination, channel, note, v, retrigger=False)
+        self.chords[pad] = sounding
+        self.velocity, self.notes, self.last_chord = velocity, notes, chord
+        self.last_velocities = velocities
+
+    def _sound_bass(self, source, note: int, velocity: int) -> None:
+        """A bass note on the bass channel, steady at the center velocity. With rhythm
+        on it joins the repeat or arp like any chord note."""
+        destination, _ = self._output()
+        center = self.spread.center(velocity, self.accent())
+
+        def steady(notes: list[int], v: int) -> list[int]:
+            return [self.spread.center(v, self.accent())] * len(notes)
+
+        if not self.hand_to_rhythm(
+            source, destination, self.bass_channel, [note], velocity, steady, None
+        ):
+            self.router.note_on(
+                source, destination, self.bass_channel, note, center, retrigger=False
+            )
 
     def sounding_name(self) -> str | None:
         """The name of the chord sounding now, for the Keyboard playing over it."""
@@ -234,53 +299,65 @@ class ChordPlayer:
 
         return vary
 
-    def _silence(self) -> None:
+    def _silence(self, pad: Pad) -> None:
+        """Stop one chord. Notes another sounding chord shares keep ringing."""
+        sounding = self.chords.pop(pad, None)
+        if sounding is None:
+            return
         if self.timing.spread:
-            self.router.cancel(CHORD_TAG)  # rolled-in notes that haven't started yet
-        for i in range(MAX_TONES):
-            self.router.note_off(("chord", i))
-        self.router.note_off(("bass",))
-        self.take_from_rhythm()
-        self._release_strum()
+            self.router.cancel(sounding.tag)  # its rolled-in notes still to come
+        for i in range(len(sounding.notes)):
+            self.router.note_off(("chord", pad, i))
+        self.router.note_off(("bass", pad))
+        self.take_from_rhythm(("chord", pad))
+        self.take_from_rhythm(("bass", pad))
+        if not self.chords:
+            self._release_strum()
+
+    def _silence_all(self) -> None:
+        for pad in list(self.chords):
+            self._silence(pad)
 
     def _retrigger(self) -> None:
-        if self.current is not None:
-            pad = self.current
-            self._silence()
-            self._sound(pad, self.velocity)
+        """Re-sound every chord in its order (key, set, voicing or octave changed)."""
+        chords = list(self.chords.items())
+        self._silence_all()
+        for pad, sounding in chords:
+            self._sound(pad, sounding.velocity)
+            if pad in self.chords:
+                self.chords[pad].held = sounding.held
 
     # Pads
 
     def pad_pressed(self, row: int, col: int, velocity: int) -> None:
         pad = (row, col)
         if row == BASS_ROW:
-            destination, _ = self._output()
-            note = self._bass_note(col)
-            velocity = self.spread.center(velocity, self.accent())
-            self.router.note_on(("bass row", col), destination, self.bass_channel, note, velocity)
-            self.bass_pads[pad] = note
+            self.bass_pads[pad] = self._bass_note(col)
+            self._sound_bass(("bass row", col), self.bass_pads[pad], velocity)
             return
         if self.chord_for(pad) is None:
             return
-        if self.latch and pad == self.current and not self.current_held:
-            self._silence()  # tapping the latched chord again stops it
-            self.current = None
-            return
-        self._silence()  # the last chord pressed wins; changes re-trigger
+        if self.latch and not any(s.held for s in self.chords.values()):
+            # A fresh press with only latched chords sounding: tapping one of them
+            # stops them; any other chord replaces them.
+            tapped_latched = pad in self.chords
+            self._silence_all()
+            if tapped_latched:
+                return
+        self._silence(pad)  # pressing a sounding pad again restrikes it
         self._sound(pad, velocity)
-        self.current_held = True
 
     def pad_released(self, row: int, col: int) -> None:
         pad = (row, col)
         if row == BASS_ROW:
             self.router.note_off(("bass row", col))
+            self.take_from_rhythm(("bass row", col))
             self.bass_pads.pop(pad, None)
-        elif pad == self.current:
+        elif pad in self.chords:
             if self.latch:
-                self.current_held = False  # keeps sounding until the next chord
+                self.chords[pad].held = False  # keeps sounding until the next fresh press
             else:
-                self._silence()
-                self.current = None
+                self._silence(pad)
 
     # Changes that re-voice the sounding chord
 
@@ -295,9 +372,9 @@ class ChordPlayer:
 
     def toggle_latch(self) -> None:
         self.latch = not self.latch
-        if not self.latch and self.current is not None and not self.current_held:
-            self._silence()  # turning Latch off releases a latched chord
-            self.current = None
+        if not self.latch:  # turning Latch off releases latched chords
+            for pad in [p for p, s in self.chords.items() if not s.held]:
+                self._silence(pad)
 
     def voicing_pressed(self, index: int) -> None:
         if index == LATCH_BUTTON:
@@ -322,18 +399,17 @@ class ChordPlayer:
 
     @property
     def latched(self) -> bool:
-        """A chord Latch is holding, with no finger on its pad."""
-        return self.latch and self.current is not None and not self.current_held
+        """Chords Latch is holding, with no finger on any of them."""
+        return self.latch and bool(self.chords) and not any(s.held for s in self.chords.values())
 
     def release_all(self, keep_latched: bool = False) -> None:
-        """Leaving the layout: nothing played here keeps sounding, except a latched
-        chord when asked, so a melody can be played over it on the Keyboard."""
+        """Leaving the layout: nothing played here keeps sounding, except latched chords
+        when asked, so a melody can be played over them on the Keyboard."""
         if not (keep_latched and self.latched):
-            self._silence()
-            self.current = None
-            self.current_held = False
+            self._silence_all()
         for _, col in list(self.bass_pads):
             self.router.note_off(("bass row", col))
+            self.take_from_rhythm(("bass row", col))
         self.bass_pads.clear()
 
     # Strum
@@ -385,7 +461,7 @@ class ChordPlayer:
             line = []
             for col in range(COLUMNS):
                 pad = (row, col)
-                if pad == self.current or pad in self.bass_pads:
+                if pad in self.chords or pad in self.bass_pads:
                     line.append("pt_held")
                 elif row == BASS_ROW:
                     line.append("pt_root" if col in (0, COLUMNS - 1) else "pt_in_scale")
@@ -441,7 +517,7 @@ class ChordPlayer:
             "voicing": VOICING_NAMES[self.active_voicing],
             "sounding": self.current is not None,
             "latch": self.latch,
-            "latched": self.latch and self.current is not None and not self.current_held,
+            "latched": self.latched,
             "parent": None,
             "octave": self.octave,
             "octave_moved": self.octave != DEFAULT_OCTAVE,

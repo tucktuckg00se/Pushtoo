@@ -53,7 +53,6 @@ LOWER_ROOT_LABELS = ("F", "Bb", "Eb", "Ab", "Db", "Gb")
 
 STRIP_MODES = ("Pitch bend", "Mod wheel")
 MOD_WHEEL_CC = 1
-CHORD_SOURCE = ("chord",)  # the sounding chord, as one source for repeat and arp
 
 
 @dataclass
@@ -115,7 +114,7 @@ class PlayMode(Mode):
             router, self.keyboard, output=lambda: (chord_layout.destination, chord_layout.channel)
         )
         self.chord.hand_to_rhythm = self._chord_to_rhythm
-        self.chord.take_from_rhythm = lambda: self._rhythm_release(CHORD_SOURCE)
+        self.chord.take_from_rhythm = self._rhythm_release
         self.chord.accent = lambda: self.accent
         chord_layout.velocity = self.chord.spread  # one set of chord velocity settings
         self.current = 0
@@ -494,7 +493,12 @@ class PlayMode(Mode):
     def pad_aftertouch(self, row: int, col: int, pressure: int) -> None:
         if self.rhythm.on:  # pressure sets the velocity of the repeats to come
             pad = (row, col)
-            source = CHORD_SOURCE if self.in_chord and pad == self.chord.current else pad
+            if not self.in_chord:
+                source: object = pad
+            elif row == 0:
+                source = ("bass row", col)
+            else:
+                source = ("chord", pad)
             self.rhythm.pressure(source, pressure)
         elif not self.in_chord:
             self.router.poly_aftertouch((row, col), pressure)
@@ -506,12 +510,13 @@ class PlayMode(Mode):
             self.router.schedule(destination, message, at, tag)
 
     def _chord_to_rhythm(
-        self, destination: str, channel: int, notes: list[int], velocity: int, vary, timing
+        self, source, destination: str, channel: int, notes: list[int], velocity: int, vary, timing
     ) -> bool:
+        """The chord grid hands a chord, or a bass note, to Repeat or Arp."""
         if not self.rhythm.on:
             return False
         hits = self.rhythm.press(
-            CHORD_SOURCE,
+            source,
             destination,
             channel,
             notes,
@@ -529,10 +534,10 @@ class PlayMode(Mode):
         if tag is not None:
             self.router.cancel(tag)  # take back its queued notes; note-offs stay
 
-    def _stop_rhythm_notes(self, keep=None) -> None:
-        """Release every pad held in the rhythm engine (but `keep`, a latched chord
-        that plays on), taking back what each had queued."""
-        for source in [s for s in self.rhythm.held if s != keep]:
+    def _stop_rhythm_notes(self, keep: set | frozenset = frozenset()) -> None:
+        """Release every source held in the rhythm engine (but those in `keep`, latched
+        chords playing on), taking back what each had queued."""
+        for source in [s for s in self.rhythm.held if s not in keep]:
             self._rhythm_release(source)
 
     def set_rhythm(self, on: bool) -> None:
@@ -628,7 +633,8 @@ class PlayMode(Mode):
             return False
         if self.in_chord:
             self.chord.release_all(keep_latched=True)  # a latched chord plays on
-        self._stop_rhythm_notes(keep=CHORD_SOURCE if self.chord.latched else None)
+        latched = self.chord.chords if self.chord.latched else {}
+        self._stop_rhythm_notes(keep={(kind, pad) for pad in latched for kind in ("chord", "bass")})
         self.current = index
         self.rhythm.allow_arp = self.layout.name != "Drums"
         return True
@@ -719,7 +725,7 @@ class PlayMode(Mode):
         held = self.router.notes_on(layout.destination, layout.channel)
         # Over a latched chord, the Keyboard lights that chord's notes.
         chord_tones = (
-            {n % 12 for n in self.chord.notes}
+            {n % 12 for n in self.chord.sounding_notes}
             if isinstance(grid, KeyboardLayout) and self.chord.current is not None
             else set()
         )

@@ -23,13 +23,24 @@ class SoundingNotes:
         self._counts: dict[NoteKey, int] = defaultdict(int)
 
     def press(
-        self, source: Hashable, destination: str, channel: int, note: int, velocity: int
+        self,
+        source: Hashable,
+        destination: str,
+        channel: int,
+        note: int,
+        velocity: int,
+        retrigger: bool = True,
     ) -> list[Routed]:
+        """Sound a note for `source`. With retrigger off, a note another source is
+        already sounding just gains this source, with no second note-on: chords that
+        share notes play together without restriking them."""
         messages = self.release(source)  # a source plays at most one note
         key = (destination, channel, note)
+        sounding = self._counts[key] > 0
         self._by_source[source] = key
         self._counts[key] += 1
-        messages.append((destination, [NOTE_ON | channel, note, velocity]))
+        if retrigger or not sounding:
+            messages.append((destination, [NOTE_ON | channel, note, velocity]))
         return messages
 
     def release(self, source: Hashable) -> list[Routed]:

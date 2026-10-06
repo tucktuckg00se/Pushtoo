@@ -6,7 +6,7 @@ import pytest
 
 from pushtoo.midi.router import OUT_PORT
 from pushtoo.render.screens import status_parts
-from pushtoo.rhythm.repeat import CHORD_TAG
+from pushtoo.rhythm.repeat import ROLL_TAGS
 from pushtoo.rhythm.timing import TimingSpread
 from tests.pages import open_page
 
@@ -70,7 +70,8 @@ def test_rolled_chord_queues_later_notes_and_plays_the_first_and_bass_now(rolled
     assert [m[1] for m in sent if m[0] == 0x91] == [48]  # lowest note at once
     assert [m[1] for m in sent if m[0] == 0x92] == [36]  # bass on time
     queued = [(round(at, 3), m[1], tag) for at, m, tag in virtual.scheduled]
-    assert queued == [(100.03, 51, CHORD_TAG), (100.06, 55, CHORD_TAG)]
+    assert [(at, note) for at, note, _ in queued] == [(100.03, 51), (100.06, 55)]
+    assert len({tag for *_, tag in queued}) == 1 and queued[0][2] in ROLL_TAGS
     assert "Rolled ↑ 30 ms" in status_parts(app.view()["panel"])
 
 

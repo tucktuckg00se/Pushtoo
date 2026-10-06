@@ -69,19 +69,77 @@ def test_rows_are_chord_flavors():
     assert play.view()["panel"]["role_line"] == "V7/iv · leads to iv"
 
 
-def test_last_chord_pressed_wins_and_changes_retrigger():
-    play, sent, _ = make_chord_play()
-    play.pad_pressed(TRIAD, 0, 100)
+def test_a_bump_on_another_pad_never_cuts_the_held_chord():
+    play, sent, clock = make_chord_play()
+    tap_voicing(play, clock, "Root")  # fixed shapes, so the notes are predictable
+    play.pad_pressed(TRIAD, 0, 100)  # Cm: C3 Eb3 G3
     sent.clear()
-    play.pad_pressed(TRIAD, 3, 100)  # Fm while Cm is still held
-    offs = [i for i, m in enumerate(sent) if m[0] in (CHORDS_OFF, BASS_OFF)]
-    ons = [i for i, m in enumerate(sent) if m[0] in (CHORDS, BASS)]
-    assert offs and max(offs) < min(ons)
-    sent.clear()
-    play.pad_released(TRIAD, 0)  # releasing the old chord changes nothing
-    assert sent == []
+    play.pad_pressed(TRIAD, 3, 100)  # bump Fm: F3 Ab3 C4
     play.pad_released(TRIAD, 3)
-    assert sorted(m[1] for m in sent if m[0] == CHORDS_OFF)
+    stopped = {m[1] for m in sent if m[0] == CHORDS_OFF}
+    assert not stopped & {48, 51, 55}  # Cm rang through the bump
+    assert {m[1] for m in sent if m[0] == CHORDS} == {53, 56, 60}
+    assert play.router.notes_on("Pushtoo Out", 1) == {48, 51, 55}
+
+
+def test_chords_share_notes_without_restriking_them():
+    play, sent, clock = make_chord_play()
+    tap_voicing(play, clock, "Root")
+    play.pad_pressed(TRIAD, 0, 100)  # Cm: C3 Eb3 G3
+    sent.clear()
+    play.pad_pressed(TRIAD, 5, 100)  # Ab: Ab3 C4 Eb4, no shared pitch here
+    play.pad_pressed(SEVENTH, 0, 100)  # Cm7: C3 Eb3 G3 Bb3, shares three notes
+    assert [m[1] for m in sent if m[0] == CHORDS].count(48) == 0  # C3 not restruck
+    assert 58 in {m[1] for m in sent if m[0] == CHORDS}  # only the new Bb3 sounds
+
+
+def test_a_legato_change_keeps_the_common_tones():
+    play, sent, clock = make_chord_play()
+    tap_voicing(play, clock, "Root")
+    play.pad_pressed(TRIAD, 0, 100)  # Cm
+    play.pad_pressed(SEVENTH, 0, 100)  # Cm7 while Cm is held
+    sent.clear()
+    play.pad_released(TRIAD, 0)  # let go of Cm
+    assert sent == []  # every Cm note is still in Cm7
+    assert play.view()["panel"]["chord_name"] == "Cm7"
+    play.pad_released(SEVENTH, 0)
+    assert sorted(m[1] for m in sent if m[0] == CHORDS_OFF) == [48, 51, 55, 58]
+    assert play.router.notes_on("Pushtoo Out", 1) == set()  # nothing hangs
+
+
+def test_a_shared_bass_isnt_restruck():
+    play, sent, _ = make_chord_play()
+    play.pad_pressed(TRIAD, 0, 100)  # Cm, bass C2
+    play.pad_pressed(SEVENTH, 0, 100)  # Cm7, same bass
+    assert notes_on(sent, BASS) == [36]
+    play.pad_released(TRIAD, 0)
+    assert play.router.notes_on("Pushtoo Out", 2) == {36}
+
+
+def test_latch_with_chords_played_together():
+    play, sent, clock = make_chord_play()
+    tap_voicing(play, clock, "Root")
+    play.button_pressed(LATCH)
+    play.pad_pressed(TRIAD, 0, 100)
+    play.pad_pressed(TRIAD, 5, 100)  # added while Cm is held
+    play.pad_released(TRIAD, 0)
+    play.pad_released(TRIAD, 5)
+    assert play.router.notes_on("Pushtoo Out", 1) == {48, 51, 55, 56, 60, 63}  # both latched
+    play.pad_pressed(TRIAD, 3, 100)  # a fresh press replaces them
+    assert play.router.notes_on("Pushtoo Out", 1) == {53, 56, 60}
+    play.pad_released(TRIAD, 3)
+    play.pad_pressed(TRIAD, 3, 100)  # tapping the latched chord stops it
+    assert play.router.notes_on("Pushtoo Out", 1) == set()
+
+
+def test_a_key_change_revoices_every_held_chord():
+    play, sent, clock = make_chord_play()
+    tap_voicing(play, clock, "Root")
+    play.pad_pressed(TRIAD, 0, 100)
+    play.pad_pressed(TRIAD, 4, 100)
+    play.keyboard.root = 2  # D minor
+    play.chord.revoice()
+    assert play.router.notes_on("Pushtoo Out", 1) == {50, 53, 57, 45 + 12, 60, 64}
 
 
 def test_smooth_voicing_keeps_progressions_close():

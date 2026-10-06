@@ -100,7 +100,10 @@ def test_chord_with_arp_plays_its_notes_one_by_one(app):
     app.pad_pressed(1, 0, 100)  # C minor
     for k in range(20):
         app.rhythm_tick(100.0 + k * 0.02)
-    assert [note for _, note, _ in ons(virtual)][:4] == [48, 51, 55, 48]
+    # The bass (C2, on the bass channel) is part of the arpeggio, then C3 Eb3 G3.
+    assert [note for _, note, _ in ons(virtual)][:4] == [36, 48, 51, 55]
+    bass = [m for _, m, _ in virtual.scheduled if m[0] == 0x92]
+    assert bass and bass[0][1] == 36
     assert app.router.notes_on(OUT_PORT, 1) == set()  # nothing held: the arp plays it
 
 
