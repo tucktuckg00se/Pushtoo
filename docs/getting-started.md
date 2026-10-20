@@ -24,6 +24,9 @@ No sound? See [Troubleshooting]({{ site.baseurl }}{% link troubleshooting.md %})
 
 Pushtoo uses Push 2's buttons for its own features, so some printed labels don't match what they do. The screen and the button lights always show the Pushtoo function.
 
+![A Push 2 drawn with Pushtoo's labels]({{ site.baseurl }}/images/push/overview.svg)
+*Every control Pushtoo uses, labeled with what it does. Pads and buttons are lit as Pushtoo lights them; the buttons above and below the screen and the side buttons are named on the screen beside them.*
+
 | Printed label | In Pushtoo |
 | --- | --- |
 | **Note** | Play mode |
@@ -46,6 +49,9 @@ In Play mode, the screen names the current layout and shows only what's active a
 
 Tap **Layout** to cycle through them; it switches when you let go. Or hold Layout and press the button above a layout's name to go straight there.
 
+![The screen while Layout is held]({{ site.baseurl }}/images/screens/layout_picker.png)
+*Hold Layout: the buttons above the screen name the layouts.*
+
 | Layout | Channel | What the pads do |
 | --- | --- | --- |
 | **Keyboard** | 1 | Notes in your scale, roots in orange |
@@ -61,9 +67,15 @@ More: [Keyboard and Drums]({{ site.baseurl }}{% link keyboard-and-drums.md %}), 
 - The **encoders above the display** are the current page's controls. Touch one and it grows a little on screen, so you can see which knob you're on. Hold **Shift** while turning for 4x finer steps.
 - Hold **Shift** at any time to see what Shift does in the current mode.
 
+![The Shift overlay]({{ site.baseurl }}/images/screens/shift_overlay.png)
+*Hold Shift and the screen lists what it does.*
+
 ## Pick a key
 
 Press **Scale**. The top buttons pick In key or Chromatic and the roots C G D A E B F#; the bottom buttons pick F Bb Eb Ab Db Gb. Encoder 1 picks the scale, encoder 2 the root and encoder 3 the chord grid's [chord set]({{ site.baseurl }}{% link chord-grid.md %}#chord-sets). Press Scale again to close it.
+
+![The scale menu]({{ site.baseurl }}/images/screens/scale_selector.png)
+*The scale menu: roots on the buttons above and below the screen, the scale on encoder 1.*
 
 ## Next
 

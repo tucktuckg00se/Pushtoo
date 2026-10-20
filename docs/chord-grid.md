@@ -9,6 +9,9 @@ description: "The Chord layout: a full chord in your key on every pad, smooth vo
 
 The chord grid (the **Chord** layout) makes every pad a full chord in your key, played with one press.
 
+![The Chord layout on a Push 2]({{ site.baseurl }}/images/push/chord.svg)
+*Fm7 held (white). Rows of chord kinds, colored by what each chord does; the side buttons pick the voicing.*
+
 1. TOC
 {:toc}
 
@@ -41,11 +44,17 @@ Chords play together like hands on a piano:
 
 Hold a bass-row pad under a chord and the name shows the bass after a slash, such as G/B.
 
+![A slash chord on the screen]({{ site.baseurl }}/images/screens/chord_slash.png)
+*A bass-row pad held under a chord: Fm/Ab.*
+
 ## The screen
 
 - Each chord's name, its Roman numeral and what it does ("V7 · tension").
 - A small map of the pads in the same colors, with each row's name beside it. With nothing playing it also shows a color legend; while you play, it lights the row you pressed.
 - The Chord page's title names the chord set in use.
+
+![The Chord page with nothing playing]({{ site.baseurl }}/images/screens/chord_idle.png)
+*Nothing playing: the pad map, the color legend and the voicings beside the side buttons.*
 
 ## Voicings
 
@@ -58,6 +67,9 @@ The side buttons pick the **voicing**. The right-hand edge of the screen, next t
 
 Tap a side button to keep its voicing, or hold it to use it only while held. If you press a side button from Knobs or Mix, a short message says what it did.
 
+![A voicing held]({{ site.baseurl }}/images/screens/chord_momentary_voicing.png)
+*Holding Open: the voicing you hold shows white in the column beside the side buttons.*
+
 There are nine voicings and seven side buttons. The buttons are shortcuts (Smooth, Root, 1st, 2nd, Open, Drop 3, Shell by default; a profile's `play: {chord: {voicing_buttons: [...]}}` picks others). The **Voicing** encoder on the Chord page reaches all nine, 3rd inversion and Wide included.
 
 **Brightness** on the Style page moves Smooth's register up (brighter) or down (darker).
@@ -66,9 +78,15 @@ There are nine voicings and seven side buttons. The buttons are shortcuts (Smoot
 
 The bottom side button is **Latch**: chords keep sounding after you let go, so one hand can tap chords while the other strums. While Latch is holding a chord, the screen says "Latched · tap it again to stop".
 
+![Latch and Strum on a Push 2]({{ site.baseurl }}/images/push/chord_latch.svg)
+*Latch on (yellow, bottom side button) and Strum on the Style page: the touch strip strums the latched chord.*
+
 ### Melody over a latched chord
 
 Latch a chord, then switch to Keyboard: the chord keeps playing, its notes glow teal on the keyboard pads, and the screen says "over Fm7". Play a melody on the glowing notes, switch back to change chords, or tap the chord again (or turn Latch off) to stop it.
+
+![Keyboard over a latched chord]({{ site.baseurl }}/images/screens/keyboard_over_chord.png)
+*Keyboard over a latched chord: the screen says what's playing underneath.*
 
 ## Style: Press or Strum
 
@@ -89,6 +107,9 @@ The Chord layout's **Velocity** page sets how loud each note of a chord plays.
 
 Each strummed note, repeat and arp step rolls fresh velocities, and the screen draws each note's velocity as a bar under its name.
 
+![Random velocity]({{ site.baseurl }}/images/screens/chord_random_velocity.png)
+*Random velocity: each note's velocity as a bar under its name.*
+
 ## Timing
 
 The **Timing** page sets when each note of a chord starts.
@@ -100,6 +121,9 @@ The **Timing** page sets when each note of a chord starts.
   - **Loose**: a little random lateness on each note, like hands that aren't quite together.
 
 Notes only ever come later, never early, and the bass stays on time. Let go before a roll finishes and the rest of it doesn't play. [Repeats and the arpeggiator]({{ site.baseurl }}{% link rhythm-and-clock.md %}) roll the same way.
+
+![The Timing page]({{ site.baseurl }}/images/screens/chord_timing.png)
+*The Timing page, spread out.*
 
 ## Chord sets
 
@@ -123,6 +147,9 @@ To pick one:
 - The Chord page's seven buttons above the display hold your favorites: Classic, Pop, Rock, Jazz, Neo-soul, Lo-fi and Cinematic, unless a profile's `favorite_sets: [...]` picks others.
 
 The pad map names each row, colors still show what each chord does, and a chord you're holding changes with the set.
+
+![The Jazz chord set]({{ site.baseurl }}/images/screens/chord_jazz_shell.png)
+*The Jazz set, played with the Shell voicing.*
 
 ### Your own sets
 

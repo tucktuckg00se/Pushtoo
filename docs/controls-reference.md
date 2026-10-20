@@ -9,6 +9,9 @@ description: "Every Push 2 button, encoder and shortcut in Pushtoo, grouped by w
 
 Hold **Shift** at any time and the screen lists what Shift does in the current mode.
 
+![A Push 2 drawn with Pushtoo's labels]({{ site.baseurl }}/images/push/overview.svg)
+*Every control Pushtoo uses, labeled with what it does in Pushtoo.*
+
 1. TOC
 {:toc}
 

@@ -1,0 +1,12 @@
+// Graphics drawn by tools/docs_graphics.py.
+img[src*="/images/"] {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+// A screen render is black on a black page: a thin border, in the theme's track gray, shows its edge.
+img[src*="/images/screens/"] {
+  width: 100%;
+  border: 1px solid #343a40;
+}

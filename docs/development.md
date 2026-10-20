@@ -27,13 +27,14 @@ uv run pushtoo                           # -v for a detailed log, --fps to set t
 uv run pushtoo doctor
 uvx --from shellcheck-py shellcheck -s sh install.sh
 uv run python tools/render_preview.py   # every screen as PNG, no hardware needed
+uv run python tools/docs_graphics.py    # these docs' drawings and screens; re-run after UI changes
 uv run python tools/latency/latency.py  # latency gate; needs Push attached
 uv run python tools/clock/jitter.py     # clock timing gate (p99 < 1 ms); needs ALSA
 ```
 
 ## These docs
 
-The site is built by GitHub Pages from `docs/` with [Just the Docs](https://just-the-docs.com). To preview it locally:
+The site is built by GitHub Pages from `docs/` with [Just the Docs](https://just-the-docs.com). The Push drawings and screens in `docs/images/` come from the app itself: run `tools/docs_graphics.py` after changing the screen or the LEDs, and commit what it writes. To preview the site locally:
 
 ```sh
 cd docs

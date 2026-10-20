@@ -4,7 +4,7 @@
 
 Pushtoo turns an Ableton Push 2 on Linux into an instrument for any synth, DAW or hardware rig: plug in Push, pick the **Pushtoo Out** port, and play. Scales stay in key, every chord pad sounds good, the touch strip strums, and the screen shows what your hands are doing.
 
-![Push 2 running Pushtoo in chord mode: the screen shows Fmaj9 and the pads light up the chord grid](docs/photos/pushtoo_chord_mode_cropped.jpg)
+![Push 2 running Pushtoo in chord mode: the screen shows Fmaj9 and the pads light up the chord grid](docs/images/pushtoo_chord_mode_cropped.jpg)
 *The chord grid: the screen shows Fmaj9, the pad map and the voicing buttons.*
 
 Pushtoo is for *playing*. If you want deep control of a DAW from the Push (tracks, devices, clips, mixer), use [DrivenByMoss](https://mossgrabers.de) for Bitwig or Reaper instead; the two can't share the Push at the same time.

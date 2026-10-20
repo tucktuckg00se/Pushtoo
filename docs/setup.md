@@ -9,6 +9,9 @@ description: "Tune the Push to your hands: pad sensitivity and dynamics, afterto
 
 Press **Setup** to tune the Push to your hands. Pads keep playing while you're there, so you can feel every change. Press Setup again, or `‹`, to go back.
 
+![Setup on a Push 2]({{ site.baseurl }}/images/push/setup.svg)
+*Setup › Pads: the velocity curve, with a dot where your last hit landed.*
+
 1. TOC
 {:toc}
 
@@ -30,14 +33,23 @@ Above the display, **Regular**, **Reduced** or **Low** sets the Push's own pad s
 
 Two more controls set where pressure starts and where it reaches full.
 
+![The Aftertouch page]({{ site.baseurl }}/images/screens/setup_aftertouch.png)
+*The Aftertouch page.*
+
 ## Display
 
 - **Pad brightness**, **button brightness** and **screen brightness**. On USB power alone, Push dims itself whatever these say.
 - **Standby**: how long the Push waits with nothing played before the pads and screen start to animate (10 minutes by default, or Off). The buttons above pick the scene, **Life** or **Drift**. See [Standby]({{ site.baseurl }}{% link life.md %}#standby).
 
+![The Display page]({{ site.baseurl }}/images/screens/setup_display.png)
+*The Display page.*
+
 ## Clock
 
 Whether Pushtoo sends [MIDI clock]({{ site.baseurl }}{% link rhythm-and-clock.md %}#midi-clock), and whether it follows clock arriving on Pushtoo In.
+
+![The Clock page]({{ site.baseurl }}/images/screens/setup_clock.png)
+*The Clock page.*
 
 ## Where Setup is saved
 

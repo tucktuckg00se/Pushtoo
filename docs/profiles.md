@@ -20,6 +20,9 @@ On first run Pushtoo creates `~/.config/pushtoo/profiles/default.yaml`, a commen
 - If an edit has a mistake, the Push screen shows the file, line and field, and Pushtoo keeps using the last working version.
 - Add more `.yaml` files to the folder and switch between them with **Browse** (encoder 1 picks, the top-left button loads).
 
+![The profile list]({{ site.baseurl }}/images/screens/browse.png)
+*Browse: encoder 1 picks a profile, the top-left button loads it.*
+
 ## Example
 
 ```yaml
