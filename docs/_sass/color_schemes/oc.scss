@@ -1,0 +1,34 @@
+// Pushtoo docs colour scheme: mirrors the Push screen's theme, pushtoo/themes/oc.yaml.
+// Open Color palette, dark. https://yeun.github.io/open-color/
+// Comments name the theme color each value comes from.
+
+$color-scheme: dark;
+
+// Fonts: the screen's own, IBM Plex Sans Condensed (pushtoo/fonts), in the two
+// weights Pushtoo bundles. The screen has no monospace face, so code uses its
+// sibling, IBM Plex Mono. The Google Fonts <link> is in _includes/head_custom.html.
+$body-font-family: "IBM Plex Sans Condensed", system-ui, -apple-system,
+                   BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+                   Arial, sans-serif, "Segoe UI Emoji";
+$mono-font-family: "IBM Plex Mono", "SFMono-Regular", Menlo, Consolas, Monospace;
+
+// Surfaces
+$body-background-color:   #000000;  // background
+$sidebar-color:           #191c1f;  // line
+$feedback-color:          #191c1f;  // line
+$table-background-color:  #191c1f;  // line
+$search-background-color: #343a40;  // track
+$base-button-color:       #343a40;  // track
+$code-background-color:   #191c1f;  // line
+$border-color:            #343a40;  // track
+
+// Text
+$body-text-color:              #ced4da;  // text
+$body-heading-color:           #ced4da;  // text
+$nav-child-link-color:         #ced4da;  // text
+$search-result-preview-color:  #868e96;  // text_dim
+$code-linenumber-color:        #868e96;  // text_dim
+
+// Accent: the Play mode accent
+$link-color:        #82c91e;  // play
+$btn-primary-color: #82c91e;  // play

@@ -1,0 +1,27 @@
+source "https://rubygems.org"
+
+# Mirrors the gems GitHub Pages provides at build time.
+# Using `github-pages` keeps the local preview in sync with what Pages will render.
+gem "github-pages", group: :jekyll_plugins
+
+# Just the Docs remote theme support.
+group :jekyll_plugins do
+  gem "jekyll-remote-theme"
+  gem "jekyll-seo-tag"
+end
+
+# Ruby 3.4 turned several stdlib libraries into bundled gems that must be
+# declared explicitly. Jekyll 3 (still pinned by github-pages) requires these
+# at load time, so without them `bundle exec jekyll serve` fails on Ruby 3.4+.
+gem "webrick"
+gem "erb"
+gem "csv"
+gem "base64"
+gem "bigdecimal"
+gem "logger"
+gem "ostruct"
+gem "rexml"
+
+# Windows / JRuby compatibility shims (harmless on other platforms).
+gem "tzinfo-data", platforms: [:mingw, :x64_mingw, :mswin, :jruby]
+gem "wdm", "~> 0.1.1", platforms: [:mingw, :x64_mingw, :mswin]

@@ -1,0 +1,50 @@
+title: Pushtoo
+description: Turn an Ableton Push 2 on Linux into an instrument for any synth, DAW or hardware rig.
+
+remote_theme: just-the-docs/just-the-docs
+
+url: "https://tucktuckg00se.github.io"
+baseurl: "/Pushtoo"
+
+permalink: pretty
+
+color_scheme: oc
+search_enabled: true
+heading_anchors: true
+
+aux_links:
+  "GitHub":
+    - "https://github.com/tucktuckg00se/Pushtoo"
+
+aux_links_new_tab: true
+
+footer_content: "Pushtoo &mdash; <a href=\"https://github.com/tucktuckg00se/Pushtoo/blob/main/LICENSE\">GPL v3.0 or later</a>"
+
+# "Edit this page on GitHub" link in each page footer
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/tucktuckg00se/Pushtoo"
+gh_edit_branch: "main"
+gh_edit_source: "docs"
+gh_edit_view_mode: "edit"
+
+# Last-modified timestamp in each page footer
+last_edit_timestamp: true
+last_edit_time_format: "%b %e %Y"
+
+# Internal design docs stay in the repo, off the site
+exclude:
+  - PRD.md
+  - adr/
+  - Gemfile
+  - Gemfile.lock
+  - vendor/
+
+plugins:
+  - jekyll-remote-theme
+  - jekyll-seo-tag
+
+callouts:
+  note:
+    title: Note
+    color: green
