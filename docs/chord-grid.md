@@ -9,7 +9,7 @@ description: "The Chord layout: a full chord in your key on every pad, smooth vo
 
 The chord grid (the **Chord** layout) makes every pad a full chord in your key, played with one press.
 
-![The Chord layout on a Push 2]({{ site.baseurl }}/images/push/chord.svg)
+[![The Chord layout on a Push 2]({{ site.baseurl }}/images/push/chord.svg)]({{ site.baseurl }}/images/push/chord.svg)
 *Fm7 held (white). Rows of chord kinds, colored by what each chord does; the side buttons pick the voicing.*
 
 1. TOC
@@ -78,7 +78,7 @@ There are nine voicings and seven side buttons. The buttons are shortcuts (Smoot
 
 The bottom side button is **Latch**: chords keep sounding after you let go, so one hand can tap chords while the other strums. While Latch is holding a chord, the screen says "Latched · tap it again to stop".
 
-![Latch and Strum on a Push 2]({{ site.baseurl }}/images/push/chord_latch.svg)
+[![Latch and Strum on a Push 2]({{ site.baseurl }}/images/push/chord_latch.svg)]({{ site.baseurl }}/images/push/chord_latch.svg)
 *Latch on (yellow, bottom side button) and Strum on the Style page: the touch strip strums the latched chord.*
 
 ### Melody over a latched chord

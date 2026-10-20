@@ -24,8 +24,8 @@ No sound? See [Troubleshooting]({{ site.baseurl }}{% link troubleshooting.md %})
 
 Pushtoo uses Push 2's buttons for its own features, so some printed labels don't match what they do. The screen and the button lights always show the Pushtoo function.
 
-![A Push 2 drawn with Pushtoo's labels]({{ site.baseurl }}/images/push/overview.svg)
-*Every control Pushtoo uses, labeled with what it does. Pads and buttons are lit as Pushtoo lights them; the buttons above and below the screen and the side buttons are named on the screen beside them.*
+[![A Push 2 drawn with Pushtoo's labels]({{ site.baseurl }}/images/push/overview.svg)]({{ site.baseurl }}/images/push/overview.svg)
+*Each button carries its printed name; where Pushtoo gives it its own job, the line under the name says what it does. Pads and buttons are lit as Pushtoo lights them, and the buttons above and below the screen and the side buttons are named on the screen beside them. Click to enlarge.*
 
 | Printed label | In Pushtoo |
 | --- | --- |

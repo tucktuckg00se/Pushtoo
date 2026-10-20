@@ -2,9 +2,10 @@
 
     uv run python tools/docs_graphics.py [docs_dir]
 
-Writes docs/images/push/<scene>.svg (the whole controller: the real screen, the pads
-and buttons lit as Pushtoo lights them, each control labeled with what it does in
-Pushtoo) and docs/images/screens/<name>.png (the screen alone). Everything comes from
+Writes docs/images/push/<scene>.svg (the whole controller, laid out as on a Push 2:
+the real screen, the pads and buttons lit as Pushtoo lights them, each button's
+printed name and, where Pushtoo gives it its own job, what it does) and
+docs/images/screens/<name>.png (the screen alone). Everything comes from
 the app itself, so re-run this after any change to the screen or the LEDs.
 """
 
@@ -88,104 +89,101 @@ def led_rgb(name: str) -> tuple[float, float, float] | None:
     raise ValueError(f"unknown LED color {name!r}")
 
 
-# What each control does in Pushtoo, written on it. Controls Pushtoo doesn't use
-# are drawn dim and unlabeled; the buttons above and below the screen and the side
-# buttons are named by the screen next to them, as on the Push.
-LABELS = {
-    c.BUTTON_TAP_TEMPO: "Tap Tempo",
-    c.BUTTON_DELETE: "Delete",
-    c.BUTTON_UNDO: "Undo",
-    c.BUTTON_STOP: "Panic\n(Shift)",
-    c.BUTTON_PLAY: "Start/Stop",
-    c.BUTTON_SETUP: "Setup",
-    c.BUTTON_DEVICE: "Knobs",
-    c.BUTTON_MIX: "Mix",
+# Every control is drawn where it sits on a Push 2, at its size, measured from a
+# photo of one (2000 px wide). The printed name goes on each button, as on the
+# hardware; where Pushtoo gives a button its own job, a second line says what it
+# does, in the button's light. The buttons above and below the screen and the side
+# buttons are named by the screen beside them, as on the Push.
+FUNCTIONS = {
+    c.BUTTON_NOTE: "Play mode",
+    c.BUTTON_DEVICE: "Knobs mode",
+    c.BUTTON_MIX: "Mix mode",
     c.BUTTON_BROWSE: "Profiles",
-    c.BUTTON_REPEAT: "Rhythm",
-    c.BUTTON_ACCENT: "Accent",
-    c.BUTTON_SCALE: "Scale",
-    c.BUTTON_LAYOUT: "Layout",
-    c.BUTTON_NOTE: "Play",
     c.BUTTON_SESSION: "Life",
-    c.BUTTON_OCTAVE_UP: "Octave Up",
-    c.BUTTON_OCTAVE_DOWN: "Octave Down",
-    c.BUTTON_SHIFT: "Shift",
+    c.BUTTON_REPEAT: "Rhythm",
+    c.BUTTON_STOP: "Shift: Panic",
+    c.BUTTON_UNDO: "Shift: Redo",
+    c.BUTTON_PLAY: "Start/Stop",
+}
+# Buttons Pushtoo uses that keep their printed meaning.
+SAME = {
+    c.BUTTON_TAP_TEMPO,
+    c.BUTTON_DELETE,
+    c.BUTTON_SETUP,
+    c.BUTTON_ACCENT,
+    c.BUTTON_SCALE,
+    c.BUTTON_LAYOUT,
+    c.BUTTON_SHIFT,
 }
 ENCODER_LABELS = {
     c.ENCODER_TEMPO_ENCODER: "Tempo",
     c.ENCODER_SWING_ENCODER: "Swing",
     c.ENCODER_MASTER_ENCODER: "Level",
 }
+NAME_SIZE, FUNCTION_SIZE = 17, 15
+UNUSED = (0.24, 0.26, 0.28)  # the printed name of a button Pushtoo leaves alone
+OFF = (0.36, 0.39, 0.42)  # a used button whose light is off
 
-# Layout, in drawing units. The pads and the screen share 8 columns, as on the Push.
-COL = 100  # column pitch
-PAD = 88  # pad size
-LEFT = 300  # x of the first column
-TOP = 40
-ENC_Y = TOP + 50  # encoder centers
-UPPER_Y = TOP + 120
-SCREEN_Y = UPPER_Y + 52
-SCREEN_H = 8 * COL * HEIGHT / WIDTH
-LOWER_Y = SCREEN_Y + SCREEN_H + 12
-PADS_Y = LOWER_Y + 70  # top of the top pad row
-SIDE_X = LEFT + 8 * COL + 20  # the side (scene) buttons
-RIGHT_X = SIDE_X + 110  # the right-hand cluster
-SIZE = (RIGHT_X + 220, PADS_Y + 8 * COL + 30)
-BTN = (84, 40)  # a small button
+ORIGIN = (100, 88)  # the photo's corner of the drawing
+SIZE = (1820, 1484)
+BODY_RECT = (110, 98, 1800, 1464)
+COL, ROW = 137.5, 105.6  # pad pitch: the pads are wider than tall
+PADS = (420, 655)  # top-left of the top-left pad
+PAD = (125, 93)
+SCREEN = (420, 328, 1100, 1100 * HEIGHT / WIDTH)
+UPPER_Y, LOWER_Y, ROW_H = 230, 572, 46
+SIDE_X, SIDE = 1575, (92, 89)  # the side (scene) buttons, one per pad row
+STRIP = (257, 660, 105, 830)
+ENCODERS = [
+    (c.ENCODER_TEMPO_ENCODER, 180),
+    (c.ENCODER_SWING_ENCODER, 315),
+    *((f"Track{i + 1} Encoder", PADS[0] + (i + 0.5) * COL) for i in range(8)),
+    (c.ENCODER_MASTER_ENCODER, 1780),
+]
+ENCODER_Y, ENCODER_R = 150, 38
 
-# Left column, top to bottom, at the y of the row they sit in.
-LEFT_BUTTONS = [
-    (c.BUTTON_TAP_TEMPO, 40, UPPER_Y),
-    (c.BUTTON_METRONOME, 140, UPPER_Y),
-    (c.BUTTON_DELETE, 40, SCREEN_Y + 10),
-    (c.BUTTON_UNDO, 40, SCREEN_Y + 70),
-    (c.BUTTON_MUTE, 20, LOWER_Y),
-    (c.BUTTON_SOLO, 105, LOWER_Y),
-    (c.BUTTON_STOP, 190, LOWER_Y),
-] + [
-    (name, 40, PADS_Y + i * COL + (PAD - BTN[1]) / 2)
-    for i, name in enumerate(
-        (
-            c.BUTTON_CONVERT,
-            c.BUTTON_DOUBLE_LOOP,
-            c.BUTTON_QUANTIZE,
-            c.BUTTON_DUPLICATE,
-            c.BUTTON_NEW,
-            c.BUTTON_FIXED_LENGTH,
-            c.BUTTON_RECORD,
-            c.BUTTON_PLAY,
-        )
-    )
-]
-RIGHT_BUTTONS = [
-    (c.BUTTON_SETUP, RIGHT_X, UPPER_Y),
-    (c.BUTTON_USER, RIGHT_X + 100, UPPER_Y),
-    (c.BUTTON_ADD_DEVICE, SIDE_X, SCREEN_Y + 10),
-    (c.BUTTON_ADD_TRACK, SIDE_X, SCREEN_Y + 70),
-    (c.BUTTON_DEVICE, RIGHT_X, SCREEN_Y + 10),
-    (c.BUTTON_MIX, RIGHT_X + 100, SCREEN_Y + 10),
-    (c.BUTTON_BROWSE, RIGHT_X, SCREEN_Y + 70),
-    (c.BUTTON_CLIP, RIGHT_X + 100, SCREEN_Y + 70),
-    (c.BUTTON_MASTER, SIDE_X, LOWER_Y),
-] + [
-    (name, RIGHT_X + (i % 2) * 100, PADS_Y + (2 + i // 2) * COL + (PAD - BTN[1]) / 2)
-    for i, name in enumerate(
-        (
-            c.BUTTON_REPEAT,
-            c.BUTTON_ACCENT,
-            c.BUTTON_SCALE,
-            c.BUTTON_LAYOUT,
-            c.BUTTON_NOTE,
-            c.BUTTON_SESSION,
-            c.BUTTON_OCTAVE_UP,
-            c.BUTTON_PAGE_LEFT,
-            c.BUTTON_OCTAVE_DOWN,
-            c.BUTTON_PAGE_RIGHT,
-            c.BUTTON_SHIFT,
-            c.BUTTON_SELECT,
-        )
-    )
-]
+# name: (x, y, w, h), as on the Push
+BUTTONS = {
+    c.BUTTON_TAP_TEMPO: (137, 226, 118, 52),
+    c.BUTTON_METRONOME: (257, 226, 118, 52),
+    c.BUTTON_DELETE: (130, 332, 86, 86),
+    c.BUTTON_UNDO: (130, 420, 86, 86),
+    c.BUTTON_MUTE: (125, 568, 80, 49),
+    c.BUTTON_SOLO: (207, 568, 80, 49),
+    c.BUTTON_STOP: (289, 568, 80, 49),
+    c.BUTTON_CONVERT: (122, 658, 86, 85),
+    c.BUTTON_DOUBLE_LOOP: (122, 745, 86, 85),
+    c.BUTTON_QUANTIZE: (122, 832, 86, 85),
+    c.BUTTON_DUPLICATE: (122, 935, 86, 86),
+    c.BUTTON_NEW: (122, 1023, 86, 86),
+    c.BUTTON_FIXED_LENGTH: (122, 1131, 86, 78),
+    c.BUTTON_AUTOMATE: (122, 1211, 86, 78),
+    c.BUTTON_RECORD: (122, 1291, 86, 89),
+    c.BUTTON_PLAY: (122, 1398, 86, 87),
+    c.BUTTON_SETUP: (1688, 228, 88, 52),
+    c.BUTTON_USER: (1778, 228, 88, 52),
+    c.BUTTON_ADD_DEVICE: (1572, 332, 91, 87),
+    c.BUTTON_ADD_TRACK: (1572, 421, 91, 87),
+    c.BUTTON_DEVICE: (1692, 335, 88, 86),
+    c.BUTTON_MIX: (1782, 335, 88, 86),
+    c.BUTTON_BROWSE: (1692, 423, 88, 86),
+    c.BUTTON_CLIP: (1782, 423, 88, 86),
+    c.BUTTON_MASTER: (1575, 572, 90, 48),
+    c.BUTTON_REPEAT: (1702, 983, 88, 87),
+    c.BUTTON_ACCENT: (1792, 983, 88, 87),
+    c.BUTTON_SCALE: (1702, 1090, 88, 50),
+    c.BUTTON_LAYOUT: (1792, 1090, 88, 50),
+    c.BUTTON_NOTE: (1702, 1142, 88, 91),
+    c.BUTTON_SESSION: (1792, 1142, 88, 91),
+    c.BUTTON_SHIFT: (1702, 1452, 88, 48),
+    c.BUTTON_SELECT: (1792, 1452, 88, 48),
+}
+PRINTED = {
+    c.BUTTON_RECORD: "",  # a circle
+    c.BUTTON_PLAY: "",  # a triangle
+}
+ARROWS = (1695, 573, 180, 180)  # Up, Down, Left, Right: one square, split in four
+OCTAVE = (1702, 1252, 180, 183)  # Octave Up, Octave Down, Page Left, Page Right
 
 
 def _round_rect(ctx: cairo.Context, x: float, y: float, w: float, h: float, r: float) -> None:
@@ -197,131 +195,173 @@ def _round_rect(ctx: cairo.Context, x: float, y: float, w: float, h: float, r: f
     ctx.close_path()
 
 
-def _text(ctx, text: str, cx: float, cy: float, size: float, rgb, fit: float = 0) -> None:
-    """Centered text, one line per \\n, shrunk until each line fits `fit` (if given)."""
-    ctx.select_font_face(FAMILY, cairo.FONT_SLANT_NORMAL, cairo.FONT_WEIGHT_BOLD)
-    lines = text.split("\n")
-    if len(lines) > 1:
-        size *= 0.8
+def _fit(ctx, text: str, size: float, width: float, bold: bool) -> float:
+    weight = cairo.FONT_WEIGHT_BOLD if bold else cairo.FONT_WEIGHT_NORMAL
+    ctx.select_font_face(FAMILY, cairo.FONT_SLANT_NORMAL, weight)
     ctx.set_font_size(size)
-    while fit and size > 9 and max(ctx.text_extents(t).x_advance for t in lines) > fit:
+    while size > 10 and ctx.text_extents(text).x_advance > width:
         size -= 0.5
         ctx.set_font_size(size)
+    return size
+
+
+def _text(ctx, text, x, y, size, rgb, width=10_000, bold=False, center=False) -> None:
+    """Text with its baseline at y, starting at x (or centered on it)."""
+    _fit(ctx, text, size, width, bold)
+    advance = ctx.text_extents(text).x_advance
+    ctx.move_to(x - advance / 2 if center else x, y)
     ctx.set_source_rgb(*rgb)
-    for i, line in enumerate(lines):
-        y = cy + size * 0.36 + (i - (len(lines) - 1) / 2) * size * 1.1
-        ctx.move_to(cx - ctx.text_extents(line).x_advance / 2, y)
-        ctx.show_text(line)
+    ctx.show_text(text)
     ctx.new_path()  # so the next shape doesn't start from the end of the text
 
 
-def _button(ctx, name: str, x: float, y: float, colors: dict[str, str]) -> None:
-    w, h = BTN
+def _plate(ctx, x, y, w, h, edge=EDGE, width=1.5) -> None:
+    _round_rect(ctx, x, y, w, h, 6)
+    ctx.set_source_rgb(*CAP)
+    ctx.fill_preserve()
+    ctx.set_source_rgb(*edge)
+    ctx.set_line_width(width)
+    ctx.stroke()
+
+
+def _button(ctx, name: str, colors: dict[str, str]) -> None:
+    x, y, w, h = BUTTONS[name]
     lit = led_rgb(colors.get(name, "black"))
-    label = LABELS.get(name)
-    _round_rect(ctx, x, y, w, h, 5)
-    ctx.set_source_rgb(*CAP)
-    ctx.fill_preserve()
-    ctx.set_source_rgb(*(lit if lit and label else EDGE))
-    ctx.set_line_width(2 if lit and label else 1)
-    ctx.stroke()
-    if label:
-        _text(ctx, label, x + w / 2, y + h / 2, 15, lit if lit else DIM, fit=w - 10)
+    used = name in FUNCTIONS or name in SAME
+    shown = lit if used and lit else (OFF if used else UNUSED)
+    _plate(ctx, x, y, w, h, shown if used and lit else EDGE, 3 if used and lit else 1.5)
+    printed = PRINTED.get(name, name)
+    function = FUNCTIONS.get(name)
+    pad = 9
+    # One size for printed names and one for functions, on every button, so they read
+    # as two kinds of label; only a label too long for its button shrinks.
+    tall = h > 60
+    if printed:
+        baseline = y + pad + NAME_SIZE * 0.8 if tall or function else y + h / 2 + NAME_SIZE * 0.36
+        _text(ctx, printed, x + pad, baseline, NAME_SIZE, shown, w - 2 * pad, bold=used)
+    if function:  # what it does in Pushtoo, at the bottom
+        _text(ctx, function, x + pad, y + h - pad + 1, FUNCTION_SIZE, shown, w - 2 * pad, bold=True)
+    if name == c.BUTTON_RECORD:
+        ctx.arc(x + w / 2, y + h / 2, 17, 0, 6.2832)
+    elif name == c.BUTTON_PLAY:
+        cy = y + h / 2 - (10 if function else 0)
+        ctx.move_to(x + w / 2 - 11, cy - 15)
+        ctx.line_to(x + w / 2 + 15, cy)
+        ctx.line_to(x + w / 2 - 11, cy + 15)
+        ctx.close_path()
+    if name in (c.BUTTON_RECORD, c.BUTTON_PLAY):
+        ctx.set_source_rgb(*shown)
+        ctx.set_line_width(2.5)
+        ctx.stroke()
 
 
-def _row_button(ctx, x: float, y: float, color: str) -> None:
-    """A button above or below the screen: a light bar in its LED color."""
-    _round_rect(ctx, x + 6, y, COL - 12, 34, 4)
-    ctx.set_source_rgb(*CAP)
-    ctx.fill_preserve()
+def _split_square(ctx, rect, top=None, bottom=None) -> None:
+    """A square split corner to corner into four buttons. top and bottom are
+    (label, LED color) for the halves Pushtoo uses."""
+    x, y, w, h = rect
+    _plate(ctx, x, y, w, h)
+    ctx.move_to(x, y)
+    ctx.line_to(x + w, y + h)
+    ctx.move_to(x + w, y)
+    ctx.line_to(x, y + h)
     ctx.set_source_rgb(*EDGE)
-    ctx.set_line_width(1)
+    ctx.set_line_width(1.5)
     ctx.stroke()
-    lit = led_rgb(color)
-    if lit:
-        ctx.rectangle(x + 22, y + 15, COL - 44, 4)
-        ctx.set_source_rgb(*lit)
-        ctx.fill()
-
-
-def _encoder(ctx, cx: float, cy: float, label: str | None) -> None:
-    ctx.arc(cx, cy, 26, 0, 6.2832)
-    ctx.set_source_rgb(*CAP)
-    ctx.fill_preserve()
-    ctx.set_source_rgb(*EDGE)
-    ctx.set_line_width(2)
-    ctx.stroke()
-    if label:
-        _text(ctx, label, cx, cy + 44, 15, TEXT)
+    cx = x + w / 2
+    for part, sign in ((top, -1), (bottom, 1)):
+        if part is None:
+            continue
+        label, color = part
+        rgb = led_rgb(color) or OFF
+        baseline = y + h * (0.27 if sign < 0 else 0.84)
+        _text(ctx, label, cx, baseline, 19, rgb, bold=True, center=True)
+        tip = y + h / 2 + sign * h * 0.13  # a chevron pointing out of the square
+        ctx.move_to(cx - 10, tip - sign * 5)
+        ctx.line_to(cx, tip + sign * 5)
+        ctx.line_to(cx + 10, tip - sign * 5)
+        ctx.set_source_rgb(*rgb)
+        ctx.set_line_width(3)
+        ctx.stroke()
 
 
 def draw_push(ctx: cairo.Context, app) -> None:
     view, pads, colors = app.view(), app.pad_colors(), app.button_colors()
-    w, h = SIZE
-    _round_rect(ctx, 2, 2, w - 4, h - 4, 18)
+    ctx.translate(-ORIGIN[0], -ORIGIN[1])
+    x, y, w, h = BODY_RECT
+    _round_rect(ctx, x, y, w, h, 22)
     ctx.set_source_rgb(*BODY)
     ctx.fill_preserve()
     ctx.set_source_rgb(*EDGE)
     ctx.set_line_width(2)
     ctx.stroke()
 
-    _encoder(ctx, 82, ENC_Y, ENCODER_LABELS[c.ENCODER_TEMPO_ENCODER])
-    _encoder(ctx, 182, ENC_Y, ENCODER_LABELS[c.ENCODER_SWING_ENCODER])
-    for i in range(8):
-        _encoder(ctx, LEFT + i * COL + COL / 2, ENC_Y, None)
-    _encoder(ctx, RIGHT_X + 142, ENC_Y, ENCODER_LABELS[c.ENCODER_MASTER_ENCODER])
+    for name, cx in ENCODERS:
+        ctx.arc(cx, ENCODER_Y, ENCODER_R, 0, 6.2832)
+        ctx.set_source_rgb(*CAP)
+        ctx.fill_preserve()
+        ctx.set_source_rgb(*EDGE)
+        ctx.set_line_width(2)
+        ctx.stroke()
+        if name in ENCODER_LABELS:
+            _text(ctx, ENCODER_LABELS[name], cx, ENCODER_Y + 60, 19, TEXT, bold=True, center=True)
 
     for i in range(8):
-        _row_button(ctx, LEFT + i * COL, UPPER_Y, colors.get(f"Upper Row {i + 1}", "black"))
-        _row_button(ctx, LEFT + i * COL, LOWER_Y, colors.get(f"Lower Row {i + 1}", "black"))
+        x = PADS[0] + i * COL + 6
+        for y, row in ((UPPER_Y, "Upper"), (LOWER_Y, "Lower")):
+            _plate(ctx, x, y, PAD[0], ROW_H)
+            lit = led_rgb(colors.get(f"{row} Row {i + 1}", "black"))
+            if lit:  # the light strip along the button
+                ctx.rectangle(x + 20, y + ROW_H / 2 - 2.5, PAD[0] - 40, 5)
+                ctx.set_source_rgb(*lit)
+                ctx.fill()
 
-    screen = preview.render(view)
+    x, y, w, h = SCREEN
     ctx.save()
-    ctx.translate(LEFT, SCREEN_Y)
-    ctx.scale(8 * COL / WIDTH, 8 * COL / WIDTH)
-    ctx.set_source_surface(screen, 0, 0)
+    ctx.translate(x, y)
+    ctx.scale(w / WIDTH, w / WIDTH)
+    ctx.set_source_surface(preview.render(view), 0, 0)
     ctx.paint()
     ctx.restore()
-    ctx.rectangle(LEFT, SCREEN_Y, 8 * COL, SCREEN_H)
+    ctx.rectangle(x, y, w, h)
     ctx.set_source_rgb(*EDGE)
-    ctx.set_line_width(1)
+    ctx.set_line_width(1.5)
     ctx.stroke()
 
     for row in range(8):  # row 0 is the bottom row
         for col in range(8):
-            x, y = LEFT + col * COL + 6, PADS_Y + (7 - row) * COL
-            _round_rect(ctx, x, y, PAD, PAD, 8)
+            _round_rect(ctx, PADS[0] + col * COL + 6, PADS[1] + (7 - row) * ROW, *PAD, 8)
             ctx.set_source_rgb(*(led_rgb(pads[row][col]) or CAP))
             ctx.fill()
 
-    strip_x = 190
-    _round_rect(ctx, strip_x, PADS_Y, 60, 8 * COL - 12, 8)
-    ctx.set_source_rgb(*CAP)
-    ctx.fill_preserve()
-    ctx.set_source_rgb(*EDGE)
-    ctx.set_line_width(1)
-    ctx.stroke()
+    x, y, w, h = STRIP
+    _plate(ctx, x, y, w, h)
     ctx.save()
-    ctx.translate(strip_x + 30, PADS_Y + 4 * COL)
+    ctx.translate(x + w / 2 + 7, y + h / 2)
     ctx.rotate(-1.5708)
-    _text(ctx, "Touch strip", 0, 0, 15, DIM)
+    _text(ctx, "Touch strip", 0, 0, 19, OFF, bold=True, center=True)
     ctx.restore()
 
     for i, name in enumerate(SCENE_BUTTONS):
-        x, y = SIDE_X, PADS_Y + i * COL + (PAD - BTN[1]) / 2
+        y = PADS[1] + i * ROW + (PAD[1] - SIDE[1]) / 2
         lit = led_rgb(colors.get(name, "black"))
-        _round_rect(ctx, x, y, BTN[0], BTN[1], 5)
-        ctx.set_source_rgb(*CAP)
-        ctx.fill_preserve()
-        ctx.set_source_rgb(*(lit or EDGE))
-        ctx.set_line_width(2 if lit else 1)
+        _plate(ctx, SIDE_X, y, *SIDE, lit or EDGE, 3 if lit else 1.5)
+        _text(ctx, name, SIDE_X + 9, y + 24, NAME_SIZE, lit or UNUSED)
+        ctx.move_to(SIDE_X + SIDE[0] - 30, y + SIDE[1] - 40)  # the printed arrow
+        ctx.line_to(SIDE_X + SIDE[0] - 20, y + SIDE[1] - 28)
+        ctx.line_to(SIDE_X + SIDE[0] - 30, y + SIDE[1] - 16)
+        ctx.set_source_rgb(*(lit or UNUSED))
+        ctx.set_line_width(2)
         ctx.stroke()
-        if lit:
-            ctx.rectangle(x + 14, y + BTN[1] / 2 - 2, BTN[0] - 28, 4)
-            ctx.fill()
 
-    for name, x, y in LEFT_BUTTONS + RIGHT_BUTTONS:
-        _button(ctx, name, x, y, colors)
+    for name in BUTTONS:
+        _button(ctx, name, colors)
+    _split_square(ctx, ARROWS)
+    _split_square(
+        ctx,
+        OCTAVE,
+        top=("Octave", colors.get(c.BUTTON_OCTAVE_UP, "black")),
+        bottom=("Octave", colors.get(c.BUTTON_OCTAVE_DOWN, "black")),
+    )
 
 
 def draw_svg(app, path: Path) -> None:

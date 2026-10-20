@@ -14,7 +14,7 @@ description: "The Keyboard and Drums layouts: scales on the pads, four banks of 
 
 The Keyboard layout plays your scale on channel 1, with the key's roots in orange. Press **Scale** to [pick a key]({{ site.baseurl }}{% link getting-started.md %}#pick-a-key), or choose **Chromatic** in the scale menu to play every note. The **Octave** buttons shift an octave; each goes dark when it can't go further.
 
-![The Keyboard layout on a Push 2]({{ site.baseurl }}/images/push/keyboard.svg)
+[![The Keyboard layout on a Push 2]({{ site.baseurl }}/images/push/keyboard.svg)]({{ site.baseurl }}/images/push/keyboard.svg)
 *Keyboard: roots in orange, the rest of the scale in gray, held pads in white.*
 
 If a [chord is latched]({{ site.baseurl }}{% link chord-grid.md %}#melody-over-a-latched-chord) in the chord grid, its notes glow teal on the keyboard so you can play a melody over it.
@@ -23,7 +23,7 @@ If a [chord is latched]({{ site.baseurl }}{% link chord-grid.md %}#melody-over-a
 
 Drums play on channel 10 and use four banks of 16 pads, 4×4 each: bottom-left, bottom-right, top-left, top-right. The bottom-left bank is the General MIDI kit (notes 36–51).
 
-![The Drums layout on a Push 2]({{ site.baseurl }}/images/push/drums.svg)
+[![The Drums layout on a Push 2]({{ site.baseurl }}/images/push/drums.svg)]({{ site.baseurl }}/images/push/drums.svg)
 *Drums: the General MIDI kit in the bottom-left bank, the snare held.*
 
 - The **Octave** buttons move the pads 32 notes (two banks) at a time.

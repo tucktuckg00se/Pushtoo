@@ -9,7 +9,7 @@ description: "Tune the Push to your hands: pad sensitivity and dynamics, afterto
 
 Press **Setup** to tune the Push to your hands. Pads keep playing while you're there, so you can feel every change. Press Setup again, or `‹`, to go back.
 
-![Setup on a Push 2]({{ site.baseurl }}/images/push/setup.svg)
+[![Setup on a Push 2]({{ site.baseurl }}/images/push/setup.svg)]({{ site.baseurl }}/images/push/setup.svg)
 *Setup › Pads: the velocity curve, with a dot where your last hit landed.*
 
 1. TOC

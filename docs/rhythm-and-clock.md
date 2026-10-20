@@ -14,7 +14,7 @@ description: "Note repeat, the arpeggiator, rates, tempo, swing and MIDI clock i
 
 Tap **Repeat** and held pads repeat at the rate lit on the side buttons (1/32t to 1/4, as printed on them). Press harder on a pad and its repeats get louder. Hold Repeat instead of tapping it for rhythm only while held.
 
-![Repeat on a Push 2]({{ site.baseurl }}/images/push/rhythm.svg)
+[![Repeat on a Push 2]({{ site.baseurl }}/images/push/rhythm.svg)]({{ site.baseurl }}/images/push/rhythm.svg)
 *Repeat on: the rate lights on the side buttons (1/8t here) and the screen lists them beside it.*
 
 In the Chord layout the side buttons pick [voicings]({{ site.baseurl }}{% link chord-grid.md %}#voicings), so hold Repeat and press a side button to pick the rate. There, Repeat retriggers the chord with its bass.

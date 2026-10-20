@@ -14,7 +14,7 @@ description: "Life turns the pads into a Game of Life that plays in time, in any
 
 Tap **Session** and every pad you play also comes alive as a cell in a Game of Life, lit purple. Hold Session instead for Life only while held.
 
-![Life on a Push 2]({{ site.baseurl }}/images/push/life.svg)
+[![Life on a Push 2]({{ site.baseurl }}/images/push/life.svg)]({{ site.baseurl }}/images/push/life.svg)
 *Life on: a glider of purple cells over the Keyboard layout.*
 
 On each step (1/8 by default) the board moves on a generation, and the pads it lands on play, in whatever layout you're in: a melody in key on the Keyboard, a beat on Drums, changes on the chord grid. Switch layouts and the same board plays the new one.
