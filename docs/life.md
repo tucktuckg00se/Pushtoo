@@ -43,8 +43,14 @@ Turning Life off, Panic (Shift + Stop) and unplugging the Push all clear the boa
 
 After a while with nothing played, the pads and screen start to animate. Set how long it waits (10 minutes by default, or Off) and the scene in [Setup > Display]({{ site.baseurl }}{% link setup.md %}#display):
 
+- **Glow** (the default): the pads glow and fade on their own, slowly, and each column's light rises onto the screen above it.
 - **Life**: a silent Game of Life.
 - **Drift**: slow waves of color.
+
+Glow takes its colors from the UI, set with **Colors** in Setup › Display: **Play** (lime), **Knobs** (yellow) or **Mix** (orange), each rising from black to the mode's accent, or **Mono**, the screen's grays. They follow your [theme]({{ site.baseurl }}{% link themes.md %}). It's calm on purpose: dim and slow, and each pad glides from one color to the next with the Push's own one-second fades instead of stepping. The glow on the screen keeps changing with the pads and stays dim, so nothing burns in.
+
+[![Standby: Glow on a Push 2]({{ site.baseurl }}/images/push/standby_glow.svg)]({{ site.baseurl }}/images/push/standby_glow.svg)
+*Standby, Glow in Play: each column's pads cast their light up onto the screen. Every button goes dark but Session; any pad wakes it.*
 
 ![Standby: Life]({{ site.baseurl }}/images/screens/standby_life.png)
 *Standby, Life scene.*

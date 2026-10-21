@@ -11,11 +11,15 @@ from typing import Protocol
 
 import mido
 import push2_python
-from push2_python.constants import PUSH2_SYSEX_END_BYTES, PUSH2_SYSEX_PREFACE_BYTES
+from push2_python.constants import (
+    ANIMATION_ONESHOT_HALF,
+    PUSH2_SYSEX_END_BYTES,
+    PUSH2_SYSEX_PREFACE_BYTES,
+)
 from push2_python.exceptions import Push2MIDIeviceNotFound
 
 from pushtoo.setup import RESPONSES
-from pushtoo.theme import DEFAULT_THEME, Theme, led_palette
+from pushtoo.theme import DEFAULT_STANDBY, DEFAULT_THEME, Theme, led_palette
 
 RECONNECT_INTERVAL = 1.0  # seconds between attempts to reopen Push's MIDI ports
 
@@ -53,6 +57,9 @@ class PushController:
         self.connected = False
         self._button_colors: dict[str, str] = {}  # push2-python resends unchanged buttons
         self.theme: Theme = DEFAULT_THEME
+        self.standby_colors = DEFAULT_STANDBY
+        self._programmed_standby: str | None = None  # the standby palette on the Push
+        self._pad_colors: dict[tuple[int, int], str] = {}  # what each pad last showed
         self._settings: dict = {}
         self._applied: dict = {}
         self._stop = threading.Event()
@@ -158,20 +165,23 @@ class PushController:
     def setup_hardware(self) -> None:
         """Program palette, pad mode and settings; runs on every (re)connect because a
         replugged Push forgets everything."""
+        self.standby_colors = self._settings.get("standby_colors", self.standby_colors)
         self._program_palette()
         self.push.pads.set_polyphonic_aftertouch()
         self.push.pads.reset_current_pads_state()
+        self._pad_colors.clear()
         self.push.buttons.set_all_buttons_color("black")
         self._button_colors.clear()
         self._applied = {}
         self.apply_settings(self._settings)
 
     def _program_palette(self) -> None:
-        for name, (index, rgb) in led_palette(self.theme).items():
+        for name, (index, rgb) in led_palette(self.theme, self.standby_colors).items():
             self.push.set_color_palette_entry(
                 index, name, rgb=list(rgb), bw=max(rgb), allow_overwrite=True
             )
         self.push.reapply_color_palette()
+        self._programmed_standby = self.standby_colors
 
     def set_theme(self, theme: Theme) -> None:
         """New LED colors; the caller's next refresh re-sends every pad and button."""
@@ -179,6 +189,7 @@ class PushController:
         if self.connected:
             self._program_palette()
             self.push.pads.reset_current_pads_state()
+            self._pad_colors.clear()
             self._button_colors.clear()
 
     def apply_settings(self, settings: dict) -> None:
@@ -227,6 +238,12 @@ class PushController:
         else:
             self.push.touchstrip.set_pitch_bend_mode()
 
+    def _send_standby_colors(self, palette: str) -> None:
+        """Standby's ramp in the new colors; pads showing it change with it."""
+        self.standby_colors = palette
+        if palette != self._programmed_standby:
+            self._program_palette()
+
     _SENDERS = {
         "velocity_table": _send_velocity_table,
         "response": _send_response,
@@ -235,12 +252,28 @@ class PushController:
         "led_brightness": _send_led_brightness,
         "display_brightness": _send_display_brightness,
         "strip_mode": _send_strip_mode,
+        "standby_colors": _send_standby_colors,
     }
 
-    def set_pad_colors(self, colors: list[list[str]]) -> None:
-        """colors[row][col] with row 0 at the bottom; only changed pads are sent."""
-        if self.connected:
+    def set_pad_colors(self, colors: list[list[str]], fade: bool = False) -> None:
+        """colors[row][col] with row 0 at the bottom; only changed pads are sent. With
+        `fade`, each changed pad glides to its new color over a second, by the Push's
+        own one-shot transition (a half note at the 120 BPM it runs without clock)."""
+        if not self.connected:
+            return
+        if not fade:
             self.push.pads.set_pads_color(list(reversed(colors)))
+        for row, line in enumerate(colors):
+            for col, color in enumerate(line):
+                before = self._pad_colors.get((row, col), "black")
+                if fade and color != before:
+                    self.push.pads.set_pad_color(
+                        row_col_to_pad_ij(row, col),
+                        color,
+                        animation=ANIMATION_ONESHOT_HALF,
+                        animation_end_color=before,
+                    )
+                self._pad_colors[(row, col)] = color
 
     def set_button_colors(self, colors: dict[str, str]) -> None:
         if not self.connected:

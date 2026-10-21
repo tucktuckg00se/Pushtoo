@@ -39,7 +39,7 @@ Two more controls set where pressure starts and where it reaches full.
 ## Display
 
 - **Pad brightness**, **button brightness** and **screen brightness**. On USB power alone, Push dims itself whatever these say.
-- **Standby**: how long the Push waits with nothing played before the pads and screen start to animate (10 minutes by default, or Off). The buttons above pick the scene, **Life** or **Drift**. See [Standby]({{ site.baseurl }}{% link life.md %}#standby).
+- **Standby**: how long the Push waits with nothing played before the pads and screen start to animate (10 minutes by default, or Off). The buttons above pick the scene: **Glow** (the default), **Life** or **Drift**. **Colors** picks Glow's color from the UI's own: **Play**, **Knobs**, **Mix** or **Mono**. See [Standby]({{ site.baseurl }}{% link life.md %}#standby).
 
 ![The Display page]({{ site.baseurl }}/images/screens/setup_display.png)
 *The Display page.*

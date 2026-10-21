@@ -15,9 +15,10 @@ import math
 import time
 
 import cairo
+import numpy as np
 
 from pushtoo.fonts import FAMILY
-from pushtoo.standby import DRIFT_TOKENS, drift_phase
+from pushtoo.standby import DRIFT_TOKENS, column_glow, drift_phase
 from pushtoo.theme import (
     BODY,
     DEFAULT_THEME,
@@ -29,6 +30,7 @@ from pushtoo.theme import (
     VALUE,
     Theme,
     accent_name,
+    standby_stops,
 )
 from pushtoo.ui.controls import COLUMNS, middle_ellipsis
 
@@ -614,7 +616,9 @@ def _toast(ctx: cairo.Context, text: str) -> None:
 
 def _standby(ctx: cairo.Context, standby: dict, now: float) -> None:
     """The standby scene across the whole screen, in eight columns over the pads'."""
-    if standby["scene"] == "Life":
+    if standby["scene"] == "Glow":
+        _standby_glow(ctx, standby, now)
+    elif standby["scene"] == "Life":
         _standby_life(ctx, standby, now)
     else:
         _standby_drift(ctx, standby, now)
@@ -658,6 +662,42 @@ def _standby_drift(ctx: cairo.Context, standby: dict, now: float) -> None:
             ctx.set_source_rgb(*((x + (y - x) * mix) * 0.5 for x, y in zip(a, b, strict=True)))
             ctx.rectangle(strip * width, HEIGHT - (row + 1) * rows, width + 0.5, rows + 0.5)
             ctx.fill()
+
+
+GLOW_SCREEN = 0.7  # the brightest the pads' light gets on the screen: a soft glow
+
+
+def glow_levels(glow, t: float) -> np.ndarray:
+    """The pads' light on the screen, [y][x] from 0 to GLOW_SCREEN: above each column,
+    brightest at the bottom edge and reaching higher the brighter its pads are, with
+    the columns blended smoothly into each other."""
+    columns = column_glow(glow, t)
+    x = (np.arange(WIDTH) + 0.5) / COLUMN - 0.5  # in columns, from the first's centre
+    left = np.clip(np.floor(x), 0, COLUMNS - 1).astype(int)
+    right = np.minimum(left + 1, COLUMNS - 1)
+    blend = (1 - np.cos(np.pi * np.clip(x - left, 0, 1))) / 2
+    bright = columns[left] * (1 - blend) + columns[right] * blend
+    f = (np.arange(HEIGHT) + 0.5) / HEIGHT
+    reach = 0.2 + 0.6 * bright
+    return bright * np.exp(-(((1 - f[:, None]) / reach) ** 2)) * GLOW_SCREEN
+
+
+def _standby_glow(ctx: cairo.Context, standby: dict, now: float) -> None:
+    """The pads' light rising onto the screen above them, in one of the UI's colors.
+    A faint moving grain dithers the glow, which the screen's 16-bit color would band."""
+    t = now - standby["started"]
+    level = glow_levels(standby["glow"], t)
+    stops = np.asarray(standby_stops(_c, standby["palette"]), float)  # _c is 0 to 1
+    at = level * (len(stops) - 1)
+    rgb = np.stack([np.interp(at, np.arange(len(stops)), stops[:, k]) for k in range(3)], -1)
+    grain = np.random.default_rng(int(now * 60) & 0xFFFFFFFF)  # the same at the same time
+    lit = np.minimum(1.0, level * 20)[..., None]  # no grain on black
+    rgb += (grain.random(rgb.shape) - 0.5) * (8 / 255) * lit  # one step of 5-bit color
+    data = np.zeros((HEIGHT, WIDTH, 4), np.uint8)
+    data[..., 2::-1] = (np.clip(rgb, 0, 1) * 255).astype(np.uint8)  # cairo stores BGRx
+    image = cairo.ImageSurface.create_for_data(data, cairo.FORMAT_RGB24, WIDTH, HEIGHT)
+    ctx.set_source_surface(image, 0, 0)
+    ctx.paint()
 
 
 def _use_theme(theme: Theme) -> None:

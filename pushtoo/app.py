@@ -487,7 +487,9 @@ class App:
         return False
 
     def start_standby(self) -> None:
-        self.standby = Standby(self.device.standby_scene, self.play.time())
+        self.standby = Standby(
+            self.device.standby_scene, self.play.time(), palette=self.device.standby_colors
+        )
         self.peek = None
 
     def _quiet(self) -> bool:
@@ -685,6 +687,14 @@ class App:
                 colors[f"Upper Row {i + 1}"] = Mode.row_color(item)
         return colors
 
+    def lit_buttons(self) -> dict[str, str]:
+        """The button lights as shown: in standby they go dark, all but Session, which
+        wakes like any other."""
+        colors = self.button_colors()
+        if self.standby is None:
+            return colors
+        return dict.fromkeys(colors, "black") | {c.BUTTON_SESSION: "white"}
+
     def panic(self) -> None:
         self.play.stop_generators()
         self.router.panic()
@@ -694,10 +704,14 @@ class App:
             return self.standby.pad_colors(self.play.time())
         return self.mode.pad_colors()
 
+    def _pads_fade(self) -> bool:
+        """Calm standby scenes glide their pads from one step to the next."""
+        return self.standby is not None and self.standby.fades
+
     def refresh_pads(self) -> None:
         """Only the pads, for changes that come with time (Life's generations)."""
         if self.push is not None:
-            self.push.set_pad_colors(self.pad_colors())
+            self.push.set_pad_colors(self.pad_colors(), fade=self._pads_fade())
 
     def refresh(self) -> None:
         self._rhythm_wake.set()  # something changed: the scheduler looks again at once
@@ -705,13 +719,8 @@ class App:
         if self.standby is None:  # a standby step changes nothing worth saving
             self.saver.mark_dirty()
         if self.push is not None:
-            self.push.set_pad_colors(self.pad_colors())
-            if self.standby is None:
-                self.push.set_button_colors(self.button_colors())
-            else:  # buttons go dark, all but Session, which wakes like any other
-                self.push.set_button_colors(
-                    dict.fromkeys(self.button_colors(), "black") | {c.BUTTON_SESSION: "white"}
-                )
+            self.push.set_pad_colors(self.pad_colors(), fade=self._pads_fade())
+            self.push.set_button_colors(self.lit_buttons())
             self.push.apply_settings(self.play.hardware_settings() | hardware(self.device))
 
     def close(self) -> None:

@@ -56,6 +56,7 @@ class SetupMode(Mode):
                     self._number("Pads", "pad_brightness", percent=True),
                     self._number("Screen", "screen_brightness", percent=True),
                     self._number("Standby", "standby_minutes", minutes=True),
+                    self._pick("Colors", "standby_colors"),
                 ],
                 # The standby scene; Shift+Session starts it at once.
                 options=[self._choice("standby_scene", scene) for scene in SCENES],
@@ -107,6 +108,16 @@ class SetupMode(Mode):
             maximum=high,
             format=fmt,
             bipolar=bipolar,
+        )
+
+    def _pick(self, name: str, field: str) -> Control:
+        """An encoder that steps through a field's named choices."""
+        choices = LIMITS[field]
+        return Control(
+            name,
+            lambda: choices.index(getattr(self.settings, field)),
+            lambda i: self._set(field, choices[i]),
+            choices=choices,
         )
 
     def _choice(self, field: str, value: str) -> Option:

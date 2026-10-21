@@ -201,6 +201,7 @@ def _life_views(views: dict[str, dict]) -> None:
         views["keyboard_life"] = app.view()
         _page(app, "Life")
         views["keyboard_life_page"] = app.view()
+        app.device.standby_scene = "Life"
         app.button_pressed(c.BUTTON_SHIFT)
         views["shift_overlay_standby"] = app.view()
         app.button_pressed(c.BUTTON_SESSION)
@@ -215,8 +216,17 @@ def _life_views(views: dict[str, dict]) -> None:
         app.device.standby_scene = "Drift"
         app.start_standby()
         drift = app.view()
-        drift["standby"]["started"] -= 20
+        drift["now"] = drift["standby"]["started"] + 20  # 20 seconds in
         views["standby_drift"] = drift
+        now = start_calm(app, "Glow")
+        views["standby_glow"] = app.view() | {"now": now}
+
+
+def start_calm(app, scene: str) -> float:
+    """A calm standby scene a minute in. Returns the moment to draw it at."""
+    app.device.standby_scene = scene
+    app.start_standby()
+    return app.standby.started + 60
 
 
 def sample_views() -> dict[str, dict]:
@@ -348,7 +358,7 @@ def _chord_views(views: dict[str, dict]) -> None:
 
 def render(view: dict) -> cairo.ImageSurface:
     surface = cairo.ImageSurface(cairo.FORMAT_RGB24, WIDTH, HEIGHT)
-    draw_view(cairo.Context(surface), view)
+    draw_view(cairo.Context(surface), view, view.get("now"))  # a time it's drawn at
     return surface
 
 

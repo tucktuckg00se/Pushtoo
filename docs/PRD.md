@@ -350,7 +350,7 @@ P0 items ship in v1; P1 items ship in v1 if time allows; P2 items wait.
 | F26  | Drum step sequencer                                          | P1 | Loops |
 | F27  | MIDI looper for standalone jams (Record, Play)               | P1 | Loops |
 | F9   | Life on the Session button: a Game of Life seeded from the pads, stepping on the clock and playing in every layout | P1 | Built |
-| F37  | Standby: after a set time with nothing played (or Shift + Session), the pads and screen animate (Life or Drift); any pad wakes it and plays | P1 | Built |
+| F37  | Standby: after a set time with nothing played (or Shift + Session), the pads and screen animate (Glow, the default: pads glowing on their own, fading on the Push, their light rising onto the screen, in the Play, Knobs or Mix accent or Mono; or Life or Drift); any pad wakes it and plays | P1 | Built |
 | F8   | Dice and snapshot morph for Knobs                            | P1 | Delight |
 | F21  | Rename controls from the hardware; high-contrast and large-text settings | P2 | |
 | F4   | Mix mode (extra): fader CCs, mute and solo pads              | P2 | Built, frozen |

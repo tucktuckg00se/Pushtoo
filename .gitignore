@@ -137,3 +137,6 @@ dmypy.json
 # Ruff
 .ruff_cache/
 render_preview/
+
+# tools/standby_clips.py output
+standby_clips/

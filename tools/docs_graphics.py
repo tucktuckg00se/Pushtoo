@@ -22,7 +22,7 @@ from push2_python import constants as c
 from pushtoo.fonts import FAMILY, use_bundled_fonts
 from pushtoo.modes.chord import SCENE_BUTTONS
 from pushtoo.render.screens import HEIGHT, WIDTH
-from pushtoo.theme import DEFAULT_THEME, LED_COLORS, OPEN_COLOR
+from pushtoo.theme import LED_COLORS, OPEN_COLOR
 
 _spec = importlib.util.spec_from_file_location(
     "render_preview", Path(__file__).with_name("render_preview.py")
@@ -85,7 +85,7 @@ def led_rgb(name: str) -> tuple[float, float, float] | None:
     if name == "dark_gray":
         return DARK_GRAY
     if name in LED_COLORS:
-        return tuple(v / 255 for v in DEFAULT_THEME[name.removeprefix("pt_")])
+        return tuple(v / 255 for v in LED_COLORS[name][1])
     raise ValueError(f"unknown LED color {name!r}")
 
 
@@ -284,8 +284,11 @@ def _split_square(ctx, rect, top=None, bottom=None) -> None:
         ctx.stroke()
 
 
-def draw_push(ctx: cairo.Context, app) -> None:
-    view, pads, colors = app.view(), app.pad_colors(), app.button_colors()
+def draw_push(ctx: cairo.Context, app, now: float | None = None) -> None:
+    """The Push as the app lights it, or as standby shows it at `now`."""
+    view, colors = app.view(), app.lit_buttons()
+    pads = app.pad_colors() if now is None else app.standby.pad_colors(now)
+    view["now"] = now
     ctx.translate(-ORIGIN[0], -ORIGIN[1])
     x, y, w, h = BODY_RECT
     _round_rect(ctx, x, y, w, h, 22)
@@ -364,10 +367,10 @@ def draw_push(ctx: cairo.Context, app) -> None:
     )
 
 
-def draw_svg(app, path: Path) -> None:
+def draw_svg(app, path: Path, now: float | None = None) -> None:
     surface = cairo.SVGSurface(str(path), *SIZE)
     surface.set_document_unit(cairo.SVGUnit.PX)
-    draw_push(cairo.Context(surface), app)
+    draw_push(cairo.Context(surface), app, now)
     surface.finish()
 
 
@@ -436,13 +439,18 @@ def _mix(app) -> None:
     app.pad_pressed(6, 3, 100)
 
 
+def _glow(app) -> float:
+    return preview.start_calm(app, "Glow")
+
+
 def _setup(app) -> None:
     app.button_pressed(c.BUTTON_SETUP)
     app.encoder_rotated("Track2 Encoder", -6 * 4)  # softer Dynamics
     app.pad_pressed(0, 0, 87)
 
 
-# scene -> (what to do on a fresh app, the profile it loads)
+# scene -> (what to do on a fresh app, the profile it loads). A scene that animates
+# returns the moment to draw it at.
 SCENES: dict[str, tuple[Callable, str | None]] = {
     "overview": (_overview, None),
     "keyboard": (_keyboard, None),
@@ -454,6 +462,7 @@ SCENES: dict[str, tuple[Callable, str | None]] = {
     "knobs": (_knobs, preview.SYNTH_PROFILE),
     "mix": (_mix, None),
     "setup": (_setup, None),
+    "standby_glow": (_glow, None),
 }
 
 
@@ -463,20 +472,25 @@ def main() -> None:
     push_dir, screen_dir = docs / "images" / "push", docs / "images" / "screens"
     push_dir.mkdir(parents=True, exist_ok=True)
     screen_dir.mkdir(parents=True, exist_ok=True)
-    for name, (scene, profile) in SCENES.items():
-        with tempfile.TemporaryDirectory() as tmp:
-            app = preview._app(Path(tmp), profile)
-            scene(app)
-            draw_svg(app, push_dir / f"{name}.svg")
-            app.close()  # joins the state saver before the temp folder is removed
     # Random velocity and standby draw from unseeded generators: seed them all the same,
-    # so re-running this only changes the images when the app does.
+    # so re-running this only changes the images when the app does. That seeds the temp
+    # folders' names too, so they go in a fresh folder of their own, where the same
+    # names can't run into leftovers.
+    private = tempfile.TemporaryDirectory()
+    tempfile.tempdir = private.name
     unseeded = random.Random.seed
     random.Random.seed = lambda rng, a=None, version=2: unseeded(rng, a or 0, version)
     try:
+        for name, (scene, profile) in SCENES.items():
+            with tempfile.TemporaryDirectory() as tmp:
+                app = preview._app(Path(tmp), profile)
+                draw_svg(app, push_dir / f"{name}.svg", scene(app))
+                app.close()  # joins the state saver before the temp folder is removed
         views = preview.sample_views()
     finally:
         random.Random.seed = unseeded
+        tempfile.tempdir = None
+        private.cleanup()
     for name in SCREENS:
         preview.render(views[name]).write_to_png(str(screen_dir / f"{name}.png"))
     print(f"wrote {len(SCENES)} drawings to {push_dir}/")

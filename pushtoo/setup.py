@@ -8,6 +8,7 @@ the hardware parts and the App applies the rest.
 from dataclasses import asdict, dataclass, fields
 
 from pushtoo.standby import SCENES
+from pushtoo.theme import DEFAULT_STANDBY, STANDBY_PALETTES
 
 RESPONSES = ("Regular", "Reduced", "Low")  # Push's own pad sensitivity (sysex 0x28)
 AFTERTOUCH_MODES = ("Poly", "Channel", "Off")
@@ -29,6 +30,7 @@ LIMITS: dict[str, tuple[int, int] | tuple[str, ...]] = {
     "screen_brightness": (0, 100),
     "standby_minutes": (0, 60),
     "standby_scene": SCENES,
+    "standby_colors": tuple(STANDBY_PALETTES),
 }
 
 
@@ -46,6 +48,7 @@ class DeviceSettings:
     screen_brightness: int = 100  # percent
     standby_minutes: int = 10  # minutes without input before standby; 0 is never
     standby_scene: str = SCENES[0]
+    standby_colors: str = DEFAULT_STANDBY  # a STANDBY_PALETTES name
     send_clock: bool = True  # MIDI clock on Pushtoo Out while leading
     follow_clock: bool = True  # follow clock arriving on Pushtoo In
 
@@ -102,6 +105,7 @@ def hardware(settings: DeviceSettings) -> dict:
         "aftertouch_range": aftertouch_range(settings),
         "led_brightness": round(127 * settings.pad_brightness / 100),
         "display_brightness": round(255 * settings.screen_brightness / 100),
+        "standby_colors": settings.standby_colors,
     }
 
 

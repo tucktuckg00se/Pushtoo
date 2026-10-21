@@ -121,8 +121,56 @@ def led(token: str) -> str:
     return f"pt_{token}"
 
 
-def led_palette(theme: Theme) -> dict[str, tuple[int, RGB]]:
-    return {led(t): (FIRST_SLOT + i, theme[t]) for i, t in enumerate(LED_TOKENS)}
+# Standby's colors: one of the UI's own, dark to bright, chosen in Setup. The mode
+# accents rise from black to the accent; Mono climbs the screen's grays. They follow
+# the theme. The pads get the chosen one as a fine ramp of dim steps in the slots after
+# the tokens' (and below the named defaults from 122 up), and fade between
+# neighbouring steps with the Push's own transitions.
+STANDBY_PALETTES: dict[str, str | None] = {
+    "Play": "play",
+    "Knobs": "knobs",
+    "Mix": "mix",
+    "Mono": None,
+}
+DEFAULT_STANDBY = "Play"
+ACCENT_STOPS = (0.0, 0.18, 0.45, 0.75, 1.0)  # an accent, from black up to itself
+MONO_STOPS = ("background", "line", "track", "text_dim", "text")
+STANDBY_STEPS = 26
+STANDBY_LEVEL = 0.55  # the pads' brightest step: they glow, they don't shine
+
+
+def standby_stops(theme: Mapping[str, tuple], palette: str) -> list[tuple]:
+    """A standby palette's colors, dark to bright, in whatever units the theme's are."""
+    accent = STANDBY_PALETTES.get(palette, STANDBY_PALETTES[DEFAULT_STANDBY])
+    if accent is None:
+        return [tuple(theme[token]) for token in MONO_STOPS]
+    return [tuple(v * k for v in theme[accent]) for k in ACCENT_STOPS]
+
+
+def standby_color(theme: Theme, palette: str, level: float) -> RGB:
+    """The palette's color at a level from 0 (its dark end) to 1 (its bright end)."""
+    stops = standby_stops(theme, palette)
+    level = min(1.0, max(0.0, level)) * (len(stops) - 1)
+    low = min(int(level), len(stops) - 2)
+    mix = level - low
+    a, b = stops[low], stops[low + 1]
+    return tuple(round(x + (y - x) * mix) for x, y in zip(a, b, strict=True))
+
+
+def standby_led(step: int) -> str:
+    """LED palette name for a step of the standby ramp, 0 (off) to STANDBY_STEPS - 1."""
+    step = min(STANDBY_STEPS - 1, max(0, step))
+    return OFF if step == 0 else f"pt_standby_{step}"
+
+
+def led_palette(theme: Theme, standby: str = DEFAULT_STANDBY) -> dict[str, tuple[int, RGB]]:
+    palette = {led(t): (FIRST_SLOT + i, theme[t]) for i, t in enumerate(LED_TOKENS)}
+    first = FIRST_SLOT + len(LED_TOKENS)
+    for step in range(1, STANDBY_STEPS):
+        level = step / (STANDBY_STEPS - 1)
+        rgb = tuple(round(v * STANDBY_LEVEL) for v in standby_color(theme, standby, level))
+        palette[standby_led(step)] = (first + step - 1, rgb)
+    return palette
 
 
 LED_COLORS = led_palette(DEFAULT_THEME)  # the names and slots; any theme's are the same

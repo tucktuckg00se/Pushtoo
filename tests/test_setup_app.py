@@ -10,6 +10,7 @@ from pushtoo.hw.push import PushController
 from pushtoo.midi.router import OUT_PORT
 from pushtoo.render.screens import status_parts
 from pushtoo.setup import DeviceSettings, hardware
+from pushtoo.theme import DEFAULT_THEME, LED_COLORS, led_palette, standby_led
 from pushtoo.ui.controls import INCREMENTS_PER_STEP
 from tests.pages import open_page
 
@@ -103,6 +104,12 @@ class _FakePads:
     def set_channel_aftertouch_range(self, low, high):
         self.log.append(("range", low, high))
 
+    def set_pads_color(self, matrix):
+        self.log.append(("pads", matrix))
+
+    def set_pad_color(self, pad_ij, color, animation=0, animation_end_color="black"):
+        self.log.append(("pad", pad_ij, color, animation, animation_end_color))
+
 
 class _FakePush:
     def __init__(self):
@@ -112,12 +119,27 @@ class _FakePush:
     def send_midi_to_push(self, message: mido.Message):
         self.log.append(("sysex", list(message.bytes())[len(PUSH2_SYSEX_PREFACE_BYTES) : -1]))
 
+    def set_color_palette_entry(self, index, name, rgb, bw, allow_overwrite):
+        self.log.append(("palette", index, name, tuple(rgb)))
 
-def test_push_controller_sends_only_what_changed():
+    def reapply_color_palette(self):
+        self.log.append(("reapply",))
+
+
+def _controller() -> PushController:
     controller = object.__new__(PushController)
     controller.push = _FakePush()
     controller._applied = {}
     controller.connected = True
+    controller.theme = DEFAULT_THEME
+    controller.standby_colors = "Play"
+    controller._programmed_standby = "Play"
+    controller._pad_colors = {}
+    return controller
+
+
+def test_push_controller_sends_only_what_changed():
+    controller = _controller()
     settings = DeviceSettings(response="Low", pad_brightness=50, screen_brightness=100)
     controller.apply_settings(hardware(settings))
     log = controller.push.log
@@ -129,6 +151,45 @@ def test_push_controller_sends_only_what_changed():
     log.clear()
     controller.apply_settings(hardware(settings))
     assert log == []
+
+
+def test_standby_colors_reprogram_the_ramp_only_when_they_change():
+    controller = _controller()
+    controller.apply_settings(hardware(DeviceSettings(standby_colors="Play")))
+    assert not [e for e in controller.push.log if e[0] == "palette"]  # already Play
+    controller.apply_settings(hardware(DeviceSettings(standby_colors="Knobs")))
+    ramp = {e[2]: e[3] for e in controller.push.log if e[0] == "palette"}
+    assert ramp[standby_led(25)] == led_palette(DEFAULT_THEME, "Knobs")[standby_led(25)][1]
+    assert controller.push.log[-1] == ("reapply",)
+
+
+def test_the_standby_ramp_sits_between_the_tokens_and_the_named_defaults():
+    slots = {name: slot for name, (slot, _) in LED_COLORS.items()}
+    ramp = [slots[standby_led(step)] for step in range(1, 26)]
+    assert ramp == list(range(96, 121))  # 122 up are push2-python's white and grays
+    assert standby_led(0) == "black"
+    play, mono = led_palette(DEFAULT_THEME, "Play"), led_palette(DEFAULT_THEME, "Mono")
+    assert play[standby_led(20)][1] != mono[standby_led(20)][1]
+    assert all(max(rgb) <= 255 * 0.56 for name, (_, rgb) in play.items() if "standby" in name)
+
+
+def test_fading_pads_glide_from_their_last_color_and_only_when_changed():
+    controller = _controller()
+    dark = [["black"] * 8 for _ in range(8)]
+    controller.set_pad_colors(dark)  # static, as when awake
+    lit = [row[:] for row in dark]
+    lit[0][0] = standby_led(10)
+    log = controller.push.log
+    log.clear()
+    controller.set_pad_colors(lit, fade=True)
+    assert log == [("pad", (7, 0), standby_led(10), c.ANIMATION_ONESHOT_HALF, "black")]
+    log.clear()
+    controller.set_pad_colors(lit, fade=True)  # nothing changed: nothing sent
+    assert log == []
+    brighter = [row[:] for row in lit]
+    brighter[0][0] = standby_led(12)
+    controller.set_pad_colors(brighter, fade=True)
+    assert log == [("pad", (7, 0), standby_led(12), c.ANIMATION_ONESHOT_HALF, standby_led(10))]
 
 
 # Random velocities in the chord grid
