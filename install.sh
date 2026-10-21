@@ -131,6 +131,30 @@ repo_file() {
 	fi
 }
 
+# The installed Pushtoo's version, or nothing if there isn't one.
+installed_version() {
+	for bin in pushtoo "$HOME/.local/bin/pushtoo"; do
+		if have "$bin"; then
+			"$bin" --version 2>/dev/null | sed -n 's/^pushtoo //p'
+			return
+		fi
+	done
+}
+
+# The version about to be installed: from the checkout given with --from, else from
+# the chosen ref on GitHub; the ref's own name if that can't be read.
+new_version() {
+	if [ -n "$source_dir" ]; then
+		version="$(sed -n 's/^version = "\(.*\)"/\1/p' "$source_dir/pyproject.toml" 2>/dev/null)"
+	else
+		version="$(curl -fsSL "https://raw.githubusercontent.com/$REPO/$ref/pyproject.toml" 2>/dev/null \
+			| sed -n 's/^version = "\(.*\)"/\1/p')"
+	fi
+	if [ -z "$version" ]; then version="$ref"; fi
+	if [ "$ref" = "main" ] && [ -z "$source_dir" ]; then version="$version (latest code)"; fi
+	printf '%s' "$version"
+}
+
 # --- uninstalling ----------------------------------------------------------------
 
 if [ "$uninstall" -eq 1 ]; then
@@ -230,9 +254,24 @@ else
 fi
 
 step "3. Pushtoo"
-if [ -n "$source_dir" ]; then what="from $source_dir"; else what="version $ref from GitHub"; fi
-if have pushtoo; then say "Pushtoo is installed; this will upgrade it ($what)."; fi
-if ask "Install Pushtoo ($what) as the pushtoo command?" y; then do_pushtoo=1; fi
+if [ -n "$source_dir" ]; then what="from $source_dir"; else what="$ref from GitHub"; fi
+installed="$(installed_version)"
+new="$(new_version)"
+if [ -z "$installed" ]; then
+	change="$new"
+	say "This installs Pushtoo $new ($what)."
+elif [ "$installed" = "$new" ]; then
+	change="$new, reinstalled"
+	say "Pushtoo $installed is installed; this reinstalls it ($what)."
+else
+	change="$installed -> $new"
+	if [ "$(printf '%s\n%s\n' "$installed" "$new" | sort -V | tail -n 1)" = "$new" ]; then
+		say "Pushtoo $installed is installed; this upgrades it to $new ($what)."
+	else
+		say "Pushtoo $installed is installed; this replaces it with $new ($what)."
+	fi
+fi
+if ask "Install Pushtoo $new as the pushtoo command?" y; then do_pushtoo=1; fi
 
 step "4. Using the Push display and Undo keys without root"
 if [ "$skip_udev" -eq 1 ]; then
@@ -278,7 +317,11 @@ step "Your choices"
 yesno() { if [ "$1" -eq 1 ]; then printf 'yes'; else printf 'no'; fi; }
 say "  System packages:          $(yesno "$do_packages")"
 say "  Install uv:               $(yesno "$do_uv")"
-say "  Install Pushtoo:          $(yesno "$do_pushtoo")"
+if [ "$do_pushtoo" -eq 1 ]; then
+	say "  Install Pushtoo:          yes ($change)"
+else
+	say "  Install Pushtoo:          no"
+fi
 say "  udev rule:                $(yesno "$do_udev")"
 say "  Join the audio group:     $(yesno "$do_group")"
 say "  Start at login:           $(yesno "$do_service")"
@@ -320,6 +363,10 @@ fi
 
 bin_dir="$(uv tool dir --bin --color never 2>/dev/null || printf '%s' "$HOME/.local/bin")"
 pushtoo_bin="$bin_dir/pushtoo"
+
+if [ "$do_pushtoo" -eq 1 ] && [ -x "$pushtoo_bin" ]; then
+	say "Installed $("$pushtoo_bin" --version)."
+fi
 
 if [ "$do_udev" -eq 1 ]; then
 	step "Installing the udev rule"

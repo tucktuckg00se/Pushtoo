@@ -34,7 +34,7 @@ The installer **asks before every step**, recaps your answers, and changes nothi
 | --- | --- | --- |
 | 1. Install system packages? | Installs, with your package manager, cairo and its headers, pkg-config, a C compiler, the ALSA library and libusb. It shows the exact command first. | Two of Pushtoo's parts (pycairo, evdev) are built from source. |
 | 2. Install uv? | Only asked if `uv` is missing: Astral's official installer puts it in `~/.local/bin`. | uv installs Pushtoo in its own environment, with its own Python, so nothing else on your system is affected. |
-| 3. Install Pushtoo? | `uv tool install` gives you a `pushtoo` command in `~/.local/bin`. Re-running the installer upgrades it. | |
+| 3. Install Pushtoo? | `uv tool install` gives you a `pushtoo` command in `~/.local/bin`. It shows the version you have, if any, and the one it installs. Re-running the installer upgrades it. | |
 | 4. Install the udev rule? | Copies [packaging/udev/50-pushtoo.rules](https://github.com/tucktuckg00se/Pushtoo/blob/main/packaging/udev/50-pushtoo.rules) to `/etc/udev/rules.d/`. | Lets your user open the Push's display and type Undo shortcuts without root, also headless (SSH, a Raspberry Pi, the background service). |
 | 5. Join the audio group? | Only asked if you're not in it: adds you with `usermod -aG audio`. Takes effect at your next login. | The udev rule grants access to that group. |
 | 6. Start Pushtoo automatically when you log in? | Installs a systemd user service ([packaging/systemd/pushtoo.service](https://github.com/tucktuckg00se/Pushtoo/blob/main/packaging/systemd/pushtoo.service)). | Pushtoo waits in the background for the Push, so plugging it in is all it takes. |
