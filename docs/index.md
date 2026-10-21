@@ -20,7 +20,7 @@ Pushtoo turns an Ableton Push 2 on Linux into an instrument for any synth, DAW o
 Pushtoo is for *playing*. If you want deep control of a DAW from the Push (tracks, devices, clips, mixer), use [DrivenByMoss](https://mossgrabers.de) for Bitwig or Reaper instead; the two can't share the Push at the same time.
 
 {: .note }
-**Status:** beta (0.1.0b3). Testers welcome: see [Beta testing]({{ site.baseurl }}{% link beta-testing.md %}).
+**Status:** beta (0.1.0b4). Testers welcome: see [Beta testing]({{ site.baseurl }}{% link beta-testing.md %}).
 
 ---
 

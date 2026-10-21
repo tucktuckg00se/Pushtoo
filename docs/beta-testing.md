@@ -6,7 +6,7 @@ description: "A 20-minute test run of Pushtoo and how to report what you found."
 
 # Beta testing Pushtoo
 
-Thanks for trying Pushtoo 0.1.0b3. This takes about 20 minutes. You need an Ableton Push 2, a Linux machine (or a Raspberry Pi 4), and something that makes sound from MIDI: a DAW, a soft synth, or a hardware synth over USB-MIDI.
+Thanks for trying Pushtoo 0.1.0b4. This takes about 20 minutes. You need an Ableton Push 2, a Linux machine (or a Raspberry Pi 4), and something that makes sound from MIDI: a DAW, a soft synth, or a hardware synth over USB-MIDI.
 
 ## 1. Install (5 minutes)
 

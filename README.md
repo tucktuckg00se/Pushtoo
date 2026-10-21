@@ -11,7 +11,7 @@ Pushtoo is for *playing*. If you want deep control of a DAW from the Push (track
 
 ## Status
 
-Beta (0.1.0b3). Testers welcome: see [Beta testing](https://tucktuckg00se.github.io/Pushtoo/beta-testing/).
+Beta (0.1.0b4). Testers welcome: see [Beta testing](https://tucktuckg00se.github.io/Pushtoo/beta-testing/).
 
 - **Works:** Keyboard, Drums and the chord grid; note repeat, the arpeggiator and MIDI clock; Knobs and Mix; Life and standby; YAML profiles with a browser editor; themes.
 - **Next:** loops (a step sequencer and a MIDI looper).
